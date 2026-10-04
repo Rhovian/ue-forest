@@ -1,0 +1,16 @@
+# Unreal generated
+Binaries/
+Build/
+DerivedDataCache/
+Intermediate/
+Saved/
+Plugins/*/Binaries/
+Plugins/*/Intermediate/
+
+# Xcode / macOS
+*.xcworkspace
+*.xcodeproj
+.DS_Store
+
+# Niles workspace state
+.niles/
