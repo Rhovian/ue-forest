@@ -23,7 +23,7 @@ Environment: macOS 27.0.1, Xcode 26.1.1 (17B100), UE 5.8.3 (CL 58210709), Niles 
 | 13 | Codex worker adds `ASmokeActor` | Pass: worktree branch `smoke-actor`, commit `fd89401`, no build. The first `--worktree` spawn needed the operator to accept Codex's folder-trust prompt (it applies to the repo root, so once). |
 | 14 | Merge, close, build, reopen | **Pass:** `Build.sh MyProjectEditor Mac Development … -NoHotReload` succeeded in 9.5 s |
 | 15 | Place `ASmokeActor` via MCP, commit | **Pass:** `SmokeActor_0` in `L_Smoke`, commit `2b744dd`; survives an editor restart. The C++ landed in the preceding fast-forward merge, not the same commit. |
-| 16 | `CompileLiveCoding` | Fail (soft): "Live Coding is not available in this build configuration." C++ changes on Mac go through close → `Build.sh` → reopen. |
+| 16 | `CompileLiveCoding` | Fail (soft): "Live Coding is not available in this build configuration." Live Coding is Windows-only in the engine. **Hot reload works instead:** `Build.sh` without `-NoHotReload` while the editor is open built `libUnrealEditor-MyProject-0001.dylib`, and the editor logged "Starting Hot-Reload from IDE" (0.4 s); MCP and the level stayed intact. Tested on a `.cpp` body change only. Header and class-layout changes still go through close → `Build.sh -NoHotReload` → reopen. |
 | 17 | Push | Dropped (no push at all) |
 | 18 | Fresh clone from backup | Dropped (out of scope) |
 
