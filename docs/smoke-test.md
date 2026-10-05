@@ -12,7 +12,7 @@ Environment: macOS 27.0.1, Xcode 26.1.1 (17B100), UE 5.8.3 (CL 58210709), Niles 
 | 2 | Record UE patch | Pass: 5.8.3, CL 58210709 |
 | 3 | C++ project | Pass (amended): `MyProject` in `MyProject/` |
 | 4 | Plugins + provider None | Pass: persisted in `MyProject.uproject` (MCP + each All Toolsets member except `MCPClientToolset`, plus `LiveCodingToolset`; `AllToolsets` and `MCPClientToolset` disabled because the former hard-depends on the latter) and `Config/DefaultSourceControlSettings.ini`. Log mounts neither disabled plugin. |
-| 5 | LFS backup | Dropped (out of scope) |
+| 5 | LFS backup | Pass (done after the run): bare repo `~/lfs-backup/ue-forest-lfs.git` on the internal disk, local `lfs.url` + `lfs.pushurl`; `git lfs env` shows the `file://` endpoint. Same-volume hardlinks, so not a real backup until it moves to an external disk. |
 | 6 | Lead + `.mcp.json` | Pass |
 | 7 | Launch with MCP flags | **Pass:** `LogHttpListener` bound `127.0.0.1:8000` |
 | 8 | Discovery | **Pass:** `list_toolsets` / `describe_toolset` work. Tools are called with `toolset_name` + bare `tool_name`; a prefixed name returns "not found". |
@@ -24,8 +24,8 @@ Environment: macOS 27.0.1, Xcode 26.1.1 (17B100), UE 5.8.3 (CL 58210709), Niles 
 | 14 | Merge, close, build, reopen | **Pass:** `Build.sh MyProjectEditor Mac Development … -NoHotReload` succeeded in 9.5 s |
 | 15 | Place `ASmokeActor` via MCP, commit | **Pass:** `SmokeActor_0` in `L_Smoke`, commit `2b744dd`; survives an editor restart. The C++ landed in the preceding fast-forward merge, not the same commit. |
 | 16 | `CompileLiveCoding` | Fail (soft): "Live Coding is not available in this build configuration." Live Coding is Windows-only in the engine. **Hot reload works instead:** `Build.sh` without `-NoHotReload` while the editor is open built `libUnrealEditor-MyProject-0001.dylib`, and the editor logged "Starting Hot-Reload from IDE" (0.4 s); MCP and the level stayed intact. Tested on a `.cpp` body change only. Header and class-layout changes still go through close → `Build.sh -NoHotReload` → reopen. |
-| 17 | Push | Dropped (no push at all) |
-| 18 | Fresh clone from backup | Dropped (out of scope) |
+| 17 | Push | Partial: no code pushed. `GIT_TRACE=1 git lfs push origin --all` uploaded 2 objects to the backup with no GitHub LFS request. |
+| 18 | Fresh clone from backup | Pass: a clone of the local repo, pointed at the backup, `git lfs pull` restored `L_Smoke.umap` byte-identically. |
 
 ## Capability notes from the export
 
