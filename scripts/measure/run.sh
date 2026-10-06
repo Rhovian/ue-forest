@@ -10,8 +10,11 @@ out="$here/../../MyProject/Saved/Measure/$(date +%Y%m%dT%H%M%S)-$tree-$count"
 mkdir -p "$out"
 out=$(cd "$out" && pwd)
 
+# An aborted run leaves a dirty template map; kill rather than face the save prompt.
+trap 'pkill -9 -f "UnrealEditor.*MyProject.uproject"' INT TERM
 "$here/../editor.sh" open -ExecCmds="py $here/baseline.py" \
   -MeasureTree="$tree" -MeasureCount="$count" -MeasureOut="$out" \
   -trace=cpu,frame,gpu,bookmark,loadtime,file -tracefile="$out/trace.utrace"
 while pgrep -f "UnrealEditor.*MyProject.uproject" >/dev/null; do sleep 2; done
+cp "$HOME/Library/Logs/Unreal Engine/MyProjectEditor/MyProject.log" "$out/editor.log"  # rhi.DumpMemory output
 python3 "$here/summarize.py" "$out"

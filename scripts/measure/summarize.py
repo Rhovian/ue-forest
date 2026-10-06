@@ -5,12 +5,24 @@ import statistics
 import sys
 from pathlib import Path
 
-COLUMNS = ["FrameTime", "GameThreadTime", "RenderThreadTime", "GPUTime", "RHI/DrawCalls", "RHI/PrimitivesDrawn"]
+# RenderThreadTime and RHI/DrawCalls read 0 on Metal; render thread time is summed from its exclusive timers instead.
+COLUMNS = ["FrameTime", "GameThreadTime", "RenderThread", "GPUTime", "GPUSceneInstanceCount",
+           "TextureStreaming/StreamingPool", "RenderTargetPoolSize"]
+
+
+def numeric(value):
+    try:
+        float(value or 0)
+        return True
+    except (TypeError, ValueError):
+        return False
 
 
 def column(rows, name):
-    values = [float(row[name]) for row in rows if row.get(name) not in (None, "")]
-    return values
+    if name == "RenderThread":
+        keys = [k for k in rows[0] if k.startswith("Exclusive/RenderThread/") and "/EventWait" not in k]
+        return [sum(float(row[k] or 0) for k in keys) for row in rows]
+    return [float(row[name]) for row in rows if row.get(name) not in (None, "")]
 
 
 def main(run):
@@ -20,8 +32,8 @@ def main(run):
     print("|---" * (len(COLUMNS) + 1) + "|")
     for point in manifest["points"]:
         with open(run / f"{point}.csv", newline="") as f:
-            # The CSV profiler appends metadata rows after the frames; they fail float() and are skipped.
-            rows = [row for row in csv.DictReader(f) if (row.get("FrameTime") or "").replace(".", "", 1).isdigit()]
+            # The CSV profiler appends metadata rows after the frames; keep only rows whose cells are all numeric.
+            rows = [row for row in csv.DictReader(f) if all(numeric(v) for v in row.values())]
         cells = []
         for name in COLUMNS:
             values = column(rows, name)

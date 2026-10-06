@@ -61,7 +61,7 @@ class Run:
 
     def plan(self):
         steps = [self.build_scene, self.start_pie]
-        side = math.ceil(math.sqrt(self.count))
+        side = max(1, math.ceil(math.sqrt(self.count)))
         self.points = route((side - 1) * SPACING / 2)
         for point in self.points:
             steps += [lambda p=point: self.view(p), lambda p=point: self.capture(p), lambda p=point: self.collect(p)]
@@ -82,7 +82,7 @@ class Run:
     def build_scene(self):
         unreal.EditorLoadingAndSavingUtils.load_map(MAP)
         mesh = unreal.load_asset(TREE_PATH.format(self.tree))
-        side = math.ceil(math.sqrt(self.count))
+        side = max(1, math.ceil(math.sqrt(self.count)))
         offset = (side - 1) * SPACING / 2
         actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
         for i in range(self.count):
@@ -95,6 +95,8 @@ class Run:
         return 30
 
     def start_pie(self):
+        # The level viewport behind the PIE window would otherwise keep rendering into the measurement.
+        unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).editor_set_viewport_realtime(False)
         unreal.MeasureLibrary.start_pie_in_new_window(*RES)
         return 120
 
@@ -130,8 +132,12 @@ class Run:
         }
         with open(os.path.join(self.out, "manifest.json"), "w") as f:
             json.dump(manifest, f, indent=2)
-        unreal.unregister_slate_post_tick_callback(self.handle)
         unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).editor_request_end_play()
+        self.steps = [self.quit]
+        return 120  # quitting while the PIE window is torn down asserts in FSceneViewport
+
+    def quit(self):
+        unreal.unregister_slate_post_tick_callback(self.handle)
         unreal.SystemLibrary.quit_editor()
 
 
