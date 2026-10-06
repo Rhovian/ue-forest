@@ -11,8 +11,8 @@ UE 5.8 C++ project on one Mac, coordinated by Niles. Decisions behind these rule
 ## Code changes
 
 - Workers change C++ and other text in their own `--worktree` checkout and do not build the editor target.
-- The lead merges, closes the editor, builds with `Build.sh <Project>Editor Mac Development -Project=<uproject> -Architecture=arm64 -NoHotReload`, and reopens it with `-ModelContextProtocolStartServer -ModelContextProtocolPort=8000`. Wait for port 8000 to free before reopening.
-- Live Coding is Windows-only. When a merge changes only `.cpp` function bodies, the lead may instead hot reload: run the same `Build.sh` without `-NoHotReload` while the editor is open. Any header, `UCLASS`/`UPROPERTY`/`UFUNCTION`, or constructor-default change takes the full close/build/reopen path, and assets are never saved after a hot reload of such a change.
+- The lead merges, then runs `scripts/editor.sh restart` (close, `Build.sh … -NoHotReload`, reopen with MCP on 8000). `scripts/editor.sh` also has `open`, `close`, `build` and `hot`.
+- Live Coding is Windows-only. When a merge changes only `.cpp` function bodies, the lead may instead hot reload with `scripts/editor.sh hot` while the editor is open. Any header, `UCLASS`/`UPROPERTY`/`UFUNCTION`, or constructor-default change takes the full `restart`, and assets are never saved after a hot reload of such a change.
 
 ## Assets and version control
 
