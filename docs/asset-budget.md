@@ -24,7 +24,7 @@ The rules every asset must meet before a Forest Biome may place it. Decided in [
 ## What makes the cut
 
 - **Species:** European Beech (Megaplants). Ground, rock and debris fill-ins inherit the rules above and get their own caps when chosen.
-- **Tree Variants:** A, B, C, D from `PVE_European_Beech_01`. C (388 bones) and D (198) pass as shipped. A (1,113) and B (1,052) are re-exported with PVE Bone Reduction at Strength 1.0 (the only setting under 400): A 386, B 347; A's game-thread time at 100 trees drops 25–40%, to near D. A variant whose sway looks wrong after reduction is dropped.
+- **Tree Variants:** A, B, C, D from `PVE_European_Beech_01`. C (388 bones) and D (198) pass as shipped. A (1,113) and B (1,052) are re-exported with PVE Bone Reduction at Strength 1.0 (the only setting under 400): A 386, B 347; A's game-thread time at 100 trees drops 25–40%, to near D. Both passed the sway check (2026-10-07); a variant whose sway looks wrong after reduction is dropped.
 - **Quality tiers:** none yet; defined with the low-end target.
 - **Variation:** the four variants, plus random yaw and uniform scale 0.8–1.2 in PCG. More PVE variants (via the Scale node) only if the forest looks repetitive.
 
