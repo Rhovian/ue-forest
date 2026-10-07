@@ -19,12 +19,12 @@ The rules every asset must meet before a Forest Biome may place it. Decided in [
 | Collision | Simple trunk collision only; no branch or leaf collision. Skinned trees: PVE physics asset, Trunk Only. Static trees: a simple capsule. |
 | Plugin content | Master material and Wind Driver are used from PVE plugin sample content. Recheck them after each engine upgrade; copy them into the project only if an upgrade breaks them (Advanced Copy refuses engine-plugin content, so a copy needs a reference-remapping tool). |
 | Wind | Every tree sways. Skinned spawns carry the `DynamicWindData` transform provider (PCG property override: the spawners drop it from the template). Each level has one Wind Driver. |
-| Distant foliage | Nanite shape preservation: Voxelize, pending a visual comparison with PreserveArea and None. |
+| Distant foliage | Nanite shape preservation: Voxelize. PreserveArea and None cost the same GPU time ([#17](https://github.com/Rhovian/ue-forest/issues/17)); switch the mesh's setting if distant trees look wrong in the forest. |
 
 ## What makes the cut
 
 - **Species:** European Beech (Megaplants). Ground, rock and debris fill-ins inherit the rules above and get their own caps when chosen.
-- **Tree Variants:** A, B, C, D from `PVE_European_Beech_01`. C (388 bones) and D (198) pass as shipped. A (1,113) and B (1,052) are re-exported under 400 bones; a variant whose sway looks wrong after reduction is dropped.
+- **Tree Variants:** A, B, C, D from `PVE_European_Beech_01`. C (388 bones) and D (198) pass as shipped. A (1,113) and B (1,052) are re-exported with PVE Bone Reduction at Strength 1.0 (the only setting under 400): A 386, B 347; A's game-thread time at 100 trees drops 25–40%, to near D. A variant whose sway looks wrong after reduction is dropped.
 - **Quality tiers:** none yet; defined with the low-end target.
 - **Variation:** the four variants, plus random yaw and uniform scale 0.8–1.2 in PCG. More PVE variants (via the Scale node) only if the forest looks repetitive.
 
