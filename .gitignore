@@ -14,3 +14,6 @@ Plugins/*/Intermediate/
 
 # Niles workspace state
 .niles/
+
+# Lead scratch levels and test exports (not part of the Forest Biome)
+MyProject/Content/Scratch/
