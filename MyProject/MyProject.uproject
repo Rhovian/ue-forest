@@ -127,6 +127,10 @@
 			"Enabled": true
 		},
 		{
+			"Name": "Water",
+			"Enabled": true
+		},
+		{
 			"Name": "AllToolsets",
 			"Enabled": false
 		},
