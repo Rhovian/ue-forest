@@ -17,7 +17,7 @@ The rules every asset must meet before a Forest Biome may place it. Decided in [
 | Textures | At most 4096. Virtual texturing above 2048. Displacement maps up to 4096×8192 when shared across a species. |
 | Bones | Skinned trees have at most 400 bones; reduce with PVE Bone Reduction at export. |
 | Collision | Simple trunk collision only; no branch or leaf collision. Skinned trees: PVE physics asset, Trunk Only. Static trees: a simple capsule. |
-| Plugin content | Master material and Wind Driver are project copies, not references into Experimental plugin sample content. |
+| Plugin content | Master material and Wind Driver are used from PVE plugin sample content. Recheck them after each engine upgrade; copy them into the project only if an upgrade breaks them (Advanced Copy refuses engine-plugin content, so a copy needs a reference-remapping tool). |
 | Wind | Every tree sways. Skinned spawns carry the `DynamicWindData` transform provider (PCG property override: the spawners drop it from the template). Each level has one Wind Driver. |
 | Distant foliage | Nanite shape preservation: Voxelize, pending a visual comparison with PreserveArea and None. |
 
