@@ -16,6 +16,7 @@ UE 5.8 C++ project on one Mac, coordinated by Niles. Decisions behind these rule
 
 ## Assets and version control
 
+- Enable the staged-content policy checks per clone with `git config core.hooksPath .githooks` (Python lint requires `ruff`: `brew install ruff`).
 - `.uasset` / `.umap` are LFS binaries and cannot be merged. No LFS locks: the lead and the human take turns, never editing assets at the same time.
 - The editor's source control provider stays off; use CLI Git. After moves, renames or redirector fixup, stage `Content` changes together (`git add -A -- Content`).
 - LFS objects go to a local `file://` backup via `lfs.url` / `lfs.pushurl`, never to GitHub LFS.
