@@ -4,7 +4,7 @@ The rules every asset must meet before a Forest Biome may place it. Decided in [
 
 ## Scope
 
-- Read-only automated audit: the lead runs `scripts/editor-py scripts/asset-budget.py` for Nanite, texture, bone and material caps under `/Game` except `/Game/Scratch`.
+- Read-only automated audit: the lead runs `scripts/editor-py scripts/asset-budget.py` for Nanite, texture, bone and material caps under `/Game` except `/Game/Scratch`. Script policy classifies leaf/twig materials by `Foliage`/`Leaf`/`Twig` in the name and the displacement exception by `Displacement` in the name (all case-insensitive); it does not check "shared across a species".
 - **Caps, not frame-time gates.** These rules cap what is expensive to change later. Frame time is measured for every asset with `scripts/measure/run.sh` and recorded, but gates nothing until the optimization phase.
 - **Measuring machine:** the target Mac (M2 Max), PIE in a 1920×1080 window, software Lumen, Epic scalability. The low-end PC target is decided when optimization starts.
 - **Reference density:** about 150 trees per hectare.

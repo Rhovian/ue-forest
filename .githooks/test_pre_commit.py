@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import tempfile
@@ -59,8 +60,37 @@ class PreCommitTests(unittest.TestCase):
         self.check(PROJECT, 1)
 
     def test_enabled_mcp(self):
-        self.stage(PROJECT, b'{"Plugins": [{"Name": "MCPClientToolset", "Enabled": true}]}')
+        self.stage(PROJECT, b'{"Plugins": [{"Name": "AllToolsets", "Enabled": false},'
+                   b'{"Name": "MCPClientToolset", "Enabled": true}]}')
         self.check(PROJECT, 1)
+
+    def test_pointer_prefix_garbage(self):
+        path = "MyProject/Content/SM_Tree.uasset"
+        self.stage(path, b"version https://git-lfs.github.com/spec/v1garbage")
+        self.check(path, 1)
+
+    def test_pointer_with_raw_payload(self):
+        path = "MyProject/Content/SM_Tree.uasset"
+        self.stage(path, b"version https://git-lfs.github.com/spec/v1\n" + b"x" * (1024 * 1024))
+        self.check(path, 1)
+
+    def test_numeric_plugin_enabled(self):
+        self.stage(PROJECT, b'{"Plugins": [{"Name": "AllToolsets", "Enabled": 1},'
+                   b'{"Name": "MCPClientToolset", "Enabled": false}]}')
+        self.check(PROJECT, 1)
+
+    def test_missing_plugin_entry(self):
+        for plugins in ([], [{"Name": "AllToolsets", "Enabled": False}],
+                        [{"Name": "MCPClientToolset", "Enabled": False}],
+                        [{"Name": "AllToolsets"}, {"Name": "MCPClientToolset", "Enabled": False}]):
+            with self.subTest(plugins=plugins):
+                self.stage(PROJECT, json.dumps({"Plugins": plugins}).encode())
+                self.check(PROJECT, 1)
+
+    def test_plugins_explicitly_disabled(self):
+        self.stage(PROJECT, b'{"Plugins": [{"Name": "AllToolsets", "Enabled": false},'
+                   b'{"Name": "MCPClientToolset", "Enabled": false}]}')
+        self.check(PROJECT, 0)
 
     def test_bad_name(self):
         path = "MyProject/Content/Tree.uasset"

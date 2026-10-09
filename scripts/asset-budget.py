@@ -40,7 +40,7 @@ def violations(asset, name):
     if isinstance(asset, unreal.Texture2D):
         width, height = asset.blueprint_get_size_x(), asset.blueprint_get_size_y()
         short, long = sorted((width, height))
-        displacement = "Displacement" in name
+        displacement = "displacement" in name.lower()
         if long > 4096 and not (displacement and short <= 4096 and long <= 8192):
             yield "texture dimensions <= 4096 (Displacement <= 4096x8192)", f"{width}x{height}"
         streaming = asset.get_editor_property("virtual_texture_streaming")

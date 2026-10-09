@@ -2,12 +2,16 @@
 """Check repository policies against index blobs, including partially staged files."""
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 from pathlib import PurePosixPath
 
-POINTER = b"version https://git-lfs.github.com/spec/v1"
+POINTER = re.compile(
+    rb"version https://git-lfs.github.com/spec/v1\n(?:ext-[^\r\n]+\n)*"
+    rb"oid sha256:[0-9a-fA-F]{64}\nsize [0-9]+\n"
+)
 PREFIXES = ("SM_", "SK_", "M_", "MI_", "MF_", "T_", "BP_", "PCG_", "L_", "NS_", "DA_")
 EXEMPT = {"Megaplant_Library", "Python", "Scratch"}
 
@@ -17,7 +21,6 @@ def git(*args):
 
 
 def main():
-    os.chdir(os.fsdecode(git("rev-parse", "--show-toplevel").rstrip(b"\n")))
     changes = git("diff", "--cached", "--raw", "-z", "--no-abbrev", "--diff-filter=ACMRT",
                   "--find-renames", "--find-copies", "--find-copies-harder").split(b"\0")
     failures = []
@@ -33,16 +36,20 @@ def main():
             index += 1
         if fields[1] == b"160000":  # submodule commits have no file blob
             continue
-        blob = git("cat-file", "blob", oid.decode("ascii"))
+        oid = oid.decode("ascii")
+        size = int(git("cat-file", "-s", oid))
         asset = path.endswith((".uasset", ".umap"))
-        if (asset or len(blob) > 1024 * 1024) and not blob.startswith(POINTER):
-            failures.append(f"{path}: must be an LFS pointer (asset or blob > 1 MiB)")
-        if path == "MyProject/MyProject.uproject":
+        requires_pointer = asset or size > 1024 * 1024
+        blob = None if requires_pointer and size > 1024 else git("cat-file", "blob", oid)
+        if requires_pointer and (blob is None or POINTER.fullmatch(blob) is None):
+            failures.append(f"{path}: must be a complete LFS pointer <= 1024 bytes (asset or blob > 1 MiB)")
+        if path == "MyProject/MyProject.uproject" and blob is not None:
             try:
                 project = json.loads(blob)
-                for plugin in project.get("Plugins", []):
-                    if plugin.get("Name") in {"AllToolsets", "MCPClientToolset"} and plugin.get("Enabled") is True:
-                        failures.append(f"{path}: plugin {plugin['Name']} must not be enabled")
+                for name in ("AllToolsets", "MCPClientToolset"):
+                    entries = [plugin for plugin in project.get("Plugins", []) if plugin.get("Name") == name]
+                    if not entries or any(plugin.get("Enabled") is not False for plugin in entries):
+                        failures.append(f"{path}: plugin {name} must be present with Enabled exactly false")
             except (ValueError, AttributeError, TypeError) as error:
                 failures.append(f"{path}: invalid uproject JSON: {error}")
         parts = PurePosixPath(path).parts
@@ -50,7 +57,7 @@ def main():
         if (asset and path.startswith("MyProject/Content/") and status in (b"A", b"R", b"C")
                 and not exempt and not parts[-1].startswith(PREFIXES)):
             failures.append(f"{path}: asset basename must start with {' '.join(PREFIXES)}")
-        if path.endswith(".py") or path == "scripts/editor-py":
+        if blob is not None and (path.endswith(".py") or path == "scripts/editor-py"):
             if ruff is None:
                 failures.append(f"{path}: install ruff: brew install ruff")
             else:
