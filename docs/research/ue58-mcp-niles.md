@@ -1,5 +1,7 @@
 # UE 5.8 native MCP + Niles + version control
 
+> Status: pre-setup research. Where it conflicts with [AGENTS.md](../../AGENTS.md) or the [smoke test](../smoke-test.md) (e.g. the lead, not a worker, owns the editor), those win.
+
 Research findings, 2026-10-04. Documentation-verified; nothing tested on a live Mac/UE 5.8 install. Repo-relative links point into the niles repo.
 
 UE 5.8 ships native MCP as an **Experimental engine plugin**, not merely a roadmap item: Epic announced the release on June 17, 2026 and explicitly described the integrated MCP plugin. [Epic release announcement](https://forums.unrealengine.com/t/unreal-engine-5-8-released/2729274), [Epic feature announcement](https://www.unrealengine.com/news/state-of-unreal-2026-top-news-from-the-show).

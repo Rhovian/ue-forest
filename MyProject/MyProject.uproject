@@ -103,10 +103,6 @@
 			"Enabled": true
 		},
 		{
-			"Name": "LiveCodingToolset",
-			"Enabled": true
-		},
-		{
 			"Name": "AllToolsets",
 			"Enabled": false
 		},

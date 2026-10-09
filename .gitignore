@@ -4,8 +4,6 @@ Build/
 DerivedDataCache/
 Intermediate/
 Saved/
-Plugins/*/Binaries/
-Plugins/*/Intermediate/
 
 # Xcode / macOS
 *.xcworkspace
