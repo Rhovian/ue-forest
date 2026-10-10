@@ -103,6 +103,10 @@
 			"Enabled": true
 		},
 		{
+			"Name": "AndroidFileServer",
+			"Enabled": false
+		},
+		{
 			"Name": "PythonScriptPlugin",
 			"Enabled": true
 		},
