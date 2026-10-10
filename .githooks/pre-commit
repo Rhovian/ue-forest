@@ -57,7 +57,7 @@ def main():
         if (asset and path.startswith("Forest/Content/") and status in (b"A", b"R", b"C")
                 and not exempt and not parts[-1].startswith(PREFIXES)):
             failures.append(f"{path}: asset basename must start with {' '.join(PREFIXES)}")
-        if blob is not None and (path.endswith(".py") or path == "scripts/editor-py"):
+        if blob is not None and (path.endswith(".py") or path in ("scripts/editor-py", "scripts/editor-mcp")):
             if ruff is None:
                 failures.append(f"{path}: install ruff: brew install ruff")
             else:

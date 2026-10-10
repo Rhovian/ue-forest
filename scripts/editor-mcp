@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+"""Call the open editor's MCP server (lead only; see AGENTS.md).
+
+    scripts/editor-mcp                          list toolsets
+    scripts/editor-mcp TOOLSET                  describe a toolset's tools
+    scripts/editor-mcp TOOLSET TOOL [JSON]      call a tool with JSON arguments
+
+Works whether or not this session's MCP client connected at startup. Prints the tool's text result.
+"""
+import json
+import sys
+import urllib.request
+
+URL = "http://127.0.0.1:8000/mcp"
+session = None
+
+
+def rpc(method, params=None):
+    global session
+    body = {"jsonrpc": "2.0", "method": method}
+    if params is not None:
+        body["params"] = params
+    if not method.startswith("notifications/"):
+        body["id"] = 1
+    headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+    if session:
+        headers["Mcp-Session-Id"] = session
+    with urllib.request.urlopen(urllib.request.Request(URL, json.dumps(body).encode(), headers)) as response:
+        session = session or response.headers.get("Mcp-Session-Id")
+        text = response.read().decode()
+    if "id" not in body:
+        return None
+    data = [line[5:] for line in text.splitlines() if line.startswith("data:")]
+    reply = json.loads(data[-1] if data else text)
+    if "error" in reply:
+        sys.exit(json.dumps(reply["error"]))
+    return reply["result"]
+
+
+args = sys.argv[1:]
+if len(args) > 3 or args[:1] in (["-h"], ["--help"]):
+    sys.exit(__doc__)
+try:
+    rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "editor-mcp", "version": "1"}})
+except OSError as error:
+    sys.exit(f"editor MCP not reachable at {URL} ({error}); run scripts/editor.sh open")
+rpc("notifications/initialized")
+if not args:
+    result = rpc("tools/call", {"name": "list_toolsets", "arguments": {}})
+elif len(args) == 1:
+    result = rpc("tools/call", {"name": "describe_toolset", "arguments": {"toolset_name": args[0]}})
+else:
+    arguments = json.loads(args[2]) if len(args) == 3 else {}
+    result = rpc("tools/call", {"name": "call_tool", "arguments": {"toolset_name": args[0], "tool_name": args[1], "arguments": arguments}})
+print("\n".join(item.get("text", json.dumps(item)) for item in result.get("content", [])))
+sys.exit(1 if result.get("isError") else 0)
