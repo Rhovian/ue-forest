@@ -1,12 +1,12 @@
 using UnrealBuildTool;
 
-public class MyProjectEditorTarget : TargetRules
+public class ForestEditorTarget : TargetRules
 {
-	public MyProjectEditorTarget(TargetInfo Target) : base(Target)
+	public ForestEditorTarget(TargetInfo Target) : base(Target)
 	{
 		Type = TargetType.Editor;
 		DefaultBuildSettings = BuildSettingsVersion.V7;
 		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_8;
-		ExtraModuleNames.Add("MyProject");
+		ExtraModuleNames.Add("Forest");
 	}
 }

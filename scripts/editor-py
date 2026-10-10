@@ -5,7 +5,7 @@
     scripts/editor-py - <<'PY'     run stdin
     scripts/editor-py -e EXPR      print one expression
 
-Drops the script into MyProject/Saved/EditorPy/in, where Content/Python/init_unreal.py runs it on the
+Drops the script into Forest/Saved/EditorPy/in, where Content/Python/init_unreal.py runs it on the
 editor's game thread, and prints what it wrote to out/.
 """
 import json
@@ -14,7 +14,7 @@ import sys
 import time
 import uuid
 
-ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "MyProject", "Saved", "EditorPy")
+ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Forest", "Saved", "EditorPy")
 TIMEOUT = float(os.environ.get("EDITOR_PY_TIMEOUT", "600"))
 
 if len(sys.argv) < 2:

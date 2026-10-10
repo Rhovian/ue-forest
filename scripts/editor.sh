@@ -8,7 +8,7 @@
 set -euo pipefail
 
 UE_ROOT=${UE_ROOT:-"/Users/Shared/Epic Games/UE_5.8"}
-UPROJECT="$(cd "$(dirname "$0")/.." && pwd)/MyProject/MyProject.uproject"
+UPROJECT="$(cd "$(dirname "$0")/.." && pwd)/Forest/Forest.uproject"
 PORT=8000
 
 running() { pgrep -f "UnrealEditor.*$UPROJECT" >/dev/null; }
@@ -23,7 +23,7 @@ wait_for() {
 }
 
 build() {
-  "$UE_ROOT/Engine/Build/BatchFiles/Mac/Build.sh" MyProjectEditor Mac Development \
+  "$UE_ROOT/Engine/Build/BatchFiles/Mac/Build.sh" ForestEditor Mac Development \
     -Project="$UPROJECT" -Architecture=arm64 "$@"
 }
 

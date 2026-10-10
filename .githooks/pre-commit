@@ -43,7 +43,7 @@ def main():
         blob = None if requires_pointer and size > 1024 else git("cat-file", "blob", oid)
         if requires_pointer and (blob is None or POINTER.fullmatch(blob) is None):
             failures.append(f"{path}: must be a complete LFS pointer <= 1024 bytes (asset or blob > 1 MiB)")
-        if path == "MyProject/MyProject.uproject" and blob is not None:
+        if path == "Forest/Forest.uproject" and blob is not None:
             try:
                 project = json.loads(blob)
                 for name in ("AllToolsets", "MCPClientToolset"):
@@ -54,7 +54,7 @@ def main():
                 failures.append(f"{path}: invalid uproject JSON: {error}")
         parts = PurePosixPath(path).parts
         exempt = any(part in EXEMPT or part.startswith("__External") for part in parts)
-        if (asset and path.startswith("MyProject/Content/") and status in (b"A", b"R", b"C")
+        if (asset and path.startswith("Forest/Content/") and status in (b"A", b"R", b"C")
                 and not exempt and not parts[-1].startswith(PREFIXES)):
             failures.append(f"{path}: asset basename must start with {' '.join(PREFIXES)}")
         if blob is not None and (path.endswith(".py") or path == "scripts/editor-py"):

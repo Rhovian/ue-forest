@@ -1,8 +1,8 @@
 using UnrealBuildTool;
 
-public class MyProject : ModuleRules
+public class Forest : ModuleRules
 {
-	public MyProject(ReadOnlyTargetRules Target) : base(Target)
+	public Forest(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine" });
 

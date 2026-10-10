@@ -7,7 +7,7 @@ from pathlib import Path
 
 HOOK = Path(__file__).with_name("pre-commit").resolve()
 POINTER = b"version https://git-lfs.github.com/spec/v1\noid sha256:" + b"0" * 64 + b"\nsize 10\n"
-PROJECT = "MyProject/MyProject.uproject"
+PROJECT = "Forest/Forest.uproject"
 
 
 class PreCommitTests(unittest.TestCase):
@@ -42,12 +42,12 @@ class PreCommitTests(unittest.TestCase):
             self.assertIn(path, result.stdout + result.stderr)
 
     def test_raw_asset(self):
-        path = "MyProject/Content/SM_Tree.uasset"
+        path = "Forest/Content/SM_Tree.uasset"
         self.stage(path, b"raw asset")
         self.check(path, 1)
 
     def test_pointer_asset(self):
-        path = "MyProject/Content/SM_Tree.uasset"
+        path = "Forest/Content/SM_Tree.uasset"
         self.stage(path, POINTER)
         self.check(path, 0)
 
@@ -65,12 +65,12 @@ class PreCommitTests(unittest.TestCase):
         self.check(PROJECT, 1)
 
     def test_pointer_prefix_garbage(self):
-        path = "MyProject/Content/SM_Tree.uasset"
+        path = "Forest/Content/SM_Tree.uasset"
         self.stage(path, b"version https://git-lfs.github.com/spec/v1garbage")
         self.check(path, 1)
 
     def test_pointer_with_raw_payload(self):
-        path = "MyProject/Content/SM_Tree.uasset"
+        path = "Forest/Content/SM_Tree.uasset"
         self.stage(path, b"version https://git-lfs.github.com/spec/v1\n" + b"x" * (1024 * 1024))
         self.check(path, 1)
 
@@ -93,24 +93,24 @@ class PreCommitTests(unittest.TestCase):
         self.check(PROJECT, 0)
 
     def test_bad_name(self):
-        path = "MyProject/Content/Tree.uasset"
+        path = "Forest/Content/Tree.uasset"
         self.stage(path, POINTER)
         self.check(path, 1)
 
     def test_library_name(self):
-        path = "MyProject/Content/Megaplant_Library/Tree.uasset"
+        path = "Forest/Content/Megaplant_Library/Tree.uasset"
         self.stage(path, POINTER)
         self.check(path, 0)
 
     def test_modified_name(self):
-        path = "MyProject/Content/Tree.uasset"
+        path = "Forest/Content/Tree.uasset"
         self.stage(path, POINTER)
         self.git("commit", "-qm", "existing asset")
         self.stage(path, POINTER.replace(b"size 10", b"size 11"))
         self.check(path, 0)
 
     def test_staged_blob_not_worktree(self):
-        path = "MyProject/Content/SM_Tree.uasset"
+        path = "Forest/Content/SM_Tree.uasset"
         self.stage(path, b"raw asset")
         (self.repo / path).write_bytes(POINTER)
         self.check(path, 1)
@@ -119,7 +119,7 @@ class PreCommitTests(unittest.TestCase):
         self.check(path, 0)
 
     def test_renamed_name(self):
-        old, new = "MyProject/Content/SM_Tree.uasset", "MyProject/Content/Tree.uasset"
+        old, new = "Forest/Content/SM_Tree.uasset", "Forest/Content/Tree.uasset"
         self.stage(old, POINTER)
         self.git("commit", "-qm", "existing asset")
         self.git("mv", old, new)
@@ -127,7 +127,7 @@ class PreCommitTests(unittest.TestCase):
 
     def test_all_failures(self):
         self.stage(PROJECT, b'{"Plugins": [{"Name": "AllToolsets", "Enabled": true}]}')
-        self.stage("MyProject/Content/Tree.umap", b"raw map")
+        self.stage("Forest/Content/Tree.umap", b"raw map")
         result = subprocess.run([str(HOOK)], check=False, cwd=self.repo, env=self.env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 1)
         for reason in (PROJECT, "AllToolsets", "Tree.umap", "LFS pointer", "basename"):

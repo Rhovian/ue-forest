@@ -17,4 +17,4 @@ __pycache__/
 .niles/
 
 # Lead scratch levels and test exports (not part of the Forest Biome)
-MyProject/Content/Scratch/
+Forest/Content/Scratch/
