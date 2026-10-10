@@ -2,7 +2,7 @@
 # /// script
 # dependencies = ["numpy", "tifffile", "pillow", "scipy"]
 # ///
-"""Crop Jasmund DGM1 pixel centres and surround them with a seabed falloff for UE."""
+"""Crop Vilm island from DGM1 pixel centres and slope the sea around it down to a seabed for UE."""
 
 import json
 import os
@@ -14,21 +14,24 @@ from urllib.request import urlopen
 import numpy as np
 import tifffile
 from PIL import Image
-from scipy.ndimage import distance_transform_edt
+from scipy.ndimage import distance_transform_edt, label
 
 SEABED = -15.0
-CORE_E = 413300
-CORE_BBOX = [CORE_E, 6047000, CORE_E + 1000, 6048000]
+SIZE = 3025  # 1 m DGM1 samples per side of the window
+SPACING = 2  # metres between landscape vertices: 1513x1513, the size that imports reliably (12x12 components)
+WEST, NORTH = 402975, 6021769  # window corner; Vilm spans E403606-405468, N6019015-6021499
+BBOX = [WEST, NORTH - SIZE, WEST + SIZE, NORTH]
 OUT = Path(__file__).resolve().parents[2] / "Forest/Saved/Terrain"
-TILES = [f"dgm1_33_{east}_6046_2_gtiff.tif" for east in (412, 414)]
+# 2x2 km tiles, top-left corner (east, north + 2000); rows north to south.
+TILE_ROWS = [[f"dgm1_33_{east}_{north}_2_gtiff.tif" for east in (402, 404)] for north in (6020, 6018)]
 DGM_URL = "https://www.geodaten-mv.de/dienste/dgm_download?" + urlencode(
     {"index": 4, "dataset": "ca268792-s2q1-4a39-b34c-9ec5bf9a4469"}
 )
 # Official RGB service: LAiV's Kurzbeschreibung_WMS_DOP.pdf; layer from GetCapabilities.
 DOP_URL = "https://www.geodaten-mv.de/dienste/adv_dop?" + urlencode({
     "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap", "LAYERS": "mv_dop",
-    "STYLES": "", "CRS": "EPSG:25833", "BBOX": ",".join(map(str, CORE_BBOX)),
-    "WIDTH": 1000, "HEIGHT": 1000, "FORMAT": "image/jpeg",
+    "STYLES": "", "CRS": "EPSG:25833", "BBOX": ",".join(map(str, BBOX)),
+    "WIDTH": 1500, "HEIGHT": 1500, "FORMAT": "image/jpeg",
 })
 
 
@@ -83,37 +86,35 @@ def z_mapping(minimum, maximum):
 
 
 def main():
-    tiles, masks = [], []
-    for name in TILES:
-        path = OUT / "src" / name
-        download(DGM_URL + "&file=" + name, path)
-        heights, invalid = read_tile(path)
-        tiles.append(heights)
-        masks.append(invalid)
-    west_col, east_cols = CORE_E - 412000, CORE_E + 1000 - 414000
-    core = np.concatenate((tiles[0][:1000, west_col:], tiles[1][:1000, :east_cols]), axis=1)
-    invalid = np.concatenate((masks[0][:1000, west_col:], masks[1][:1000, :east_cols]), axis=1)
-    core_land = ~invalid & (core > 0)
-    heights, land = np.zeros((1513, 1513)), np.zeros((1513, 1513), dtype=bool)
-    heights[256:1256, 256:1256], land[256:1256, 256:1256] = core, core_land
-    grid = falloff(heights, land)
+    rows = []
+    for row in TILE_ROWS:
+        for name in row:
+            download(DGM_URL + "&file=" + name, OUT / "src" / name)
+        rows.append([read_tile(OUT / "src" / name) for name in row])
+    mosaic = np.block([[heights for heights, _ in row] for row in rows])
+    invalid = np.block([[mask for _, mask in row] for row in rows])
+    window = np.s_[6022000 - NORTH:6022000 - NORTH + SIZE, WEST - 402000:WEST - 402000 + SIZE]
+    heights, invalid = mosaic[window], invalid[window]
+    # The island is the largest piece of land; islets and mainland edges become sea.
+    parts, _ = label(~invalid & (heights > 0))
+    land = parts == np.argmax(np.bincount(parts.ravel())[1:]) + 1
+    grid = falloff(heights, land)[::SPACING, ::SPACING]
     minimum, maximum = float(grid.min()), float(grid.max())
     zscale, actor_z = z_mapping(minimum, maximum)
     encoded = np.rint((grid - minimum) * 65535 / (maximum - minimum)).astype(np.uint16)
-    Image.fromarray(encoded).save(OUT / "jasmund_1513.png")
+    Image.fromarray(encoded).save(OUT / "vilm_1513.png")
     metadata = {"min_m": minimum, "max_m": maximum, "ZScale": zscale, "actor_Z_cm": actor_z,
-                "XYScale": 100, "land_fraction": float(core_land.mean()), "source_tiles": TILES,
-                "crs": "EPSG:25833", "core_bbox": CORE_BBOX,
-                "core_offset": [256, 256], "dop_url": DOP_URL}
-    (OUT / "jasmund_1513.json").write_text(json.dumps(metadata, indent=2) + "\n")
+                "XYScale": 100 * SPACING, "island_km2": float(land.sum()) / 1e6, "source_tiles": TILE_ROWS,
+                "crs": "EPSG:25833", "bbox": BBOX, "dop_url": DOP_URL}
+    (OUT / "vilm_1513.json").write_text(json.dumps(metadata, indent=2) + "\n")
     print(json.dumps(metadata, indent=2), flush=True)
-    preview = OUT / "core_dop.jpg"
+    preview = OUT / "vilm_dop.jpg"
     download(DOP_URL, preview, cache=False)
     with Image.open(preview) as image:
         image.load()
-        if image.size != (1000, 1000) or image.mode != "RGB" or image.format != "JPEG":
+        if image.size != (1500, 1500) or image.mode != "RGB" or image.format != "JPEG":
             raise ValueError(f"Unexpected DOP image: {image.size}, {image.mode}, {image.format}")
-    print(f"Heightmap: {OUT / 'jasmund_1513.png'}\nAerial preview: {preview}")
+    print(f"Heightmap: {OUT / 'vilm_1513.png'}\nAerial preview: {preview}")
 
 
 if __name__ == "__main__":
