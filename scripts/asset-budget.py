@@ -63,7 +63,10 @@ def main():
     count = 0
     for data in sorted(assets, key=lambda data: (str(data.package_name), str(data.asset_name))):
         package, name = str(data.package_name), str(data.asset_name)
-        if package == "/Game/Scratch" or package.startswith("/Game/Scratch/"):
+        # Megaplants part meshes: tree assemblies override their Nanite settings at build
+        # (UE 5.8 Nanite::InheritAssemblySettings), and nothing places them directly.
+        megaplant_part = package.startswith("/Game/Megaplant_Library/") and "/Instances/" in package
+        if package == "/Game/Scratch" or package.startswith("/Game/Scratch/") or megaplant_part:
             continue
         path = f"{package}.{name}"
         try:
