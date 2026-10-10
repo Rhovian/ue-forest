@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from scripts.terrain.heightmap import SEABED, add_ring, z_mapping
+from scripts.terrain.heightmap import SEABED, falloff, z_mapping
 
 
 class HeightmapTests(unittest.TestCase):
@@ -14,15 +14,16 @@ class HeightmapTests(unittest.TestCase):
                 decoded = (sample - 32768) * scale / 12800 + actor_z / 100
                 self.assertAlmostEqual(decoded, expected, delta=step)
 
-    def test_ring(self):
-        core = np.array([[-10.0, 5.0], [20.0, 30.0]])
-        grid = add_ring(core)
-        np.testing.assert_allclose(grid[256:258, 256:258], core)
-        # At d=1 the specified smoothstep changes this edge by only 0.000228 m.
-        self.assertAlmostEqual(grid[255, 256], core[0, 0], delta=0.001)
+    def test_falloff(self):
+        heights = np.zeros((520, 520))
+        heights[256:258, 256:258] = [[1.0, 2.0], [3.0, 4.0]]
+        land = heights > 0
+        grid = falloff(heights, land)
+        np.testing.assert_array_equal(grid[land], heights[land])
+        self.assertAlmostEqual(grid[255, 256], heights[256, 256], delta=0.001)
         y, x = np.indices(grid.shape)
         distance = np.hypot(y - np.clip(y, 256, 257), x - np.clip(x, 256, 257))
-        self.assertTrue(np.all(grid[distance >= 256] == SEABED))
+        self.assertTrue(np.all(grid[~land & (distance >= 256)] == SEABED))
 
 
 if __name__ == "__main__":
