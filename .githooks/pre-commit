@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+"""Check repository policies against index blobs, including partially staged files."""
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import PurePosixPath
+
+POINTER = re.compile(
+    rb"version https://git-lfs.github.com/spec/v1\n(?:ext-[^\r\n]+\n)*"
+    rb"oid sha256:[0-9a-fA-F]{64}\nsize [0-9]+\n"
+)
+PREFIXES = ("SM_", "SK_", "M_", "MI_", "MF_", "T_", "BP_", "PCG_", "L_", "NS_", "DA_")
+EXEMPT = {"Megaplant_Library", "Python", "Scratch"}
+
+
+def git(*args):
+    return subprocess.check_output(["git", *args])
+
+
+def main():
+    changes = git("diff", "--cached", "--raw", "-z", "--no-abbrev", "--diff-filter=ACMRT",
+                  "--find-renames", "--find-copies", "--find-copies-harder").split(b"\0")
+    failures = []
+    ruff = shutil.which("ruff")
+    index = 0
+    while index < len(changes) - 1:
+        fields = changes[index].split()
+        oid, status = fields[3], fields[4][:1]
+        path = os.fsdecode(changes[index + 1])
+        index += 2
+        if status in (b"R", b"C"):
+            path = os.fsdecode(changes[index])
+            index += 1
+        if fields[1] == b"160000":  # submodule commits have no file blob
+            continue
+        oid = oid.decode("ascii")
+        size = int(git("cat-file", "-s", oid))
+        asset = path.endswith((".uasset", ".umap"))
+        requires_pointer = asset or size > 1024 * 1024
+        blob = None if requires_pointer and size > 1024 else git("cat-file", "blob", oid)
+        if requires_pointer and (blob is None or POINTER.fullmatch(blob) is None):
+            failures.append(f"{path}: must be a complete LFS pointer <= 1024 bytes (asset or blob > 1 MiB)")
+        if path == "MyProject/MyProject.uproject" and blob is not None:
+            try:
+                project = json.loads(blob)
+                for name in ("AllToolsets", "MCPClientToolset"):
+                    entries = [plugin for plugin in project.get("Plugins", []) if plugin.get("Name") == name]
+                    if not entries or any(plugin.get("Enabled") is not False for plugin in entries):
+                        failures.append(f"{path}: plugin {name} must be present with Enabled exactly false")
+            except (ValueError, AttributeError, TypeError) as error:
+                failures.append(f"{path}: invalid uproject JSON: {error}")
+        parts = PurePosixPath(path).parts
+        exempt = any(part in EXEMPT or part.startswith("__External") for part in parts)
+        if (asset and path.startswith("MyProject/Content/") and status in (b"A", b"R", b"C")
+                and not exempt and not parts[-1].startswith(PREFIXES)):
+            failures.append(f"{path}: asset basename must start with {' '.join(PREFIXES)}")
+        if blob is not None and (path.endswith(".py") or path == "scripts/editor-py"):
+            if ruff is None:
+                failures.append(f"{path}: install ruff: brew install ruff")
+            else:
+                # Unstaged Ruff config must not change the staged-content gate.
+                result = subprocess.run([ruff, "check", "--isolated", "--config", "line-length=120",
+                                         "--stdin-filename", path, "-"], check=False, input=blob,
+                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                if result.returncode:
+                    failures.append(f"{path}: ruff check failed\n{result.stdout.decode(errors='replace').rstrip()}")
+    if failures:
+        print("\n".join(failures), file=sys.stderr)
+    return bool(failures)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

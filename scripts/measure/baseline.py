@@ -75,7 +75,7 @@ class Run:
             return
         try:
             self.wait = self.steps.pop(0)() or 0
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001 -- tear down PIE after any measurement failure
             unreal.log_error(f"measure: {error!r}")
             self.steps = [self.finish]
 

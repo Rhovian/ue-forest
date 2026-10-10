@@ -23,8 +23,9 @@ def _run(name):
     buffer, ok = io.StringIO(), True
     with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(buffer):
         try:
-            exec(compile(source, name, "exec"), {"__name__": "__main__", "unreal": unreal})
-        except Exception:
+            # The lead intentionally submits arbitrary Python through the local file queue.
+            exec(compile(source, name, "exec"), {"__name__": "__main__", "unreal": unreal})  # noqa: S102
+        except Exception:  # noqa: BLE001 -- return any submitted script error to editor-py
             traceback.print_exc()
             ok = False
     tmp = os.path.join(_OUT, name + ".tmp")

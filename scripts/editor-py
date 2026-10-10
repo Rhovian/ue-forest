@@ -21,8 +21,11 @@ if len(sys.argv) < 2:
     sys.exit(__doc__)
 if sys.argv[1] == "-e":
     source = f"print({' '.join(sys.argv[2:])})"
+elif sys.argv[1] == "-":
+    source = sys.stdin.read()
 else:
-    source = sys.stdin.read() if sys.argv[1] == "-" else open(sys.argv[1]).read()
+    with open(sys.argv[1]) as script:
+        source = script.read()
 
 deadline = time.time() + TIMEOUT
 while not os.path.isdir(os.path.join(ROOT, "in")):  # created by init_unreal.py once the editor is up
