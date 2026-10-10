@@ -4,7 +4,7 @@ UE 5.8 C++ project on one Mac, coordinated by Niles. Decisions behind these rule
 
 ## The editor
 
-- There is one UE editor, opened on the main checkout. **Only the Niles lead uses it**, over MCP at `http://127.0.0.1:8000/mcp` and by running Python in it with `scripts/editor-py` (a file queue under `Saved/EditorPy`, no network).
+- There is one UE editor, opened on the main checkout. **Only the Niles lead uses it**, over MCP at `http://127.0.0.1:8000/mcp` and by running Python in it with `scripts/editor-py` (a file queue under `Saved/EditorPy`, no network). The lead opens the editor itself when a task needs it (`scripts/editor.sh open`) and calls MCP with `scripts/editor-mcp`, which does not depend on the session's MCP client having connected at startup.
 - The lead's agent family (currently Claude) never runs as a worker or reviewer. Committed MCP client config is in that family's format, so no other agent connects.
 - Workers never open, drive or connect to the editor. Anything that needs the editor goes to the lead as a request.
 
