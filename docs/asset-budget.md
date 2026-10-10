@@ -4,7 +4,7 @@ The rules every asset must meet before a Forest Biome may place it. Decided in [
 
 ## Scope
 
-- Read-only automated audit: the lead runs `scripts/editor-py scripts/asset-budget.py` for Nanite, texture, bone and material caps under `/Game` except `/Game/Scratch` and Megaplants `Instances` part meshes (a tree assembly overrides its parts' Nanite settings at build). Script policy classifies leaf/twig materials by `Foliage`/`Leaf`/`Twig` in the name and the displacement exception by `Displacement` in the name (all case-insensitive); it does not check "shared across a species".
+- Read-only automated audit: the lead runs `scripts/editor-py scripts/asset-budget.py` for every rule below under `/Game` except `/Game/Scratch` and Megaplants `Instances` part meshes (a tree assembly overrides its parts' Nanite settings at build). Script policy classifies leaf/twig materials by `Foliage`/`Leaf`/`Twig` in the name and the displacement exception by `Displacement` in the name (all case-insensitive); it does not check "shared across a species".
 - **Caps, not frame-time gates.** These rules cap what is expensive to change later. Frame time is measured for every asset with `scripts/measure/run.sh` and recorded, but gates nothing until the optimization phase.
 - **Measuring machine:** the target Mac (M2 Max), PIE in a 1920×1080 window, software Lumen, Epic scalability. The low-end PC target is decided when optimization starts.
 - **Reference density:** about 150 trees per hectare.
@@ -15,11 +15,10 @@ The rules every asset must meet before a Forest Biome may place it. Decided in [
 |---|---|
 | Nanite | Every mesh is Nanite. An exception needs a measured reason. |
 | Opacity | Opaque or masked. Masked only on leaf and twig materials. No translucency. |
-| Textures | At most 4096. Virtual texturing above 2048. Displacement maps up to 4096×8192 when shared across a species. |
+| Textures | At most 4096. Virtual texturing above 2048 on textures a material uses (generator inputs such as PVE displacement maps are never rendered). Displacement maps up to 4096×8192 when shared across a species. |
 | Bones | Skinned trees have at most 400 bones; reduce with PVE Bone Reduction at export. |
-| Collision | Simple trunk collision only; no branch or leaf collision. Skinned trees: PVE physics asset, Trunk Only. Static trees: a simple capsule. |
-| Plugin content | Master material and Wind Driver are used from PVE plugin sample content. Recheck them after each engine upgrade; copy them into the project only if an upgrade breaks them (Advanced Copy refuses engine-plugin content, so a copy needs a reference-remapping tool). |
-| Wind | Every tree sways. Skinned spawns carry the `DynamicWindData` transform provider (PCG property override: the spawners drop it from the template). Each level has one Wind Driver. |
+| Collision | Every skinned tree has a physics asset (export with PVE collision, Trunk Only). |
+| Plugin content | Master material (`MA_Foliage_Trees`), Wind Driver (`BP_GlobalFoliageActor_UE5`) and `Wind_TransformProvider` are used from PVE plugin sample content, and every material's parent must load. The audit checks they load, so rerun it after each engine upgrade; copy them into the project only if an upgrade breaks them (Advanced Copy refuses engine-plugin content, so a copy needs a reference-remapping tool). |
 | Distant foliage | Nanite shape preservation: Voxelize. PreserveArea and None cost the same GPU time ([#17](https://github.com/Rhovian/ue-forest/issues/17)); switch the mesh's setting if distant trees look wrong in the forest. |
 
 ## What makes the cut
