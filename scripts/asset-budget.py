@@ -5,6 +5,13 @@ MeshNaniteSettings.shape_preservation. No assets are edited or saved.
 """
 import unreal
 
+# PVE sample content the budget relies on: master material, Wind Driver, wind transform provider.
+PLUGIN_CONTENT = (
+    "/ProceduralVegetationEditor/SampleAssets/Materials/MasterMaterials/MA_Foliage_Trees",
+    "/ProceduralVegetationEditor/SampleAssets/Materials/GlobalFoliageActor/BP_GlobalFoliageActor_UE5",
+    "/ProceduralVegetationEditor/SampleAssets/Materials/GlobalFoliageActor/Wind_TransformProvider",
+)
+
 
 def blend_mode(material):
     """Resolve instance overrides through the parent chain."""
@@ -18,11 +25,12 @@ def blend_mode(material):
             return overrides.get_editor_property("blend_mode")
         material = material.get_editor_property("parent")
     if material is None:
-        return unreal.BlendMode.BLEND_OPAQUE
+        raise RuntimeError("material parent did not load")
     return material.get_editor_property("blend_mode")
 
 
-def violations(asset, name):
+def violations(asset, data):
+    name = str(data.asset_name)
     if isinstance(asset, (unreal.StaticMesh, unreal.SkeletalMesh)):
         settings = asset.get_editor_property("nanite_settings")
         if not settings.get_editor_property("enabled"):
@@ -31,6 +39,8 @@ def violations(asset, name):
         if shape != unreal.NaniteShapePreservation.VOXELIZE:
             yield "Nanite shape preservation must be Voxelize", shape
     if isinstance(asset, unreal.SkeletalMesh):
+        if asset.get_editor_property("physics_asset") is None:
+            yield "physics asset (trunk collision)", None
         # Only this transient, unregistered component changes; the mesh asset is untouched.
         component = unreal.SkeletalMeshComponent()
         component.set_skeletal_mesh_asset(asset)
@@ -38,7 +48,8 @@ def violations(asset, name):
         if bones > 400:
             yield "bones <= 400", bones
     if isinstance(asset, unreal.Texture2D):
-        width, height = asset.blueprint_get_size_x(), asset.blueprint_get_size_y()
+        # Imported size from the registry; blueprint_get_size_x/y can read a not-yet-compiled texture.
+        width, height = map(int, data.get_tag_value("Dimensions").split("x"))
         short, long = sorted((width, height))
         displacement = "displacement" in name.lower()
         if long > 4096 and not (displacement and short <= 4096 and long <= 8192):
@@ -61,6 +72,10 @@ def main():
     registry.wait_for_completion()
     assets = registry.get_assets_by_path("/Game", recursive=True)
     count = 0
+    for path in PLUGIN_CONTENT:
+        if unreal.load_asset(path) is None:
+            print(f"{path}: plugin content did not load")
+            count += 1
     for data in sorted(assets, key=lambda data: (str(data.package_name), str(data.asset_name))):
         package, name = str(data.package_name), str(data.asset_name)
         # Megaplants part meshes: tree assemblies override their Nanite settings at build
@@ -73,7 +88,7 @@ def main():
             asset = data.get_asset()
             if asset is None:
                 raise RuntimeError("asset could not be loaded")
-            for rule, actual in violations(asset, name):
+            for rule, actual in violations(asset, data):
                 print(f"{path}: {rule}: {actual}")
                 count += 1
         except Exception as error:  # noqa: BLE001 -- report all unreadable assets, then fail the audit
