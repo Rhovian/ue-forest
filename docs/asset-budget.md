@@ -15,7 +15,7 @@ The rules every asset must meet before a Forest Biome may place it. Decided in [
 |---|---|
 | Nanite | Every mesh is Nanite. An exception needs a measured reason. |
 | Opacity | Opaque or masked. Masked only on leaf and twig materials. No translucency. |
-| Textures | At most 4096. Virtual texturing above 2048. Displacement maps up to 4096×8192 when shared across a species. |
+| Textures | At most 4096. Virtual texturing above 2048 on textures a material uses (generator inputs such as PVE displacement maps are never rendered). Displacement maps up to 4096×8192 when shared across a species. |
 | Bones | Skinned trees have at most 400 bones; reduce with PVE Bone Reduction at export. |
 | Collision | Every skinned tree has a physics asset (export with PVE collision, Trunk Only). |
 | Plugin content | Master material (`MA_Foliage_Trees`), Wind Driver (`BP_GlobalFoliageActor_UE5`) and `Wind_TransformProvider` are used from PVE plugin sample content, and every material's parent must load. The audit checks they load, so rerun it after each engine upgrade; copy them into the project only if an upgrade breaks them (Advanced Copy refuses engine-plugin content, so a copy needs a reference-remapping tool). |

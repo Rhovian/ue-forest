@@ -29,6 +29,17 @@ def blend_mode(material):
     return material.get_editor_property("blend_mode")
 
 
+def used_by_material(data):
+    """True if a material, instance or material function references the texture's package."""
+    registry = unreal.AssetRegistryHelpers.get_asset_registry()
+    referencers = registry.get_referencers(data.package_name, unreal.AssetRegistryDependencyOptions()) or []
+    return any(
+        "Material" in str(referencer.asset_class_path.asset_name)
+        for package in referencers
+        for referencer in registry.get_assets_by_package_name(package)
+    )
+
+
 def violations(asset, data):
     name = str(data.asset_name)
     if isinstance(asset, (unreal.StaticMesh, unreal.SkeletalMesh)):
@@ -55,8 +66,8 @@ def violations(asset, data):
         if long > 4096 and not (displacement and short <= 4096 and long <= 8192):
             yield "texture dimensions <= 4096 (Displacement <= 4096x8192)", f"{width}x{height}"
         streaming = asset.get_editor_property("virtual_texture_streaming")
-        if long > 2048 and not streaming:
-            yield "virtual texture streaming above 2048", streaming
+        if long > 2048 and not streaming and used_by_material(data):
+            yield "virtual texture streaming above 2048 on a material texture", streaming
     if isinstance(asset, (unreal.Material, unreal.MaterialInstance)):
         mode = blend_mode(asset)
         if mode not in (unreal.BlendMode.BLEND_OPAQUE, unreal.BlendMode.BLEND_MASKED):
