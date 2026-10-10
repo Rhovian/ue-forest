@@ -103,8 +103,8 @@
 			"Enabled": true
 		},
 		{
-			"Name": "LiveCodingToolset",
-			"Enabled": true
+			"Name": "AndroidFileServer",
+			"Enabled": false
 		},
 		{
 			"Name": "PythonScriptPlugin",

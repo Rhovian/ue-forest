@@ -1,5 +1,3 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
-
 #include "MeasureLibrary.h"
 
 #if WITH_EDITOR
