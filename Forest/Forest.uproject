@@ -5,7 +5,7 @@
 	"Description": "",
 	"Modules": [
 		{
-			"Name": "MyProject",
+			"Name": "Forest",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
 		}
