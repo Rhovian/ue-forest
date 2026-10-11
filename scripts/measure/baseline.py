@@ -125,6 +125,9 @@ class Run:
             _, location, (pitch, yaw) = point
             pawn = unreal.GameplayStatics.get_player_pawn(pie, 0)
             pawn.set_actor_location(unreal.Vector(*(v * 100 for v in location)), False, True)
+            # Hover at eye height: the destination's terrain cell may not have streamed in yet, and a walking pawn
+            # would fall through it.
+            pawn.character_movement.set_movement_mode(unreal.MovementMode.MOVE_FLYING)
             pawn.character_movement.stop_movement_immediately()
             unreal.GameplayStatics.get_player_controller(pie, 0).set_control_rotation(unreal.Rotator(0, pitch, yaw))
             return WARMUP_FRAMES
