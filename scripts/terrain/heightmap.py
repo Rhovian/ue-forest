@@ -19,6 +19,10 @@ from scipy.ndimage import distance_transform_edt, label
 SEABED = -15.0
 SIZE = 3025  # 1 m DGM1 samples per side of the window
 SPACING = 2  # metres between landscape vertices: 1513x1513, the size that imports reliably (12x12 components)
+STREAM_HEAD = (474, -396)  # world metres: X east, Y along image rows, centred on the landscape
+CHANNEL_DEPTH = 0.6
+CHANNEL_HALF_WIDTH = 2.0
+WATER_BELOW_BANK = 0.15
 WEST, NORTH = 402975, 6021769  # window corner; Vilm spans E403606-405468, N6019015-6021499
 BBOX = [WEST, NORTH - SIZE, WEST + SIZE, NORTH]
 OUT = Path(__file__).resolve().parents[2] / "Forest/Saved/Terrain"
@@ -80,6 +84,49 @@ def falloff(heights, land):
     return grid
 
 
+def carve_stream(grid):
+    """Lower a channel to the sea and return its water spline in UE world centimetres."""
+    centre = (grid.shape[0] - 1) // 2
+    cell = (centre + round(STREAM_HEAD[1] / SPACING), centre + round(STREAM_HEAD[0] / SPACING))
+    path, visited = [cell], {cell}
+    for step in range(5001):
+        if grid[cell] <= 0:
+            break
+        if step == 5000:
+            raise ValueError("Stream did not reach the sea in 5000 steps")
+        row, col = cell
+        neighbours = [
+            (row + dy, col + dx)
+            for dy in (-1, 0, 1)
+            for dx in (-1, 0, 1)
+            if 0 <= row + dy < grid.shape[0] and 0 <= col + dx < grid.shape[1] and (row + dy, col + dx) not in visited
+        ]
+        cell = min(neighbours, key=lambda neighbour: grid[neighbour])
+        path.append(cell)
+        visited.add(cell)
+    rows, cols = np.array(path).T
+    banks = np.minimum.accumulate(grid[rows, cols])
+    beds = np.zeros_like(grid)
+    beds[rows, cols] = banks - CHANNEL_DEPTH
+    mask = np.ones(grid.shape, dtype=bool)
+    mask[rows, cols] = False
+    distance, nearest = distance_transform_edt(mask, sampling=SPACING, return_indices=True)
+    channel = beds[tuple(nearest)] + CHANNEL_DEPTH * (distance / CHANNEL_HALF_WIDTH) ** 2
+    carved = np.where(distance <= CHANNEL_HALF_WIDTH, np.minimum(grid, channel), grid)
+    samples = list(range(0, len(path), 5))
+    if samples[-1] != len(path) - 1:
+        samples.append(len(path) - 1)
+    points = [
+        [
+            int((cols[i] - centre) * SPACING * 100),
+            int((rows[i] - centre) * SPACING * 100),
+            round(float((banks[i] - WATER_BELOW_BANK) * 100)),
+        ]
+        for i in samples
+    ]
+    return carved, points
+
+
 def z_mapping(minimum, maximum):
     span = maximum - minimum
     return span * 12800 / 65535, (minimum + 32768 * span / 65535) * 100
@@ -99,6 +146,7 @@ def main():
     parts, _ = label(~invalid & (heights > 0))
     land = parts == np.argmax(np.bincount(parts.ravel())[1:]) + 1
     grid = falloff(heights, land)[::SPACING, ::SPACING]
+    grid, points = carve_stream(grid)
     minimum, maximum = float(grid.min()), float(grid.max())
     zscale, actor_z = z_mapping(minimum, maximum)
     encoded = np.rint((grid - minimum) * 65535 / (maximum - minimum)).astype(np.uint16)
@@ -106,6 +154,8 @@ def main():
     metadata = {"min_m": minimum, "max_m": maximum, "ZScale": zscale, "actor_Z_cm": actor_z,
                 "XYScale": 100 * SPACING, "island_km2": float(land.sum()) / 1e6, "source_tiles": TILE_ROWS,
                 "crs": "EPSG:25833", "bbox": BBOX, "dop_url": DOP_URL}
+    metadata["stream_points"] = len(points)
+    (OUT / "vilm_stream.json").write_text(json.dumps(points, indent=2) + "\n")
     (OUT / "vilm_1513.json").write_text(json.dumps(metadata, indent=2) + "\n")
     print(json.dumps(metadata, indent=2), flush=True)
     preview = OUT / "vilm_dop.jpg"

@@ -1,11 +1,32 @@
 import unittest
+from unittest.mock import patch
 
 import numpy as np
+from scipy.ndimage import distance_transform_edt
 
-from scripts.terrain.heightmap import SEABED, falloff, z_mapping
+from scripts.terrain.heightmap import CHANNEL_HALF_WIDTH, SEABED, SPACING, carve_stream, falloff, z_mapping
 
 
 class HeightmapTests(unittest.TestCase):
+    def test_carve_stream(self):
+        grid = np.full((31, 31), 50.0)
+        grid[:, 15] = np.arange(31, 0, -1) * 0.5
+        grid[18, 15] = grid[17, 15] + 0.2  # A bump on the downhill route.
+        grid[22:] = 0
+        with patch("scripts.terrain.heightmap.STREAM_HEAD", (0, 0)):
+            carved, points = carve_stream(grid)
+        centre = (grid.shape[0] - 1) // 2
+        x, y, _ = points[-1]
+        self.assertLessEqual(grid[centre + y // (SPACING * 100), centre + x // (SPACING * 100)], 0)
+        self.assertTrue(np.all(np.diff(np.array(points)[:, 2]) <= 0))
+        mask = np.ones(grid.shape, dtype=bool)
+        mask[15:23, 15] = False
+        distance = distance_transform_edt(mask, sampling=SPACING)
+        outside = distance > CHANNEL_HALF_WIDTH
+        np.testing.assert_array_equal(carved[outside], grid[outside])
+        self.assertTrue(np.all(carved <= grid))
+        self.assertAlmostEqual(carved[18, 15], grid[17, 15] - 0.6)
+
     def test_z_round_trip(self):
         for minimum, maximum in ((-15.0, 161.0), (-3.5, 7.25)):
             scale, actor_z = z_mapping(minimum, maximum)
