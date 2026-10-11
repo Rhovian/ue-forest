@@ -131,6 +131,10 @@
 			"Enabled": true
 		},
 		{
+			"Name": "SunPosition",
+			"Enabled": true
+		},
+		{
 			"Name": "AllToolsets",
 			"Enabled": false
 		},
