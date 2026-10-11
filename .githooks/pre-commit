@@ -13,7 +13,7 @@ POINTER = re.compile(
     rb"oid sha256:[0-9a-fA-F]{64}\nsize [0-9]+\n"
 )
 PREFIXES = ("SM_", "SK_", "M_", "MI_", "MF_", "T_", "BP_", "PCG_", "L_", "NS_", "DA_")
-EXEMPT = {"Megaplant_Library", "Python", "Scratch"}
+EXEMPT = {"Fab", "Megaplant_Library", "Python", "Scratch"}  # vendor packs keep their own names
 
 
 def git(*args):

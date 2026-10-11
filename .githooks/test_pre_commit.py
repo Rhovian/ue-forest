@@ -102,6 +102,11 @@ class PreCommitTests(unittest.TestCase):
         self.stage(path, POINTER)
         self.check(path, 0)
 
+    def test_fab_name(self):
+        path = "Forest/Content/Fab/Megascans/Plants/FT_Ivy.uasset"
+        self.stage(path, POINTER)
+        self.check(path, 0)
+
     def test_modified_name(self):
         path = "Forest/Content/Tree.uasset"
         self.stage(path, POINTER)

@@ -29,12 +29,15 @@ def blend_mode(material):
     return material.get_editor_property("blend_mode")
 
 
-def used_by_material(data):
-    """True if a material, instance or material function references the texture's package."""
+TREE_HEIGHT_CM = 600  # skinned plants taller than this are trees: they need trunk collision
+
+
+def referenced_by(data, word):
+    """True if an asset whose class name contains `word` references this asset's package."""
     registry = unreal.AssetRegistryHelpers.get_asset_registry()
     referencers = registry.get_referencers(data.package_name, unreal.AssetRegistryDependencyOptions()) or []
     return any(
-        "Material" in str(referencer.asset_class_path.asset_name)
+        word in str(referencer.asset_class_path.asset_name)
         for package in referencers
         for referencer in registry.get_assets_by_package_name(package)
     )
@@ -46,12 +49,14 @@ def violations(asset, data):
         settings = asset.get_editor_property("nanite_settings")
         if not settings.get_editor_property("enabled"):
             yield "Nanite enabled", False
+        foliage = isinstance(asset, unreal.SkeletalMesh) or "/Megascans/Plants/" in str(data.package_name)
         shape = settings.get_editor_property("shape_preservation")
-        if shape != unreal.NaniteShapePreservation.VOXELIZE:
-            yield "Nanite shape preservation must be Voxelize", shape
+        if foliage and shape != unreal.NaniteShapePreservation.VOXELIZE:
+            yield "foliage Nanite shape preservation must be Voxelize", shape
     if isinstance(asset, unreal.SkeletalMesh):
-        if asset.get_editor_property("physics_asset") is None:
-            yield "physics asset (trunk collision)", None
+        height = asset.get_bounds().box_extent.z * 2
+        if height > TREE_HEIGHT_CM and asset.get_editor_property("physics_asset") is None:
+            yield "tree physics asset (trunk collision)", None
         # Only this transient, unregistered component changes; the mesh asset is untouched.
         component = unreal.SkeletalMeshComponent()
         component.set_skeletal_mesh_asset(asset)
@@ -66,16 +71,13 @@ def violations(asset, data):
         if long > 4096 and not (displacement and short <= 4096 and long <= 8192):
             yield "texture dimensions <= 4096 (Displacement <= 4096x8192)", f"{width}x{height}"
         streaming = asset.get_editor_property("virtual_texture_streaming")
-        if long > 2048 and not streaming and used_by_material(data):
+        if long > 2048 and not streaming and referenced_by(data, "Material"):
             yield "virtual texture streaming above 2048 on a material texture", streaming
-    if isinstance(asset, (unreal.Material, unreal.MaterialInstance)):
+    # Only materials a mesh uses: decals, surface sets and unused master variants are never on a mesh.
+    if isinstance(asset, (unreal.Material, unreal.MaterialInstance)) and referenced_by(data, "Mesh"):
         mode = blend_mode(asset)
         if mode not in (unreal.BlendMode.BLEND_OPAQUE, unreal.BlendMode.BLEND_MASKED):
-            yield "blend mode opaque or masked", mode
-        elif mode == unreal.BlendMode.BLEND_MASKED and not any(
-            word in name.lower() for word in ("foliage", "leaf", "twig")
-        ):
-            yield "masked name must contain Foliage, Leaf or Twig", name
+            yield "mesh material blend mode opaque or masked", mode
 
 
 def main():
@@ -92,7 +94,10 @@ def main():
         # Megaplants part meshes: tree assemblies override their Nanite settings at build
         # (UE 5.8 Nanite::InheritAssemblySettings), and nothing places them directly.
         megaplant_part = package.startswith("/Game/Megaplant_Library/") and "/Instances/" in package
-        if package == "/Game/Scratch" or package.startswith("/Game/Scratch/") or megaplant_part:
+        # Fab's shared defaults (wind noise etc.) are like plugin content; wind textures feed the
+        # vertex shader, where virtual textures cannot be sampled.
+        fab_shared = package.startswith("/Game/Fab/Textures/")
+        if package == "/Game/Scratch" or package.startswith("/Game/Scratch/") or megaplant_part or fab_shared:
             continue
         path = f"{package}.{name}"
         try:
