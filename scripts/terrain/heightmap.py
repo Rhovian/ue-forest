@@ -21,7 +21,8 @@ SIZE = 3025  # 1 m DGM1 samples per side of the window
 SPACING = 2  # metres between landscape vertices: 1513x1513, the size that imports reliably (12x12 components)
 STREAM_HEAD = (474, -396)  # world metres: X east, Y along image rows, centred on the landscape
 CHANNEL_DEPTH = 0.6
-CHANNEL_HALF_WIDTH = 2.0
+CHANNEL_HALF_WIDTH = 4.0
+CHANNEL_BED_HALF_WIDTH = 2.0  # flat bed at least two vertices wide, so landscape triangles cannot bridge it
 WATER_BELOW_BANK = 0.15
 WEST, NORTH = 402975, 6021769  # window corner; Vilm spans E403606-405468, N6019015-6021499
 BBOX = [WEST, NORTH - SIZE, WEST + SIZE, NORTH]
@@ -111,18 +112,12 @@ def carve_stream(grid):
     mask = np.ones(grid.shape, dtype=bool)
     mask[rows, cols] = False
     distance, nearest = distance_transform_edt(mask, sampling=SPACING, return_indices=True)
-    channel = beds[tuple(nearest)] + CHANNEL_DEPTH * (distance / CHANNEL_HALF_WIDTH) ** 2
+    bank = np.clip((distance - CHANNEL_BED_HALF_WIDTH) / (CHANNEL_HALF_WIDTH - CHANNEL_BED_HALF_WIDTH), 0, 1)
+    channel = beds[tuple(nearest)] + CHANNEL_DEPTH * bank**2
     carved = np.where(distance <= CHANNEL_HALF_WIDTH, np.minimum(grid, channel), grid)
-    samples = list(range(0, len(path), 5))
-    if samples[-1] != len(path) - 1:
-        samples.append(len(path) - 1)
     points = [
-        [
-            int((cols[i] - centre) * SPACING * 100),
-            int((rows[i] - centre) * SPACING * 100),
-            round(float((banks[i] - WATER_BELOW_BANK) * 100)),
-        ]
-        for i in samples
+        [int((col - centre) * SPACING * 100), int((row - centre) * SPACING * 100), round(float((bank - WATER_BELOW_BANK) * 100))]
+        for row, col, bank in zip(rows, cols, banks)
     ]
     return carved, points
 

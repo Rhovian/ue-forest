@@ -1,4 +1,5 @@
 import unittest
+from itertools import pairwise
 from unittest.mock import patch
 
 import numpy as np
@@ -9,23 +10,28 @@ from scripts.terrain.heightmap import CHANNEL_HALF_WIDTH, SEABED, SPACING, carve
 
 class HeightmapTests(unittest.TestCase):
     def test_carve_stream(self):
-        grid = np.full((31, 31), 50.0)
-        grid[:, 15] = np.arange(31, 0, -1) * 0.5
-        grid[18, 15] = grid[17, 15] + 0.2  # A bump on the downhill route.
-        grid[22:] = 0
-        with patch("scripts.terrain.heightmap.STREAM_HEAD", (0, 0)):
+        # A valley at a slant to the grid, so the descent zigzags like a real DEM path, reaching sea level at row 60.
+        rows, cols = np.indices((61, 61), dtype=float)
+        grid = 30 - 0.5 * rows + 2 * np.abs(cols - 30 - (rows - 10) / 2)
+        with patch("scripts.terrain.heightmap.STREAM_HEAD", (0, -40)):
             carved, points = carve_stream(grid)
-        centre = (grid.shape[0] - 1) // 2
-        x, y, _ = points[-1]
-        self.assertLessEqual(grid[centre + y // (SPACING * 100), centre + x // (SPACING * 100)], 0)
-        self.assertTrue(np.all(np.diff(np.array(points)[:, 2]) <= 0))
-        mask = np.ones(grid.shape, dtype=bool)
-        mask[15:23, 15] = False
-        distance = distance_transform_edt(mask, sampling=SPACING)
-        outside = distance > CHANNEL_HALF_WIDTH
-        np.testing.assert_array_equal(carved[outside], grid[outside])
+        cells = [(30 + y // (SPACING * 100), 30 + x // (SPACING * 100)) for x, y, _ in points]
+        self.assertLessEqual(grid[cells[-1]], 0)
+        self.assertTrue(np.all(np.diff([z for _, _, z in points]) <= 0))
         self.assertTrue(np.all(carved <= grid))
-        self.assertAlmostEqual(carved[18, 15], grid[17, 15] - 0.6)
+        # Nothing changes beyond the channel, measured from the spline.
+        mask = np.ones(grid.shape, dtype=bool)
+        mask[tuple(np.array(cells).T)] = False
+        outside = distance_transform_edt(mask, sampling=SPACING) > CHANNEL_HALF_WIDTH
+        np.testing.assert_array_equal(carved[outside], grid[outside])
+        # Water stays above the landscape's triangles along the spline, so banks cannot bead the stream.
+        for ((r0, c0), z0), ((r1, c1), z1) in pairwise(zip(cells, points)):
+            for t in np.linspace(0, 1, 8, endpoint=False):
+                r, c = r0 + (r1 - r0) * t, c0 + (c1 - c0) * t
+                i, j, fy, fx = int(r), int(c), r % 1, c % 1
+                a, b, cc, d = carved[i, j], carved[i, j + 1], carved[i + 1, j], carved[i + 1, j + 1]
+                ground = a + fx * (d - cc) + fy * (cc - a) if fy > fx else a + fx * (b - a) + fy * (d - b)
+                self.assertGreater((z0[2] + (z1[2] - z0[2]) * t) / 100, ground)
 
     def test_z_round_trip(self):
         for minimum, maximum in ((-15.0, 161.0), (-3.5, 7.25)):
