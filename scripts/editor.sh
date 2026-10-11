@@ -16,8 +16,8 @@ running() { pgrep -f "UnrealEditor.*$UPROJECT" >/dev/null; }
 LOG="$HOME/Library/Logs/Unreal Engine/ForestEditor/Forest.log"
 
 listening() { lsof -nP -iTCP:$PORT -sTCP:LISTEN >/dev/null; }
-# Any socket on the port, not only LISTEN: a killed editor's socket lingers briefly and the new MCP server fails to bind.
-port_busy() { lsof -nP -iTCP:$PORT >/dev/null; }
+# Any socket on the port, including TIME_WAIT (no owning process, so lsof misses it): Unreal's listener cannot bind until they clear.
+port_busy() { netstat -an -p tcp | grep -q "[.:]$PORT "; }
 bind_failed() { [[ "$LOG" -nt "$launched" ]] && grep -q "HttpListener unable to bind to 127.0.0.1:$PORT" "$LOG"; }
 mcp_up() {
   bind_failed && { echo "MCP could not bind port $PORT; run editor.sh close, then open" >&2; exit 1; }
