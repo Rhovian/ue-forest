@@ -4,12 +4,16 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
+#include "Engine/OverlapResult.h"
+#include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "InputAction.h"
 #include "InputActionValue.h"
 #include "InputMappingContext.h"
 #include "InputModifiers.h"
+#include "WaterBodyActor.h"
+#include "WaterBodyComponent.h"
 
 AForestCharacter::AForestCharacter()
 {
@@ -88,8 +92,37 @@ void AForestCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 void AForestCharacter::Move(const FInputActionValue& Value)
 {
 	const FVector2D Axis = Value.Get<FVector2D>();
+	const FVector Direction = GetActorForwardVector() * Axis.Y + GetActorRightVector() * Axis.X;
+	FVector Probe = GetActorLocation() + Direction.GetSafeNormal2D() * (GetCapsuleComponent()->GetScaledCapsuleRadius() + 120.0f);
+	Probe.Z = GetActorLocation().Z - GetCapsuleComponent()->GetScaledCapsuleHalfHeight() + 10.0f;
+	if (IsDeepWater(Probe)) return;
 	AddMovementInput(GetActorForwardVector(), Axis.Y);
 	AddMovementInput(GetActorRightVector(), Axis.X);
+}
+
+bool AForestCharacter::IsDeepWater(const FVector& Probe) const
+{
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(this);
+	TArray<FOverlapResult> Overlaps;
+	GetWorld()->OverlapMultiByChannel(Overlaps, Probe, FQuat::Identity, ECC_Pawn, FCollisionShape::MakeSphere(10.0f), Params);
+	double SurfaceZ = -TNumericLimits<double>::Max();
+	for (const FOverlapResult& Overlap : Overlaps)
+	{
+		const AWaterBody* WaterBody = Cast<AWaterBody>(Overlap.GetActor());
+		const UWaterBodyComponent* Water = WaterBody ? WaterBody->GetWaterBodyComponent() : nullptr;
+		if (!Water) continue;
+		FVector SurfaceLocation, SurfaceNormal, Velocity;
+		float Depth;
+		if (Water->GetWaterSurfaceInfoAtLocation(Probe, SurfaceLocation, SurfaceNormal, Velocity, Depth))
+			SurfaceZ = FMath::Max(SurfaceZ, SurfaceLocation.Z);
+	}
+	if (SurfaceZ == -TNumericLimits<double>::Max()) return false;
+	FHitResult Floor;
+	const FVector Start(Probe.X, Probe.Y, SurfaceZ + GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+	const FVector End(Probe.X, Probe.Y, SurfaceZ - 1000.0f);
+	if (!GetWorld()->LineTraceSingleByChannel(Floor, Start, End, ECC_Visibility, Params)) return true;
+	return SurfaceZ - Floor.ImpactPoint.Z > MaxWadeDepth;
 }
 
 void AForestCharacter::Look(const FInputActionValue& Value)

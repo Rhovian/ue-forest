@@ -25,6 +25,8 @@ public:
 	float WalkSpeed = 300.0f;
 	UPROPERTY(EditAnywhere, Category = "Movement")
 	float SprintSpeed = 650.0f;
+	UPROPERTY(EditAnywhere, Category = "Movement")
+	float MaxWadeDepth = 100.0f;
 
 private:
 	UPROPERTY(VisibleAnywhere, Category = "Camera")
@@ -43,6 +45,7 @@ private:
 
 	void CreateInputMappings();
 	void Move(const FInputActionValue& Value);
+	bool IsDeepWater(const FVector& Probe) const;
 	void Look(const FInputActionValue& Value);
 	void Sprint(const FInputActionValue& Value);
 };
