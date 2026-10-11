@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run Python in the open editor (lead only; see AGENTS.md).
 
-    scripts/editor-py file.py      run a file
+    scripts/editor-py file.py [args...]  run a file; args reach it as sys.argv[1:]
     scripts/editor-py - <<'PY'     run stdin
     scripts/editor-py -e EXPR      print one expression
 
@@ -25,7 +25,7 @@ elif sys.argv[1] == "-":
     source = sys.stdin.read()
 else:
     with open(sys.argv[1]) as script:
-        source = script.read()
+        source = f"import sys\nsys.argv = {sys.argv[1:]!r}\n" + script.read()
 
 deadline = time.time() + TIMEOUT
 while not os.path.isdir(os.path.join(ROOT, "in")):  # created by init_unreal.py once the editor is up

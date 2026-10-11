@@ -25,6 +25,10 @@ def _run(name):
         try:
             # The lead intentionally submits arbitrary Python through the local file queue.
             exec(compile(source, name, "exec"), {"__name__": "__main__", "unreal": unreal})  # noqa: S102
+        except SystemExit as exit_:  # argparse usage errors and explicit exits still owe editor-py a result
+            if exit_.code not in (None, 0):
+                print(exit_.code if isinstance(exit_.code, str) else f"exit code {exit_.code}")
+                ok = False
         except Exception:  # noqa: BLE001 -- return any submitted script error to editor-py
             traceback.print_exc()
             ok = False
