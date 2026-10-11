@@ -27,7 +27,8 @@ def column(rows, name):
 
 def main(run):
     manifest = json.loads((run / "manifest.json").read_text())
-    print(f"tree {manifest['tree']} x{manifest['count']}  cvars {manifest['cvars']}")
+    label = f"level {manifest['map']}" if "map" in manifest else f"tree {manifest['tree']} x{manifest['count']}"
+    print(f"{label}  cvars {manifest['cvars']}")
     print("| point | " + " | ".join(f"{c} mean / p95" for c in COLUMNS) + " |")
     print("|---" * (len(COLUMNS) + 1) + "|")
     for point in manifest["points"]:

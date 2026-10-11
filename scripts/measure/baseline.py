@@ -1,6 +1,7 @@
 # Baseline measurement for one Megaplants Beech tree. Runs inside the editor via
 # scripts/measure/run.sh (-ExecCmds="py ..."; -ExecutePythonScript would quit on return). Never saves assets. Arguments come from the editor command line:
 #   -MeasureTree=A|B|C|D  -MeasureCount=<instances, square grid>  -MeasureOut=<run dir>
+#   -MeasureMap=/Game/L_vilm  -MeasureOut=<run dir> for a fixed level route
 import glob
 import json
 import math
@@ -11,6 +12,13 @@ import unreal
 
 TREE_PATH = "/Game/Megaplant_Library/Tree_European_Beech/Tree_European_Beech_01/Tree_European_Beech_01_{}"
 MAP = "/Engine/Maps/Templates/Template_Default"
+LEVEL_ROUTE = [
+    ("beach", (776, -808, 2.8), (0, 127)),
+    ("interior", (486, -512, 22.8), (0, 0)),
+    ("canopy_up", (486, -512, 22.8), (60, 0)),
+    ("lake_shore", (800, -390, 14.3), (0, -48)),
+    ("high_point", (606, -580, 37.5), (0, 136)),
+]  # name, location in metres (ground + 1.2 m), (pitch, yaw)
 SPACING = 1000.0  # cm between trees
 RES = (1920, 1080)
 WARMUP_FRAMES = 300  # let Nanite streaming and Lumen settle at each point
@@ -50,6 +58,7 @@ def route(extent):
 
 class Run:
     def __init__(self):
+        self.map = arg("MeasureMap")
         self.tree = arg("MeasureTree", "D")
         self.count = int(arg("MeasureCount", "1"))
         self.out = arg("MeasureOut") or os.path.join(unreal.Paths.project_saved_dir(), "Measure", "manual")
@@ -63,6 +72,9 @@ class Run:
         steps = [self.build_scene, self.start_pie]
         side = max(1, math.ceil(math.sqrt(self.count)))
         self.points = route((side - 1) * SPACING / 2)
+        if self.map:
+            self.points = LEVEL_ROUTE
+            steps += [self.freeze_sun]
         for point in self.points:
             steps += [lambda p=point: self.view(p), lambda p=point: self.capture(p), lambda p=point: self.collect(p)]
         return steps + [self.finish]
@@ -80,7 +92,9 @@ class Run:
             self.steps = [self.finish]
 
     def build_scene(self):
-        unreal.EditorLoadingAndSavingUtils.load_map(MAP)
+        unreal.EditorLoadingAndSavingUtils.load_map(self.map or MAP)
+        if self.map:
+            return 30
         mesh = unreal.load_asset(TREE_PATH.format(self.tree))
         side = max(1, math.ceil(math.sqrt(self.count)))
         offset = (side - 1) * SPACING / 2
@@ -100,9 +114,20 @@ class Run:
         unreal.MeasureLibrary.start_pie_in_new_window(*RES)
         return 120
 
+    def freeze_sun(self):
+        console("Forest.Time 10")
+        console("Forest.Pause")
+
     def view(self, point):
         name = point[0]
         pie = world()
+        if self.map:
+            _, location, (pitch, yaw) = point
+            pawn = unreal.GameplayStatics.get_player_pawn(pie, 0)
+            pawn.set_actor_location(unreal.Vector(*(v * 100 for v in location)), False, True)
+            pawn.character_movement.stop_movement_immediately()
+            unreal.GameplayStatics.get_player_controller(pie, 0).set_control_rotation(unreal.Rotator(0, pitch, yaw))
+            return WARMUP_FRAMES
         camera = unreal.GameplayStatics.get_all_actors_with_tag(pie, name)[0]
         unreal.GameplayStatics.get_player_controller(pie, 0).set_view_target_with_blend(camera)
         return WARMUP_FRAMES
@@ -125,11 +150,17 @@ class Run:
 
     def finish(self):
         manifest = {
-            "tree": self.tree, "count": self.count, "spacing_cm": SPACING, "pie_window": RES,
+            "pie_window": RES,
             "warmup_frames": WARMUP_FRAMES, "capture_frames": CAPTURE_FRAMES,
             "points": [p[0] for p in self.points],
             "cvars": {name: unreal.SystemLibrary.get_console_variable_float_value(name) for name in CVARS},
         }
+        if self.map:
+            manifest.update(map=self.map, route=[
+                {"name": name, "location_m": location, "rotation": rotation} for name, location, rotation in self.points
+            ])
+        else:
+            manifest.update(tree=self.tree, count=self.count, spacing_cm=SPACING)
         with open(os.path.join(self.out, "manifest.json"), "w") as f:
             json.dump(manifest, f, indent=2)
         unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).editor_request_end_play()
