@@ -69,6 +69,7 @@ void AForestSun::ApplySolarTime()
 	FSunPositionData Data;
 	USunPositionFunctionLibrary::GetSunPosition(Latitude, Longitude, TimeZone, bDaylightSaving, Year, Month, Day,
 		Time.GetHours(), Time.GetMinutes(), Time.GetSeconds(), Data);
-	Sun->SetActorRotation(FRotator(-Data.CorrectedElevation, Data.Azimuth + 90.0f, 0.0f));
+	// SunPosition stores elevation as 180 + degrees above the horizon.
+	Sun->SetActorRotation(FRotator(180.0f - Data.CorrectedElevation, Data.Azimuth + 90.0f, 0.0f));
 	LastAppliedTime = Hour;
 }
