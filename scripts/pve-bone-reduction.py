@@ -10,7 +10,7 @@ import unreal
 STRENGTH = 1.0
 # PVE asset -> variant letters; an export node's name ends in _<letter>_0 (titles keep Epic's template names).
 TARGETS = {
-    "/Game/Megaplant_Library/Tree_European_Beech/Tree_European_Beech_Saplings_01/PVE_Tree_European_Beech_Saplings_01": "ABC",
+    "/Game/Megaplant_Library/Tree_European_Beech/Tree_European_Beech_Saplings_01/PVE_Tree_European_Beech_Saplings_01": "AB",  # C dropped: its branch data has no parent bones, reduction is a no-op
 }
 
 
