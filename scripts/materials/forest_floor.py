@@ -32,9 +32,14 @@ SCALARS = {  # world units are cm; sea level is Z 0
     "DampHigh": 1200.0,
     "FlatLow": 0.85,  # vertex normal Z: steeper than FlatLow is never mossy
     "FlatHigh": 0.97,
+    "MossNoiseStrength": 1.6,  # how far large-scale noise pushes moss in and out of the damp zones
     "PatchTile": 800.0,
-    "PatchStrength": 0.6,
+    "PatchStrength": 0.6,  # moss-patch texture adds edge detail inside the noise's mossy areas
+    "DetailScale": 2.7,  # each layer is also sampled this many times larger, blended by slow noise (anti-tiling)
+    "MacroBrightness": 0.15,  # +/- brightness variation across the ground
 }
+MOSS_NOISE_CM = 2000.0  # feature size of the noise that places moss
+MACRO_NOISE_CM = 1200.0  # feature size of the noise that hides texture repetition
 
 mel = unreal.MaterialEditingLibrary
 
@@ -77,7 +82,11 @@ class Graph:
         expression = self.node(cls, column, **props)
         for pin, source in inputs.items():
             src, out = source if isinstance(source, tuple) else (source, "")
-            mel.connect_material_expressions(src, out, expression, pin)
+            # A wrong pin name fails silently and leaves the input at its default (0 roughness looked like glass).
+            if not mel.connect_material_expressions(src, out, expression, pin):
+                raise SystemExit(
+                    f"could not connect {src.get_name()}:{out or '-'} -> {expression.get_name()}:{pin or '-'}"
+                )
         return expression
 
     def mask(self, source, column, channels):
@@ -87,8 +96,24 @@ class Graph:
     def sample(self, path, uv, column):
         tex = texture(path)
         return self.wire(
-            unreal.MaterialExpressionTextureSample, column, {"UVs": uv}, texture=tex, sampler_type=sampler_for(tex)
+            unreal.MaterialExpressionTextureSample,
+            column,
+            {"UVs": uv},
+            texture=tex,
+            sampler_type=sampler_for(tex),
+            # Shared wrap samplers: two samples per texture would exceed the 16-sampler limit.
+            sampler_source=unreal.SamplerSourceMode.SSM_WRAP_WORLD_GROUP_SETTINGS,
         )
+
+    def noise(self, column, feature_cm):
+        """World-space noise clamped to 0..1, features about feature_cm across.
+
+        Noise can overshoot its output range; unclamped it drives the blends outside 0..1 and roughness
+        below zero, which shows as mirror-like sky reflections on the ground."""
+        raw = self.node(
+            unreal.MaterialExpressionNoise, column, scale=1.0 / feature_cm, levels=3, output_min=0.0, output_max=1.0
+        )
+        return self.wire(unreal.MaterialExpressionSaturate, column - 1, {"": raw})
 
 
 def build():
@@ -103,6 +128,7 @@ def build():
     if mel.get_num_material_expressions(material):
         raise SystemExit(f"{path}: could not clear the old graph")
     g = Graph(material)
+    lerp = unreal.MaterialExpressionLinearInterpolate
     P = unreal.MaterialExpressionScalarParameter
     p = {name: g.node(P, 9, parameter_name=name, default_value=value) for name, value in SCALARS.items()}
 
@@ -120,16 +146,28 @@ def build():
     damp = g.wire(
         unreal.MaterialExpressionMultiply, 5, {"A": flat, "B": g.wire(unreal.MaterialExpressionOneMinus, 5, {"": high})}
     )
+    # Large-scale noise places moss (no tiled mask, so no grid); the patch texture only adds edge detail.
+    moss_noise = g.noise(6, MOSS_NOISE_CM)
+    centred = g.wire(
+        unreal.MaterialExpressionSubtract,
+        5,
+        {"A": moss_noise, "B": g.node(unreal.MaterialExpressionConstant, 6, r=0.5)},
+    )
+    moss_term = g.wire(unreal.MaterialExpressionMultiply, 4, {"A": centred, "B": p["MossNoiseStrength"]})
     patch_uv = g.wire(unreal.MaterialExpressionDivide, 6, {"A": xy, "B": p["PatchTile"]})
     patches = g.sample(PATCHES, patch_uv, 5)
     patch = g.wire(unreal.MaterialExpressionMultiply, 4, {"A": (patches, "A"), "B": p["PatchStrength"]})
-    moss_mask = g.wire(
-        unreal.MaterialExpressionSaturate, 3, {"": g.wire(unreal.MaterialExpressionAdd, 4, {"A": damp, "B": patch})}
+    patch_term = g.wire(unreal.MaterialExpressionMultiply, 4, {"A": patch, "B": moss_noise})
+    moss_sum = g.wire(
+        unreal.MaterialExpressionAdd,
+        4,
+        {"A": damp, "B": g.wire(unreal.MaterialExpressionAdd, 4, {"A": moss_term, "B": patch_term})},
     )
+    moss_mask = g.wire(unreal.MaterialExpressionSaturate, 3, {"": moss_sum})
+    macro = g.noise(6, MACRO_NOISE_CM)
     dryness = g.wire(
         unreal.MaterialExpressionSmoothStep, 6, {"Min": p["WetBandTop"], "Max": p["ShoreHeight"], "Value": z}
     )
-    lerp = unreal.MaterialExpressionLinearInterpolate
     tint = g.wire(lerp, 5, {"A": p["WetDarkening"], "B": p["DryBrightening"], "Alpha": dryness})
     wet_rough = g.wire(
         lerp, 5, {"A": p["WetRoughness"], "B": g.node(unreal.MaterialExpressionConstant, 6, r=1.0), "Alpha": dryness}
@@ -139,18 +177,46 @@ def build():
     for name, (prefix, tile) in LAYERS.items():
         size = g.node(P, 7, parameter_name=f"{name}Tile", default_value=tile)
         uv = g.wire(unreal.MaterialExpressionDivide, 6, {"A": xy, "B": size})
-        sets[name] = {kind: g.sample(f"{prefix}_{kind}", uv, 4) for kind in ("B", "N", "ORM")}
+        big = g.wire(unreal.MaterialExpressionMultiply, 7, {"A": size, "B": p["DetailScale"]})
+        uv_big = g.wire(unreal.MaterialExpressionDivide, 6, {"A": xy, "B": big})
+        sets[name] = {
+            kind: g.wire(
+                lerp,
+                4,
+                {
+                    "A": g.sample(f"{prefix}_{kind}", uv, 5),
+                    "B": g.sample(f"{prefix}_{kind}", uv_big, 5),
+                    "Alpha": macro,
+                },
+            )
+            for kind in ("B", "N", "ORM")
+        }
 
     def blend(sand, kind, column=2):
         floor = g.wire(lerp, column, {"A": sets["Leaves"][kind], "B": sets["Moss"][kind], "Alpha": moss_mask})
         return g.wire(lerp, column - 1, {"A": floor, "B": sand, "Alpha": sand_mask})
 
     color = blend(g.wire(unreal.MaterialExpressionMultiply, 3, {"A": sets["Sand"]["B"], "B": tint}), "B")
+    low_b = g.wire(unreal.MaterialExpressionOneMinus, 2, {"": p["MacroBrightness"]})
+    high_b = g.wire(
+        unreal.MaterialExpressionAdd,
+        2,
+        {"A": g.node(unreal.MaterialExpressionConstant, 3, r=1.0), "B": p["MacroBrightness"]},
+    )
+    color = g.wire(
+        unreal.MaterialExpressionMultiply,
+        0,
+        {"A": color, "B": g.wire(lerp, 1, {"A": low_b, "B": high_b, "Alpha": macro})},
+    )
     normal = blend(sets["Sand"]["N"], "N")
     orm = blend(sets["Sand"]["ORM"], "ORM")
-    sand_rough = g.wire(unreal.MaterialExpressionMultiply, 3, {"A": (sets["Sand"]["ORM"], "G"), "B": wet_rough})
+    sand_rough = g.wire(
+        unreal.MaterialExpressionMultiply, 3, {"A": g.mask(sets["Sand"]["ORM"], 4, "g"), "B": wet_rough}
+    )
     floor_rough = g.wire(
-        lerp, 2, {"A": (sets["Leaves"]["ORM"], "G"), "B": (sets["Moss"]["ORM"], "G"), "Alpha": moss_mask}
+        lerp,
+        2,
+        {"A": g.mask(sets["Leaves"]["ORM"], 3, "g"), "B": g.mask(sets["Moss"]["ORM"], 3, "g"), "Alpha": moss_mask},
     )
     rough = g.wire(lerp, 1, {"A": floor_rough, "B": sand_rough, "Alpha": sand_mask})
 
