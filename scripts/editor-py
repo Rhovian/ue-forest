@@ -25,7 +25,9 @@ elif sys.argv[1] == "-":
     source = sys.stdin.read()
 else:
     with open(sys.argv[1]) as script:
-        source = f"import sys\nsys.argv = {sys.argv[1:]!r}\n" + script.read()
+        here = os.path.dirname(os.path.abspath(sys.argv[1]))
+        # argv for the script, and its folder on sys.path so it can import sibling helper modules
+        source = f"import sys\nsys.argv = {sys.argv[1:]!r}\nsys.path.insert(0, {here!r})\n" + script.read()
 
 deadline = time.time() + TIMEOUT
 while not os.path.isdir(os.path.join(ROOT, "in")):  # created by init_unreal.py once the editor is up

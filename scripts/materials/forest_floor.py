@@ -9,9 +9,15 @@ material parameters, so instance overrides survive a rebuild. --assign sets the 
 Landscape actor in the open level (streaming proxies inherit it).
 """
 
+import importlib
 import sys
 
+import matgraph
 import unreal
+
+importlib.reload(matgraph)  # the editor keeps imported modules between runs
+mel = matgraph.mel
+Graph = matgraph.Graph
 
 FOLDER = "/Game/ForestBiome"
 FAB = "/Game/Fab/Megascans"
@@ -41,92 +47,10 @@ SCALARS = {  # world units are cm; sea level is Z 0
 MOSS_NOISE_CM = 2000.0  # feature size of the noise that places moss
 MACRO_NOISE_CM = 1200.0  # feature size of the noise that hides texture repetition
 
-mel = unreal.MaterialEditingLibrary
-
-
-def texture(path):
-    asset = unreal.load_asset(path)
-    if asset is None:
-        raise SystemExit(f"missing texture {path}")
-    return asset
-
-
-def sampler_for(tex):
-    """The sampler type Unreal requires for the texture's compression and colour space."""
-    compression = tex.get_editor_property("compression_settings")
-    srgb = tex.get_editor_property("srgb")
-    TC, ST = unreal.TextureCompressionSettings, unreal.MaterialSamplerType
-    if compression == TC.TC_NORMALMAP:
-        return ST.SAMPLERTYPE_NORMAL
-    if compression == TC.TC_MASKS:
-        return ST.SAMPLERTYPE_MASKS
-    if compression in (TC.TC_GRAYSCALE, TC.TC_ALPHA, TC.TC_DISPLACEMENTMAP):
-        return ST.SAMPLERTYPE_GRAYSCALE if srgb else ST.SAMPLERTYPE_LINEAR_GRAYSCALE
-    return ST.SAMPLERTYPE_COLOR if srgb else ST.SAMPLERTYPE_LINEAR_COLOR
-
-
-class Graph:
-    def __init__(self, material):
-        self.material = material
-        self.row = 0
-
-    def node(self, cls, column, **props):
-        self.row += 1
-        expression = mel.create_material_expression(self.material, cls, -300 * column, 80 * self.row)
-        for key, value in props.items():
-            expression.set_editor_property(key, value)
-        return expression
-
-    def wire(self, cls, column, inputs, **props):
-        """Create a node and connect inputs: {input pin: expression or (expression, output pin)}."""
-        expression = self.node(cls, column, **props)
-        for pin, source in inputs.items():
-            src, out = source if isinstance(source, tuple) else (source, "")
-            # A wrong pin name fails silently and leaves the input at its default (0 roughness looked like glass).
-            if not mel.connect_material_expressions(src, out, expression, pin):
-                raise SystemExit(
-                    f"could not connect {src.get_name()}:{out or '-'} -> {expression.get_name()}:{pin or '-'}"
-                )
-        return expression
-
-    def mask(self, source, column, channels):
-        flags = {c: c in channels for c in "rgba"}
-        return self.wire(unreal.MaterialExpressionComponentMask, column, {"": source}, **flags)
-
-    def sample(self, path, uv, column):
-        tex = texture(path)
-        return self.wire(
-            unreal.MaterialExpressionTextureSample,
-            column,
-            {"UVs": uv},
-            texture=tex,
-            sampler_type=sampler_for(tex),
-            # Shared wrap samplers: two samples per texture would exceed the 16-sampler limit.
-            sampler_source=unreal.SamplerSourceMode.SSM_WRAP_WORLD_GROUP_SETTINGS,
-        )
-
-    def noise(self, column, feature_cm):
-        """World-space noise clamped to 0..1, features about feature_cm across.
-
-        Noise can overshoot its output range; unclamped it drives the blends outside 0..1 and roughness
-        below zero, which shows as mirror-like sky reflections on the ground."""
-        raw = self.node(
-            unreal.MaterialExpressionNoise, column, scale=1.0 / feature_cm, levels=3, output_min=0.0, output_max=1.0
-        )
-        return self.wire(unreal.MaterialExpressionSaturate, column - 1, {"": raw})
-
 
 def build():
     path = f"{FOLDER}/M_ForestFloor"
-    tools = unreal.AssetToolsHelpers.get_asset_tools()
-    material = unreal.load_asset(path) or tools.create_asset(
-        "M_ForestFloor", FOLDER, unreal.Material, unreal.MaterialFactoryNew()
-    )
-    # delete_all_material_expressions skips about half the nodes (it deletes while iterating), so delete one by one.
-    for expression in list(mel.get_material_expressions(material)):
-        mel.delete_material_expression(material, expression)
-    if mel.get_num_material_expressions(material):
-        raise SystemExit(f"{path}: could not clear the old graph")
+    material = matgraph.fresh_material(path)
     g = Graph(material)
     lerp = unreal.MaterialExpressionLinearInterpolate
     P = unreal.MaterialExpressionScalarParameter
@@ -227,10 +151,7 @@ def build():
     mel.recompile_material(material)
     unreal.EditorAssetLibrary.save_loaded_asset(material, False)
 
-    instance = unreal.load_asset(f"{FOLDER}/MI_ForestFloor") or tools.create_asset(
-        "MI_ForestFloor", FOLDER, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew()
-    )
-    mel.set_material_instance_parent(instance, material)
+    instance = matgraph.instance_of(f"{FOLDER}/MI_ForestFloor", material)
     unreal.EditorAssetLibrary.save_loaded_asset(instance, False)
     print(f"{path}: {mel.get_num_material_expressions(material)} expressions; MI_ForestFloor ready")
     return instance
