@@ -169,3 +169,16 @@ Additional primary media located, with limits:
 - [Electric Dreams Environment: Unpacked course](https://dev.epicgames.com/community/learning/courses/x3L/unreal-engine-electric-dreams-environment-unpacked): page yielded no readable lesson content in this browser; no node-level moss attribution drawn.
 - [Quixel Trees interview](https://magazine.artstation.com/2022/11/quixel-megascans-trees/): Quixel-team statements describe older Trees shader controls, quality tiers and simple/pivot-painter wind; these do not describe the current PVE bark moss interface.
 - [Quixel 2020 blending blog URL](https://quixel.com/blog/2020/1/22/blending-megascans-assets-in-ue4) currently redirects to Quixel News, so its original article was not used as evidence.
+
+## Decisions for this project (2026-10-11)
+
+Agreed with the operator after this research:
+
+- **One shared moss coating, not a bark material.** Build a material function (planned name `MF_MossCoating`) used by tree bark, rocks, fallen logs and stumps, so moss is tuned once and stays consistent across the forest.
+- **Two sources for "up":**
+  - Swaying skinned trees use the rest pose: Local Position with Local Origin = Pre-Skinned Instance, and Pre-Skinned Local Normal, passed through a vertex interpolator. Never the current, wind-deformed normal or world position, or the moss swims. The old PreSkinnedPosition node is deprecated in 5.8.
+  - Static rocks, logs and stumps use world up and world position, which is cheaper and lets a fallen log gather moss on whichever side faces the sky.
+- **Coverage:** `Region = Max(Base * BaseWeight, Slope * SlopeWeight)` (a union, not a product), plus breakup from the Tileable Moss Patches coverage channel sampled in stable UVs (cheaper than procedural noise across about 7,000 trees), then a soft threshold with an edge width. Add `MossAmount` (0 = bare variant). Normalize the blended normal. Don't fade coverage with distance; fade only fine detail.
+- **Moss texture:** start with Mossy Forest Floor. If its twigs and debris read as dirt on bark, get a dedicated clean moss surface from Fab.
+- **Timing:** after step 8a places deadwood and rocks with their stock materials (some Megascans logs and stumps may already be mossy), build the coating and apply it to bark, rocks and logs in one tuning pass with everything in view. Then step 8b: saplings, understory and the footpath.
+- **Gotchas found while drafting:** the Noise expression's position input pin is `World Position`, not `Position`. The Megaplants bark normal `T_European_Beech_Bark_01_NAH` is a Masks texture: rebuild Z from R/G (`ConstantBiasScale` -0.5 ×2 → `DeriveNormalZ`); B appears to be AO, to be confirmed.
