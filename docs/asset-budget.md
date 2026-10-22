@@ -17,7 +17,7 @@ The rules every asset must meet before a Forest Biome may place it. Decided in [
 | Opacity | Materials a mesh uses are opaque or masked; no translucency. Decals and surface sets (texture sources for the landscape material) are never on a mesh, so they are not checked. |
 | Textures | At most 4096. Virtual texturing above 2048 on textures a material uses (generator inputs such as PVE displacement maps are never rendered). Displacement maps up to 4096×8192 when shared across a species. |
 | Bones | Skinned trees have at most 400 bones; reduce with PVE Bone Reduction at export. |
-| Collision | Trees (skinned plants taller than 6 m) have a physics asset (export with PVE collision, Trunk Only). Saplings, shrubs, flowers and ground plants have none: the walker passes through them. |
+| Collision | Trees (skinned plants taller than 6 m) have a physics asset (export with PVE collision, Trunk Only). Fallen logs, limestone slabs and stumps block the walker: 1–4 simple convex hulls, SimpleAsComplex trace mode and BlockAll profile on the scan; Biome MeshOptions.AllowCollision enabled. Saplings, shrubs, flowers, mushrooms and ground plants have none: the walker passes through them. |
 | Plugin content | Master material (`MA_Foliage_Trees`), Wind Driver (`BP_GlobalFoliageActor_UE5`) and `Wind_TransformProvider` are used from PVE plugin sample content, and every material's parent must load. The audit checks they load, so rerun it after each engine upgrade; copy them into the project only if an upgrade breaks them (Advanced Copy refuses engine-plugin content, so a copy needs a reference-remapping tool). |
 | Distant foliage | Foliage (skinned plants and Megascans plants) uses Nanite shape preservation: Voxelize. Rocks, logs, stumps and mushrooms keep their default. PreserveArea and None cost the same GPU time ([#17](https://github.com/Rhovian/ue-forest/issues/17)); switch the mesh's setting if distant trees look wrong in the forest. |
 
@@ -34,3 +34,25 @@ The rules every asset must meet before a Forest Biome may place it. Decided in [
 - Frame-time gates and a low-end PC spec (including whether Windows is in scope).
 - No wind on far trees.
 - Tightening the bone cap toward 200.
+
+## Deadwood and Rocks (step 8a)
+
+`scripts/pcg/deadwood_rocks.py --check` validates loaded forest biome membership and source assets without edits.
+Run without `--check` to build reusable generator/asset groups and attach them to the forest biome;
+regenerate Biome Core and save the level afterwards. It leaves Trees settings and stock materials intact.
+The audit recognises the Nordic fallen log, Old Tree Stump and Limestone Slab asset families as solid scans.
+Instance collision still needs a walker check after generation (the asset audit cannot verify generated components).
+
+- Deadwood: 18 candidates/ha, weighted 8 plain logs : 4 nurse logs : 6 stumps; slope at most 20°.
+  A nurse log is the same fallen log with one attached Bolete mushroom cluster via Core recursive ChildAssets.
+  Nurse logs stay below 12 m elevation, a low-ground dampness proxy; this reduces their final share below one third.
+- Rocks: 30 slab candidates/ha, slopes 5–35° to concentrate on banks and slopes rather than flat clearings.
+- Both use Core's inherited spatial-noise patches (density band 0.35–1), random yaw and uniform 0.8–1.2 scale.
+  Counts decrease after masks, shore/water exclusions and priority pruning (Trees → Deadwood → Rocks).
+  Ground follows landscape normals; no extra pitch/roll on the scans. Inspect contacts on steep ground.
+- Root points must be at least 1.5 m above the floor's ShoreHeight (default total 2.25 m).
+  Core's existing lake/river exclusion splines and future BiomePath keep-outs apply; step 8b must regenerate
+  all groups after adding its path. No path route or landscape painting is invented here.
+- Four convex hulls of at most 16 vertices per obstacle; fungi have instance collision disabled.
+  No moss coating or broad understory is built. A second fallen-log silhouette would help repetition most;
+  evaluate that visually before acquiring more assets.

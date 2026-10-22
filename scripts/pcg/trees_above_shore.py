@@ -81,4 +81,5 @@ def main():
     print(f"{GRAPH}: shore {shore:.0f} cm, bands {bands}")
 
 
-main()
+if __name__ == "__main__":
+    main()

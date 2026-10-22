@@ -29,6 +29,8 @@ def blend_mode(material):
     return material.get_editor_property("blend_mode")
 
 
+SOLID_SCANS = ("/Nordic_Forest_Tree_Fallen_Medium_", "/Old_Tree_Stump_", "/Limestone_Slab_")
+
 TREE_HEIGHT_CM = 600  # skinned plants taller than this are trees: they need trunk collision
 
 
@@ -53,6 +55,21 @@ def violations(asset, data):
         shape = settings.get_editor_property("shape_preservation")
         if foliage and shape != unreal.NaniteShapePreservation.VOXELIZE:
             yield "foliage Nanite shape preservation must be Voxelize", shape
+    if isinstance(asset, unreal.StaticMesh) and any(part in str(data.package_name) for part in SOLID_SCANS):
+        subsystem = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+        count = subsystem.get_simple_collision_count(asset)
+        if not 1 <= count <= 4:
+            yield "solid scan simple collision hulls: 1..4", count
+        body = asset.get_editor_property("body_setup")
+        if body is None:
+            yield "solid scan body setup", None
+        else:
+            trace = body.get_editor_property("collision_trace_flag")
+            if trace != unreal.CollisionTraceFlag.CTF_USE_SIMPLE_AS_COMPLEX:
+                yield "solid scan uses simple collision", trace
+            profile = body.get_editor_property("default_instance").get_editor_property("collision_profile_name")
+            if str(profile) != "BlockAll":
+                yield "solid scan collision profile BlockAll", profile
     if isinstance(asset, unreal.SkeletalMesh):
         height = asset.get_bounds().box_extent.z * 2
         if height > TREE_HEIGHT_CM and asset.get_editor_property("physics_asset") is None:
