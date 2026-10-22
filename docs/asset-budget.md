@@ -41,6 +41,8 @@ The rules every asset must meet before a Forest Biome may place it. Decided in [
 Run without `--check` to build reusable generator/asset groups and attach them to the forest biome;
 regenerate Biome Core and save the level afterwards. It leaves Trees settings and stock materials intact.
 The audit recognises the Nordic fallen log, Old Tree Stump and Limestone Slab asset families as solid scans.
+It counts their convex hulls with `get_convex_collision_count`; UE's `get_simple_collision_count`
+counts only boxes, spheres and capsules and excludes convex hulls.
 Instance collision still needs a walker check after generation (the asset audit cannot verify generated components).
 
 - Deadwood: 18 candidates/ha, weighted 8 plain logs : 4 nurse logs : 6 stumps; slope at most 20°.

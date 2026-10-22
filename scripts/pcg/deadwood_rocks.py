@@ -181,8 +181,10 @@ def main():
         default = body.get_editor_property("default_instance")
         default.set_editor_property("collision_profile_name", "BlockAll")
         body.set_editor_property("default_instance", default)
-        if subsystem.get_simple_collision_count(mesh) < 1:
-            raise RuntimeError(f"No simple collision: {name}")
+        # UE 5.8 StaticMeshEditorSubsystem.cpp: GetSimpleCollisionCount excludes ConvexElems.
+        count = subsystem.get_convex_collision_count(mesh)
+        if not 1 <= count <= 4:
+            raise RuntimeError(f"Expected 1..4 convex collision hulls: {name}, got {count}")
         save(mesh)
     plain = filter_graph("PCG_DeadwoodAboveShore")
     nurse = filter_graph("PCG_NurseLogLowGround", top=1200)

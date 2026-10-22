@@ -57,9 +57,10 @@ def violations(asset, data):
             yield "foliage Nanite shape preservation must be Voxelize", shape
     if isinstance(asset, unreal.StaticMesh) and any(part in str(data.package_name) for part in SOLID_SCANS):
         subsystem = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
-        count = subsystem.get_simple_collision_count(asset)
+        # UE 5.8 StaticMeshEditorSubsystem.cpp: only GetConvexCollisionCount counts ConvexElems.
+        count = subsystem.get_convex_collision_count(asset)
         if not 1 <= count <= 4:
-            yield "solid scan simple collision hulls: 1..4", count
+            yield "solid scan convex collision hulls: 1..4", count
         body = asset.get_editor_property("body_setup")
         if body is None:
             yield "solid scan body setup", None
