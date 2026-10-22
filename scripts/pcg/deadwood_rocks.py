@@ -12,6 +12,7 @@ import math
 import re
 
 import unreal
+from nurse_anchor import build_anchor_graph, source_anchor
 from trees_above_shore import shore_height, z_range
 
 ROOT = "/Game/ForestBiome/"
@@ -70,25 +71,15 @@ def edge(graph, source, source_pin, target, target_pin):
         raise RuntimeError(f"PCG connection failed: {source_pin} -> {target_pin}")
 
 
-def filter_graph(name, top=1.0e7, offset=None):
+def filter_graph(name, top=1.0e7):
     graph = copy_asset(ROOT + "PCG_TreesAboveShore", name)
     inp, out = graph.get_input_node(), graph.get_output_node()
     for node in list(graph.get_editor_property("nodes")):
         if node not in (inp, out):
             graph.remove_node(node)
-    last, pin = inp, "In"
-    if offset is None:
-        last = z_range(graph, shore_height() + 150, top)
-        edge(graph, inp, "In", last, "In")
-        pin = "InsideFilter"
-    if offset is not None:
-        source = last
-        last, settings = graph.add_node_of_type(unreal.PCGTransformPointsSettings)
-        settings.set_editor_property("offset_min", offset)
-        settings.set_editor_property("offset_max", offset)
-        edge(graph, source, pin, last, "In")
-        pin = "Out"
-    edge(graph, last, pin, out, "Out")
+    band = z_range(graph, shore_height() + 150, top)
+    edge(graph, inp, "In", band, "In")
+    edge(graph, band, "InsideFilter", out, "Out")
     save(graph)
     return graph
 
@@ -135,8 +126,9 @@ def entry(template, mesh, group, transform, weight=1, children=None, collision=T
     put(options, AllowCollision=collision, Material=None)
     put(value, MeshOptions=options)
     options = get(value, "AssetOptions")
-    # The shallow log follows terrain; stump/slab/fungi retain world up (Core AssetOptions tooltip).
-    put(options, OrientUpward=0.0 if mesh.get_name() == "xicmfco_tier_2" else 1.0, OverlapWithChildren=True)
+    # Keep the full parent orientation until the fungi graph positions its anchor, then upright it.
+    aligned = mesh.get_name() in ("xicmfco_tier_2", "pdvcB_LOD0_TIER2_000")
+    put(options, OrientUpward=0.0 if aligned else 1.0, OverlapWithChildren=True)
     put(value, AssetOptions=options)
     return value
 
@@ -153,6 +145,7 @@ def main():
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     meshes = {name: load(VENDOR + path) for name, path in MESHES.items()}
+    anchor = source_anchor(meshes["Log"], meshes["Fungi"])  # fail before any asset mutation, also in --check
     trees = load(ROOT + "DA_Forest_TreesAssets")
     template = trees.get_editor_property("BiomeAssets")[0]
     load(ROOT + "PCG_TreesAboveShore")
@@ -193,11 +186,9 @@ def main():
         save(mesh)
     plain = filter_graph("PCG_DeadwoodAboveShore")
     nurse = filter_graph("PCG_NurseLogLowGround", top=1200)
-    # A rooted child point in log-local space inherits the parent's yaw and scale.
-    # Put fungi on the scan's upper surface; inspect on the actual mesh before acceptance.
-    bounds = meshes["Log"].get_bounds()
-    fungi = filter_graph("PCG_NurseLogFungi", offset=unreal.Vector(
-        bounds.origin.x, bounds.origin.y, bounds.origin.z + bounds.box_extent.z - 3))
+    fungi = copy_asset(ROOT + "PCG_TreesAboveShore", "PCG_NurseLogFungi")
+    build_anchor_graph(fungi, anchor, edge)
+    save(fungi)
     children = asset_list("DA_Forest_NurseLogChildren", [
         entry(template, meshes["Fungi"], None, fungi, collision=False)])
     deadwood = generator("Deadwood", 18, 20, 10)

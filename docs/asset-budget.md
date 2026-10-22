@@ -47,6 +47,9 @@ Instance collision still needs a walker check after generation (the asset audit 
 
 - Deadwood: 18 candidates/ha, weighted 8 plain logs : 4 nurse logs : 6 stumps; slope at most 20°.
   A nurse log is the same fallen log with one attached Bolete mushroom cluster via Core recursive ChildAssets.
+  `scripts/pcg/nurse_anchor.py` raycasts the source LOD0 triangles at log-local XY (0, 0), embeds
+  the stem base 0.25 cm into that surface, applies the full parent transform including scale,
+  and only then makes fungi upright. Both preflight and build fail if the source ray misses.
   Nurse logs stay below 12 m elevation, a low-ground dampness proxy; this reduces their final share below one third.
 - Rocks: 30 slab candidates/ha, slopes 5–35° to concentrate on banks and slopes rather than flat clearings.
 - Both use Core's inherited spatial-noise patches (density band 0.35–1), random yaw and uniform 0.8–1.2 scale.
@@ -66,7 +69,7 @@ Instance collision still needs a walker check after generation (the asset audit 
   evaluate that visually before acquiring more assets.
 
 The installed fallen-log scan is approximately 270×67×14 cm (lead-measured bounds), a shallow
-weathered piece rather than the earlier research listing's dimensions. Nurse fungi are anchored
-10.4 cm above its root at local XY bounds center, not at an assumed trunk radius. Do not lift roots
+weathered piece rather than the earlier research listing's dimensions. The root plate makes its
+bounds center a poor fungi anchor: bounds maximum height is not the bark height there. Do not lift roots
 based on an unrestricted BlockAll downward trace: it can hit the obstacle's own convex collision;
 ignore all non-LandscapeProxy actors when measuring terrain contact.
