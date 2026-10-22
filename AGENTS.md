@@ -20,3 +20,7 @@ UE 5.8 C++ project on one Mac, coordinated by Niles. Decisions behind these rule
 - `.uasset` / `.umap` are LFS binaries and cannot be merged. No LFS locks: the lead and the human take turns, never editing assets at the same time.
 - The editor's source control provider stays off; use CLI Git. After moves, renames or redirector fixup, stage `Content` changes together (`git add -A -- Content`).
 - LFS objects go to a local `file://` backup via `lfs.url` / `lfs.pushurl`, never to GitHub LFS.
+
+## Forest Biome content
+
+- Every placed asset kind (trees, logs, stumps, rocks, children of assemblies, plants) is an appendable list of variants in the script that builds it, even when it holds one mesh, so adding a variant is a one-line change.
