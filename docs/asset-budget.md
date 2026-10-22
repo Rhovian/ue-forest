@@ -40,7 +40,8 @@ The rules every asset must meet before a Forest Biome may place it. Decided in [
 `scripts/pcg/deadwood_rocks.py --check` validates loaded forest biome membership and source assets without edits.
 Run without `--check` to build reusable generator/asset groups and attach them to the forest biome;
 regenerate Biome Core and save the level afterwards. It leaves Trees settings and stock materials intact.
-The audit recognises the Nordic fallen log, Old Tree Stump and Limestone Slab asset families as solid scans.
+The audit reads all configured log, stump and slab mesh paths from
+`scripts/pcg/biome_variants.py`, including Large Fallen Tree, as solid scans.
 It counts their convex hulls with `get_convex_collision_count`; UE's `get_simple_collision_count`
 counts only boxes, spheres and capsules and excludes convex hulls.
 Instance collision still needs a walker check after generation (the asset audit cannot verify generated components).
@@ -73,3 +74,34 @@ weathered piece rather than the earlier research listing's dimensions. The root 
 bounds center a poor fungi anchor: bounds maximum height is not the bark height there. Do not lift roots
 based on an unrestricted BlockAll downward trace: it can hit the obstacle's own convex collision;
 ignore all non-LandscapeProxy actors when measuring terrain contact.
+
+## Appendable palettes and whole fallen trunks
+
+`LOG_VARIANTS`, `STUMP_VARIANTS`, `SLAB_VARIANTS` and `FUNGI_VARIANTS` in
+`scripts/pcg/biome_variants.py` accept one `(Megascans-relative mesh path, positive weight)` row
+per variant. Append a row to extend a palette; run the builder again. Builder and audit reload
+this module on each run, including in an already-open editor. Lists must be nonempty, paths unique.
+All obstacle variants automatically receive collision generation and exact-path budget coverage;
+fungi remain nonblocking. Fungi alternatives share one child graph per log; their stem-base pivots
+must agree within 1 mm (preflight fails otherwise). Stock materials remain assigned by each mesh.
+
+The two installed logs use weights 0.95 (2.7 m piece) and 0.05 (17.246 m Large Fallen Tree).
+Each log has its own generator: total 12 log candidates/ha split by normalized weight,
+with plain:nurse weights 2:1 per variant. Stumps use 6 candidates/ha; slab palette uses 30.
+Changing the palette redistributes these fixed category totals, not the number of candidates per variant.
+Existing debris placements may change; Trees assets/settings are untouched. The second Nordic
+acquisition reimported the same small scan, so exactly two log variants are configured for now.
+A future distinct scan can still be added as one row once its actual mesh path is known.
+
+Meshes longer than 10 m automatically use a 3° root-slope limit. Their maximum scaled reach
+(from source pivot to farthest bounds corner at 1.2 scale) adds `reach*sin(3°)` to the normal
+shore rise. Plain and nurse graphs also subtract the bounds of every `PCG_BiomeExclusion` actor,
+expanded sideways by reach + 3 m and vertically through the whole terrain. These conservative
+boxes protect lake/stream margins even when their splines are curved; they may reject dry land
+inside a stream's broad bounds. This mask affects only long-log entries, not shared exclusions or
+Trees. Future tagged exclusions participate automatically. A root slope alone cannot detect a crest
+or hollow under 17 m: lead acceptance checks along-trunk terrain support before saving.
+
+Both source logs are queried independently for nurse bark contact; no anchor is reused across scans.
+A second log's source-ray miss is a fail-fast preflight error, never a fallback to AABB height.
+The lead must inspect collision fit and bark contact on both variants and measure frame time.

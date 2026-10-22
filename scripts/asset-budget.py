@@ -3,7 +3,10 @@
 Uses reflected engine properties and Blueprint functions; requires UE 5.8 for
 MeshNaniteSettings.shape_preservation. No assets are edited or saved.
 """
+import importlib
+
 import unreal
+from pcg import biome_variants
 
 # PVE sample content the budget relies on: master material, Wind Driver, wind transform provider.
 PLUGIN_CONTENT = (
@@ -29,7 +32,7 @@ def blend_mode(material):
     return material.get_editor_property("blend_mode")
 
 
-SOLID_SCANS = ("/Nordic_Forest_Tree_Fallen_Medium_", "/Old_Tree_Stump_", "/Limestone_Slab_")
+SOLID_SCANS = importlib.reload(biome_variants).SOLID_SCANS
 
 TREE_HEIGHT_CM = 600  # skinned plants taller than this are trees: they need trunk collision
 
@@ -55,7 +58,7 @@ def violations(asset, data):
         shape = settings.get_editor_property("shape_preservation")
         if foliage and shape != unreal.NaniteShapePreservation.VOXELIZE:
             yield "foliage Nanite shape preservation must be Voxelize", shape
-    if isinstance(asset, unreal.StaticMesh) and any(part in str(data.package_name) for part in SOLID_SCANS):
+    if isinstance(asset, unreal.StaticMesh) and str(data.package_name) in SOLID_SCANS:
         subsystem = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
         # UE 5.8 StaticMeshEditorSubsystem.cpp: only GetConvexCollisionCount counts ConvexElems.
         count = subsystem.get_convex_collision_count(asset)

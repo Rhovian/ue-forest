@@ -8,21 +8,18 @@ Densities are candidates/ha before slope, noise, shore and Core exclusions/pruni
 """
 
 import argparse
+import importlib
 import math
 import re
 
+import biome_variants
 import unreal
+from long_log_keepout import water_keepout
 from nurse_anchor import build_anchor_graph, source_anchor
 from trees_above_shore import shore_height, z_range
 
 ROOT = "/Game/ForestBiome/"
-VENDOR = "/Game/Fab/Megascans/3D/"
-MESHES = {
-    "Log": "Nordic_Forest_Tree_Fallen_Medium_xicmfco/Medium/xicmfco_tier_2/StaticMeshes/xicmfco_tier_2",
-    "Stump": "Old_Tree_Stump_wd0qcaobw/Medium/wd0qcaobw_tier_2/StaticMeshes/wd0qcaobw_tier_2",
-    "Slab": "Limestone_Slab_ubxbadpda/Medium/ubxbadpda_tier_2/StaticMeshes/ubxbadpda_tier_2",
-    "Fungi": "Bolete_Mushrooms_pdvcB/Medium/pdvcB_tier_2/StaticMeshes/pdvcB_LOD0_TIER2_000",
-}
+VARIANTS = importlib.reload(biome_variants)  # pick up one-line palette edits in the running editor
 
 
 def load(path):
@@ -71,15 +68,16 @@ def edge(graph, source, source_pin, target, target_pin):
         raise RuntimeError(f"PCG connection failed: {source_pin} -> {target_pin}")
 
 
-def filter_graph(name, top=1.0e7):
+def filter_graph(name, top=1.0e7, reach=0):
     graph = copy_asset(ROOT + "PCG_TreesAboveShore", name)
     inp, out = graph.get_input_node(), graph.get_output_node()
     for node in list(graph.get_editor_property("nodes")):
         if node not in (inp, out):
             graph.remove_node(node)
-    band = z_range(graph, shore_height() + 150, top)
+    band = z_range(graph, shore_height() + 150 + reach * math.sin(math.radians(3)), top)
     edge(graph, inp, "In", band, "In")
-    edge(graph, band, "InsideFilter", out, "Out")
+    last, pin = water_keepout(graph, band, "InsideFilter", reach, edge) if reach else (band, "InsideFilter")
+    edge(graph, last, pin, out, "Out")
     save(graph)
     return graph
 
@@ -118,7 +116,7 @@ def generator(group, density, slope, priority):
     return data
 
 
-def entry(template, mesh, group, transform, weight=1, children=None, collision=True):
+def entry(template, mesh, group, transform, weight=1, children=None, collision=True, aligned=False):
     value = template.copy()
     put(value, AssetType=mesh.get_name(), Mesh=mesh, SkeletalMesh=None, Generator=group,
         TransformGraph=transform, Weight=weight, ChildAssets=children, MeshOptionsPreset=None)
@@ -127,7 +125,6 @@ def entry(template, mesh, group, transform, weight=1, children=None, collision=T
     put(value, MeshOptions=options)
     options = get(value, "AssetOptions")
     # Keep the full parent orientation until the fungi graph positions its anchor, then upright it.
-    aligned = mesh.get_name() in ("xicmfco_tier_2", "pdvcB_LOD0_TIER2_000")
     put(options, OrientUpward=0.0 if aligned else 1.0, OverlapWithChildren=True)
     put(value, AssetOptions=options)
     return value
@@ -144,8 +141,18 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
-    meshes = {name: load(VENDOR + path) for name, path in MESHES.items()}
-    anchor = source_anchor(meshes["Log"], meshes["Fungi"])  # fail before any asset mutation, also in --check
+    palettes = [VARIANTS.LOG_VARIANTS, VARIANTS.STUMP_VARIANTS, VARIANTS.SLAB_VARIANTS, VARIANTS.FUNGI_VARIANTS]
+    if any(not rows or any(weight <= 0 for _, weight in rows) for rows in palettes):
+        raise RuntimeError("Variant lists must be nonempty with positive weights")
+    paths = [path for rows in palettes for path, _ in rows]
+    if len(paths) != len(set(paths)):
+        raise RuntimeError("A mesh may appear only once across the variant lists")
+    logs, stumps, slabs, fungi = [[(load(VARIANTS.VENDOR + path), weight) for path, weight in rows] for rows in palettes]
+    # Shared child graphs select alternatives, not one separate scatter per fungi variant.
+    bases = [mesh.get_bounds().origin.z - mesh.get_bounds().box_extent.z for mesh, _ in fungi]
+    if max(bases) - min(bases) > 0.1:
+        raise RuntimeError("Fungi variants need matching stem-base pivots (within 1 mm)")
+    anchors = {mesh.get_name(): source_anchor(mesh, fungi[0][0]) for mesh, _ in logs}
     trees = load(ROOT + "DA_Forest_TreesAssets")
     template = trees.get_editor_property("BiomeAssets")[0]
     load(ROOT + "PCG_TreesAboveShore")
@@ -159,17 +166,18 @@ def main():
         raise RuntimeError("Load the forest biome volume (all WP cells) before running; no tree assets actor found")
     for water in actors:
         if isinstance(water, (unreal.WaterBodyLake, unreal.WaterBodyRiver)) and not any(
-            actor.get_actor_label() == "ForestExclusion_" + water.get_actor_label() for actor in actors
+            actor.get_actor_label() == "ForestExclusion_" + water.get_actor_label()
+            and actor.actor_has_tag("PCG_BiomeExclusion") for actor in actors
         ):
             raise RuntimeError("Missing water exclusion; run scripts/pcg/water_exclusions.py first")
     for name in ("Mesh", "SkeletalMesh", "Generator", "TransformGraph", "ChildAssets", "MeshOptions"):
         field(template, name)
     if args.check:
-        print(f"Deadwood/Rocks preflight OK: 4 meshes, {len(biomes)} forest biome volume(s); no changes")
+        print(f"Deadwood/Rocks preflight OK: {sum(map(len, palettes))} variants, {len(biomes)} forest biome volume(s); no changes")
         return
     subsystem = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
-    for name in ("Log", "Stump", "Slab"):
-        mesh = meshes[name]
+    for mesh, _ in logs + stumps + slabs:
+        name = mesh.get_name()
         # Engine's convex decomposition replaces existing hulls; no custom collision generator.
         # UE 5.8 StaticMeshEditorSubsystem.h: SetConvexDecompositionCollisions.
         if not subsystem.set_convex_decomposition_collisions(mesh, 4, 16, 100000):
@@ -185,23 +193,31 @@ def main():
             raise RuntimeError(f"Expected 1..4 convex collision hulls: {name}, got {count}")
         save(mesh)
     plain = filter_graph("PCG_DeadwoodAboveShore")
-    nurse = filter_graph("PCG_NurseLogLowGround", top=1200)
-    fungi = copy_asset(ROOT + "PCG_TreesAboveShore", "PCG_NurseLogFungi")
-    build_anchor_graph(fungi, anchor, edge)
-    save(fungi)
-    children = asset_list("DA_Forest_NurseLogChildren", [
-        entry(template, meshes["Fungi"], None, fungi, collision=False)])
-    deadwood = generator("Deadwood", 18, 20, 10)
+    deadwood = generator("Deadwood", 6, 20, 10)
+    entries = [entry(template, mesh, deadwood, plain, weight) for mesh, weight in stumps]
+    for mesh, weight in logs:
+        name, box = mesh.get_name(), mesh.get_bounding_box()
+        # Enclose every scaled source corner relative to its pivot, irrespective of random yaw.
+        reach = 1.2 * math.sqrt(sum(max(abs(getattr(box.min, axis)), abs(getattr(box.max, axis)))**2 for axis in "xyz"))
+        long = max(getattr(box.max, a) - getattr(box.min, a) for a in "xyz") > 1000
+        group = generator("Deadwood_" + name, 12 * weight / sum(w for _, w in logs), 3 if long else 20, 10)
+        log_plain = filter_graph("PCG_Log_" + name, reach=reach if long else 0)
+        nurse = filter_graph("PCG_Nurse_" + name, top=1200, reach=reach if long else 0)
+        graph = copy_asset(ROOT + "PCG_TreesAboveShore", "PCG_Fungi_" + name)
+        build_anchor_graph(graph, anchors[name], edge)
+        save(graph)
+        children = asset_list("DA_NurseChildren_" + name, [
+            entry(template, child, None, graph, w, collision=False, aligned=True) for child, w in fungi])
+        entries += [entry(template, mesh, group, log_plain, 2, aligned=True),
+                    entry(template, mesh, group, nurse, 1, children, aligned=True)]
+        print(f"Log variant {name}: share {weight / sum(w for _, w in logs):.1%}, slope {3 if long else 20} deg, reach {reach:.0f} cm")
     rocks = generator("Rocks", 30, 35, 20)
-    groups = [asset_list("DA_Forest_DeadwoodAssets", [
-        entry(template, meshes["Log"], deadwood, plain, 8),
-        entry(template, meshes["Log"], deadwood, nurse, 4, children),
-        entry(template, meshes["Stump"], deadwood, plain, 6)]),
-        asset_list("DA_Forest_RocksAssets", [entry(template, meshes["Slab"], rocks, plain)])]
+    groups = [asset_list("DA_Forest_DeadwoodAssets", entries), asset_list("DA_Forest_RocksAssets", [
+        entry(template, mesh, rocks, plain, weight) for mesh, weight in slabs])]
     for actor in biomes:
         assets = list(actor.get_editor_property("Assets"))
         actor.set_editor_property("Assets", assets + [group for group in groups if group not in assets])
-    print("Deadwood/Rocks built: 18/ha (8 plain logs, 4 nurse logs, 6 stumps), 30 slabs/ha candidates")
+    print(f"Deadwood/Rocks built: 12 logs + 6 stumps/ha, 30 slabs/ha candidates; {len(logs)} log variants")
     print("Collision: Log/Stump/Slab simple BlockAll; stock materials; assets saved")
     print("Ground groups: priority difference bypassed (canopy bounds); terrain/water filters retained")
     print("Regenerate Biome Core, inspect nurse fungi/contact/collision, then save the level")
