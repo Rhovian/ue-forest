@@ -55,10 +55,18 @@ Instance collision still needs a walker check after generation (the asset audit 
   ground obstacles (lead probe: 34 deadwood/28 slabs before bypass, 371/408 after). Tree output was
   identical in both cases. The new groups may overlap each other or trunks; inspect intersections
   visually rather than using canopy-sized exclusion bounds. Trees settings remain unchanged.
-  Ground follows landscape normals; no extra pitch/roll on the scans. Inspect contacts on steep ground.
+  Logs follow landscape normals; stumps, slabs and fungi use Core OrientUpward=1 (world up).
+  Rotation ranges use named pitch/yaw/roll fields: Python's positional Rotator order is roll/pitch/yaw.
+  XY scramble is disabled to preserve sampled terrain contact. Inspect contacts on steep ground.
 - Root points must be at least 1.5 m above the floor's ShoreHeight (default total 2.25 m).
   Core's existing lake/river exclusion splines and future BiomePath keep-outs apply; step 8b must regenerate
   all groups after adding its path. No path route or landscape painting is invented here.
 - Four convex hulls of at most 16 vertices per obstacle; fungi have instance collision disabled.
   No moss coating or broad understory is built. A second fallen-log silhouette would help repetition most;
   evaluate that visually before acquiring more assets.
+
+The installed fallen-log scan is approximately 270×67×14 cm (lead-measured bounds), a shallow
+weathered piece rather than the earlier research listing's dimensions. Nurse fungi are anchored
+10.4 cm above its root at local XY bounds center, not at an assumed trunk radius. Do not lift roots
+based on an unrestricted BlockAll downward trace: it can hit the obstacle's own convex collision;
+ignore all non-LandscapeProxy actors when measuring terrain contact.

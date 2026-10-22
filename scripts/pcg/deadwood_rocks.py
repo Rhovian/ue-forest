@@ -101,7 +101,7 @@ def generator(group, density, slope, priority):
     for name, value in {
         "PointsPerSquareMeter": density / 10000, "SlopeMaskLow": math.cos(math.radians(slope)),
         "SlopeMaskHigh": math.cos(math.radians(5)) if group == "Rocks" else 1.0, "SpatialDensityLow": 0.35, "SpatialDensityHigh": 1.0,
-        "ScaleByDensityRangeMin": 1.0, "ScaleByDensityRangeMax": 1.0,
+        "ScaleByDensityRangeMin": 1.0, "ScaleByDensityRangeMax": 1.0, "ScramblePositionDistance": 0.0,
     }.items():
         helpers.set_double_parameter(graph, name, value)
     for name, value in {
@@ -112,8 +112,9 @@ def generator(group, density, slope, priority):
     for name, value in {"ScaleMin": unreal.Vector(0.8, 0.8, 0.8), "ScaleMax": unreal.Vector(1.2, 1.2, 1.2),
                         "PointExtents": unreal.Vector(100, 100, 100)}.items():
         helpers.set_vector_parameter(graph, name, value)
-    helpers.set_rotator_parameter(graph, "RotationMin", unreal.Rotator(0, 0, 0))
-    helpers.set_rotator_parameter(graph, "RotationMax", unreal.Rotator(0, 360, 0))
+    # Python uses MakeRotator(Roll, Pitch, Yaw), not the C++ constructor order (KismetMathLibrary.h).
+    helpers.set_rotator_parameter(graph, "RotationMin", unreal.Rotator(pitch=0, yaw=0, roll=0))
+    helpers.set_rotator_parameter(graph, "RotationMax", unreal.Rotator(pitch=0, yaw=360, roll=0))
     data = copy_asset(ROOT + "DA_Forest_TreesGenerator", f"DA_Forest_{group}Generator")
     value = data.get_editor_property("Generator")
     # Core priority difference uses full mesh bounds, so canopy bounds erase ground obstacles.
@@ -134,7 +135,8 @@ def entry(template, mesh, group, transform, weight=1, children=None, collision=T
     put(options, AllowCollision=collision, Material=None)
     put(value, MeshOptions=options)
     options = get(value, "AssetOptions")
-    put(options, OrientUpward=0.0, OverlapWithChildren=True)
+    # The shallow log follows terrain; stump/slab/fungi retain world up (Core AssetOptions tooltip).
+    put(options, OrientUpward=0.0 if mesh.get_name() == "xicmfco_tier_2" else 1.0, OverlapWithChildren=True)
     put(value, AssetOptions=options)
     return value
 
