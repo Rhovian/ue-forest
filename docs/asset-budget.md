@@ -50,7 +50,11 @@ Instance collision still needs a walker check after generation (the asset audit 
   Nurse logs stay below 12 m elevation, a low-ground dampness proxy; this reduces their final share below one third.
 - Rocks: 30 slab candidates/ha, slopes 5–35° to concentrate on banks and slopes rather than flat clearings.
 - Both use Core's inherited spatial-noise patches (density band 0.35–1), random yaw and uniform 0.8–1.2 scale.
-  Counts decrease after masks, shore/water exclusions and priority pruning (Trees → Deadwood → Rocks).
+  Counts decrease after masks and shore/water exclusions. Deadwood and Rocks bypass cross-generator
+  priority difference (`GeneratorAllowOverlap=True`): full canopy bounds otherwise removed almost all
+  ground obstacles (lead probe: 34 deadwood/28 slabs before bypass, 371/408 after). Tree output was
+  identical in both cases. The new groups may overlap each other or trunks; inspect intersections
+  visually rather than using canopy-sized exclusion bounds. Trees settings remain unchanged.
   Ground follows landscape normals; no extra pitch/roll on the scans. Inspect contacts on steep ground.
 - Root points must be at least 1.5 m above the floor's ShoreHeight (default total 2.25 m).
   Core's existing lake/river exclusion splines and future BiomePath keep-outs apply; step 8b must regenerate

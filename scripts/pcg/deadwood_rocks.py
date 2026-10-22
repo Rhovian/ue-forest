@@ -116,7 +116,10 @@ def generator(group, density, slope, priority):
     helpers.set_rotator_parameter(graph, "RotationMax", unreal.Rotator(0, 360, 0))
     data = copy_asset(ROOT + "DA_Forest_TreesGenerator", f"DA_Forest_{group}Generator")
     value = data.get_editor_property("Generator")
-    put(value, GeneratorType=group, GeneratorGraph=graph, GeneratorPriority=priority, GeneratorAllowOverlap=False)
+    # Core priority difference uses full mesh bounds, so canopy bounds erase ground obstacles.
+    # Lead's same-world probe: bypass recovered 34 -> 371 deadwood and 28 -> 408 slabs.
+    # Keep terrain/water filters; allow cross-generator overlap rather than carving canopy gaps.
+    put(value, GeneratorType=group, GeneratorGraph=graph, GeneratorPriority=priority, GeneratorAllowOverlap=True)
     data.set_editor_property("Generator", value)
     save(graph)
     save(data)
@@ -207,6 +210,7 @@ def main():
         actor.set_editor_property("Assets", assets + [group for group in groups if group not in assets])
     print("Deadwood/Rocks built: 18/ha (8 plain logs, 4 nurse logs, 6 stumps), 30 slabs/ha candidates")
     print("Collision: Log/Stump/Slab simple BlockAll; stock materials; assets saved")
+    print("Ground groups: priority difference bypassed (canopy bounds); terrain/water filters retained")
     print("Regenerate Biome Core, inspect nurse fungi/contact/collision, then save the level")
 
 
