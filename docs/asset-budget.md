@@ -85,7 +85,7 @@ All obstacle variants automatically receive collision generation and exact-path 
 fungi remain nonblocking. Fungi alternatives share one child graph per log; their stem-base pivots
 must agree within 1 mm (preflight fails otherwise). Stock materials remain assigned by each mesh.
 
-The two installed logs use weights 0.95 (2.7 m piece) and 0.05 (17.246 m Large Fallen Tree).
+The two installed logs use weights 0.85 (2.7 m piece) and 0.15 (17.246 m Large Fallen Tree).
 Each log has its own generator: total 12 log candidates/ha split by normalized weight,
 with plain:nurse weights 2:1 per variant. Stumps use 6 candidates/ha; slab palette uses 30.
 Changing the palette redistributes these fixed category totals, not the number of candidates per variant.
