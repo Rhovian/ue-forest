@@ -93,14 +93,19 @@ Existing debris placements may change; Trees assets/settings are untouched. The 
 acquisition reimported the same small scan, so exactly two log variants are configured for now.
 A future distinct scan can still be added as one row once its actual mesh path is known.
 
-Meshes longer than 10 m automatically use a 3° root-slope limit. Their maximum scaled reach
-(from source pivot to farthest bounds corner at 1.2 scale) adds `reach*sin(3°)` to the normal
+Meshes longer than 10 m automatically use an 8° root-slope limit. Their maximum scaled reach
+(from source pivot to farthest bounds corner at 1.2 scale) adds `reach*sin(8°)` to the normal
 shore rise. Plain and nurse graphs also subtract the bounds of every `PCG_BiomeExclusion` actor,
 expanded sideways by reach + 3 m and vertically through the whole terrain. These conservative
 boxes protect lake/stream margins even when their splines are curved; they may reject dry land
 inside a stream's broad bounds. This mask affects only long-log entries, not shared exclusions or
 Trees. Future tagged exclusions participate automatically. A root slope alone cannot detect a crest
 or hollow under 17 m: lead acceptance checks along-trunk terrain support before saving.
+The former 3° mask was too restrictive for useful variety. The 8° mask admits more gentle slopes;
+the 50 cm along-trunk support tolerance and expanded water keep-out still apply.
+Plain and nurse logs now share identical terrain/shore/water eligibility. The old 12 m nurse
+altitude ceiling could discard selected nurses and is removed: altitude alone does not establish
+forest dampness. Plain:nurse weights stay 2:1; actual realized counts must be checked after generation.
 
 Both source logs are queried independently for nurse bark contact; no anchor is reused across scans.
 A second log's source-ray miss is a fail-fast preflight error, never a fallback to AABB height.

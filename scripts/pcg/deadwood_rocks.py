@@ -68,13 +68,13 @@ def edge(graph, source, source_pin, target, target_pin):
         raise RuntimeError(f"PCG connection failed: {source_pin} -> {target_pin}")
 
 
-def filter_graph(name, top=1.0e7, reach=0):
+def filter_graph(name, reach=0, slope=0):
     graph = copy_asset(ROOT + "PCG_TreesAboveShore", name)
     inp, out = graph.get_input_node(), graph.get_output_node()
     for node in list(graph.get_editor_property("nodes")):
         if node not in (inp, out):
             graph.remove_node(node)
-    band = z_range(graph, shore_height() + 150 + reach * math.sin(math.radians(3)), top)
+    band = z_range(graph, shore_height() + 150 + reach * math.sin(math.radians(slope)), 1.0e7)
     edge(graph, inp, "In", band, "In")
     last, pin = water_keepout(graph, band, "InsideFilter", reach, edge) if reach else (band, "InsideFilter")
     edge(graph, last, pin, out, "Out")
@@ -200,9 +200,12 @@ def main():
         # Enclose every scaled source corner relative to its pivot, irrespective of random yaw.
         reach = 1.2 * math.sqrt(sum(max(abs(getattr(box.min, axis)), abs(getattr(box.max, axis)))**2 for axis in "xyz"))
         long = max(getattr(box.max, a) - getattr(box.min, a) for a in "xyz") > 1000
-        group = generator("Deadwood_" + name, 12 * weight / sum(w for _, w in logs), 3 if long else 20, 10)
-        log_plain = filter_graph("PCG_Log_" + name, reach=reach if long else 0)
-        nurse = filter_graph("PCG_Nurse_" + name, top=1200, reach=reach if long else 0)
+        # Smooth hillsides can support a tilted trunk; lead checks nine terrain samples along it.
+        slope = 8 if long else 20
+        group = generator("Deadwood_" + name, 12 * weight / sum(w for _, w in logs), slope, 10)
+        log_plain = filter_graph("PCG_Log_" + name, reach=reach if long else 0, slope=slope)
+        # Altitude alone is no dampness proxy; both forms need the same eligible ground.
+        nurse = filter_graph("PCG_Nurse_" + name, reach=reach if long else 0, slope=slope)
         graph = copy_asset(ROOT + "PCG_TreesAboveShore", "PCG_Fungi_" + name)
         build_anchor_graph(graph, anchors[name], edge)
         save(graph)
@@ -210,7 +213,7 @@ def main():
             entry(template, child, None, graph, w, collision=False, aligned=True) for child, w in fungi])
         entries += [entry(template, mesh, group, log_plain, 2, aligned=True),
                     entry(template, mesh, group, nurse, 1, children, aligned=True)]
-        print(f"Log variant {name}: share {weight / sum(w for _, w in logs):.1%}, slope {3 if long else 20} deg, reach {reach:.0f} cm")
+        print(f"Log variant {name}: share {weight / sum(w for _, w in logs):.1%}, slope {slope} deg, reach {reach:.0f} cm")
     rocks = generator("Rocks", 30, 35, 20)
     groups = [asset_list("DA_Forest_DeadwoodAssets", entries), asset_list("DA_Forest_RocksAssets", [
         entry(template, mesh, rocks, plain, weight) for mesh, weight in slabs])]
