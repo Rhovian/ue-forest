@@ -110,3 +110,30 @@ forest dampness. Plain:nurse weights stay 2:1; actual realized counts must be ch
 Both source logs are queried independently for nurse bark contact; no anchor is reused across scans.
 A second log's source-ray miss is a fail-fast preflight error, never a fallback to AABB height.
 The lead must inspect collision fit and bark contact on both variants and measure frame time.
+
+## Saplings, Understory and shore footpath (step 8b)
+
+Build `scripts/pcg/shore_path.py --check`, then run it without `--check`. It derives a 600 m,
+3 m wide exclusion corridor from `Saved/Terrain/vilm_coastline.json`, 25 m inland with a detour
+past the lake's coast-facing shore. It checks source heights over >=20 m walking baselines
+(maximum 35% grade), beach clearance and the existing water-exclusion polygons. `uv` and its
+cached Pillow dependency are needed for offline PNG sampling outside UE's bundled Python.
+Source heights must match the imported landscape; walk the resulting route in PIE. This creates
+a vegetation override, not a path surface material. Water-exclusion rebuilds preserve this override.
+
+Run `scripts/pcg/saplings_understory.py saplings --check`, then `saplings` to build Saplings;
+regenerate **all** Core groups, inspect/save the level and measure with
+`scripts/measure/run.sh level /Game/L_vilm`. Only then repeat with `understory --check` and
+`understory`, regenerate/inspect/save and measure again. Every plant has instance collision disabled.
+Saplings use admitted A/B/D exports; shrubs use Huckleberry Oak as the agreed stand-in.
+Each plant kind has its own appendable `(full /Game mesh path, positive weight)` list in
+`biome_variants.py`; weights redistribute a fixed kind density.
+
+Saplings start at 300 candidates/ha, with Core priority pruning retaining canopy gaps. Understory
+starts at 100 shrubs, 1000 ferns, 2000 herb clumps and 500 ivy clumps/ha before masks. Half of each
+kind's candidates use canopy gaps, half use overlap-enabled low/flat or near-water patches:
+Z below 12 m or within 30 m (3D distance) of sampled water splines, slope <=25°, with spatial noise.
+The low/flat mask is an art proxy for dampness, not measured soil moisture. All plants retain shore,
+water and footpath exclusions. These whole-area trial counts are not colony densities or FPS promises.
+If frame time exceeds 33.3 ms, rebuild **Understory first** with `understory --density-scale 0.5`
+(or 0.25), then regenerate/save/measure; Saplings and the other groups remain independently tunable.

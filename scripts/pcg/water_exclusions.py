@@ -82,4 +82,5 @@ def main():
             place(f"ForestExclusion_{water.get_actor_label()}", left + right[::-1], 1000.0)
 
 
-main()
+if __name__ == "__main__":
+    main()

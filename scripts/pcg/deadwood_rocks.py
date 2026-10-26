@@ -226,4 +226,5 @@ def main():
     print("Regenerate Biome Core, inspect nurse fungi/contact/collision, then save the level")
 
 
-main()
+if __name__ == "__main__":
+    main()
