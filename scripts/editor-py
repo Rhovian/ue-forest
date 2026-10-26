@@ -36,6 +36,12 @@ while not os.path.isdir(os.path.join(ROOT, "in")):  # created by init_unreal.py 
     time.sleep(0.5)
 
 name = uuid.uuid4().hex
+# Existing callers remain synchronous. Scripts explicitly marked deferred may finish on later
+# editor ticks: init_unreal.py:_run otherwise returns as soon as their source finishes executing.
+deferred = "# editor-py: deferred\n" in source
+deferred_out = os.path.join(ROOT, "out", name + ".deferred.json")
+if deferred:
+    source = f"EDITOR_PY_DEFERRED_RESULT = {deferred_out!r}\n" + source
 tmp = os.path.join(ROOT, "in", name + ".tmp")
 with open(tmp, "w") as f:
     f.write(source)
@@ -49,5 +55,15 @@ while not os.path.exists(out):
 with open(out) as f:
     result = json.load(f)
 os.remove(out)
+marker = "__EDITOR_PY_DEFERRED__\n"
+if deferred and result["ok"] and result["output"].endswith(marker):
+    print(result["output"][:-len(marker)], end="", flush=True)
+    while not os.path.exists(deferred_out):
+        if time.time() > deadline:
+            sys.exit(f"no deferred result after {TIMEOUT:.0f}s; PCG may still be running; do not restart it")
+        time.sleep(0.1)
+    with open(deferred_out) as f:
+        result = json.load(f)
+    os.remove(deferred_out)
 print(result["output"], end="")
 sys.exit(0 if result["ok"] else 1)

@@ -137,3 +137,15 @@ The low/flat mask is an art proxy for dampness, not measured soil moisture. All 
 water and footpath exclusions. These whole-area trial counts are not colony densities or FPS promises.
 If frame time exceeds 33.3 ms, rebuild **Understory first** with `understory --density-scale 0.5`
 (or 0.25), then regenerate/save/measure; Saplings and the other groups remain independently tunable.
+
+After terrain changes and each group build, run
+`scripts/editor-py scripts/pcg/regenerate_biome.py --check` for a read-only Core/partition,
+instance-count and dirty-package inventory. Check-mode counts cover loaded instances only;
+on-disk PCG cell descriptors are reported separately. Run without `--check` to retain all
+L_vilm WP inputs/cells and force regeneration of the partitioned Core; the command waits
+for native completion while the editor keeps ticking, then prints full loaded group counts.
+Add `--save` to save only dirty map, landscape/proxy, water, biome override/Core/volume,
+PCG partition/metadata and `/Game/ForestBiome` packages. Each saved package is named.
+A timeout/cancelled generation fails without saving; check the editor before another run.
+The opt-in deferred runner requires the updated `scripts/editor-py`; existing scripts retain
+their synchronous behavior. PCG engine warnings/errors still require review in the editor log.
