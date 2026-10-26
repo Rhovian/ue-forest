@@ -34,3 +34,12 @@ HERB_VARIANTS = [
 IVY_VARIANTS = [
     ("/Game/Fab/Megascans/Plants/English_Ivy_xfcnebhqx/Medium/xfcnebhqx_tier_2/StaticMeshes/SM_xfcnebhqx_VarA", 1),
 ]
+
+# UE MaterialInstance.cpp:SetMaterialUsage automatically adds required shader usage bits
+# when these static plants first spawn (Nanite/InstancedStaticMeshes/Voxels). Save only these MIs.
+PLANT_USAGE_MATERIALS = {
+    "/Game/Fab/Megascans/Plants/Beech_Fern_vmkpdbeia/Medium/vmkpdbeia_tier_2/Materials/MI_vmkpdbeia",
+    "/Game/Fab/Megascans/Plants/Beech_Fern_vmkpdbeia/Medium/vmkpdbeia_tier_2/Materials/MI_vmkpdbeia_Billboard",
+    "/Game/Fab/Megascans/Plants/English_Ivy_xfcnebhqx/Medium/xfcnebhqx_tier_2/Materials/MI_xfcnebhqx",
+    "/Game/Fab/Megascans/Plants/English_Ivy_xfcnebhqx/Medium/xfcnebhqx_tier_2/Materials/MI_xfcnebhqx_Billboard",
+}

@@ -149,3 +149,16 @@ PCG partition/metadata and `/Game/ForestBiome` packages. Each saved package is n
 A timeout/cancelled generation fails without saving; check the editor before another run.
 The opt-in deferred runner requires the updated `scripts/editor-py`; existing scripts retain
 their synchronous behavior. PCG engine warnings/errors still require review in the editor log.
+
+Saplings/Understory check and build commands now load/retain their World Partition prerequisites,
+including the saved footpath, after an editor reopen. Check mode still makes no explicit asset edits;
+loading actors can trigger UE's automatic PCG refresh. The regeneration command waits for an existing
+refresh, flushes PCG's actor-query/execution cache and forces its own regeneration before saving.
+This prevents reuse of exclusion queries built while the WP footpath was absent; its saved spline
+geometry is retained. Confirm the path remains clear after restart and regeneration.
+
+The save allowlist also includes exactly the fern/ivy main and billboard material instances listed
+in `biome_variants.PLANT_USAGE_MATERIALS`. UE 5.8 automatically adds Nanite usage to all four and
+InstancedStaticMeshes/Voxels usage to the two main instances when first instantiated. These are shader
+usage/override bits, not authored colour/texture changes; save them to persist the compiled usage setup.
+Unrelated vendor material packages remain outside the allowlist.

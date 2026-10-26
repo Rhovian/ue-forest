@@ -6,6 +6,7 @@
 
 Candidates/ha before slope, noise, canopy pruning and water/path exclusions. Saves
 assets, attaches only the requested group; leaves regeneration/level saving to lead.
+Both check and build retain WP actors for their prerequisites; check makes no explicit asset edits.
 """
 
 import argparse
@@ -13,6 +14,7 @@ import importlib
 import math
 
 import biome_variants
+import deadwood_rocks
 import unreal
 from deadwood_rocks import ROOT, asset_list, copy_asset, edge, entry, field, generator, get, load, put, save
 from shore_path import LABEL
@@ -97,11 +99,11 @@ def main():
     # Exercise native typed fields on detached struct copies before any asset/actor mutation.
     for mesh in meshes.values():
         entry(template, mesh, None, None, collision=False)
-    actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()
+    actors = deadwood_rocks.load_forest_actors()
     biomes = [a for a in actors if a.get_class().get_name().startswith("BP_PCGBiomeVolume")
               and trees in a.get_editor_property("Assets")]
     if not biomes or not any(a.get_actor_label() == LABEL and a.actor_has_tag("PCG_BiomeExclusion") for a in actors):
-        raise RuntimeError("Load forest biome/all cells and build shore_path.py first")
+        raise RuntimeError("Build shore_path.py first; loaded forest biome or footpath exclusion missing")
     for water in [a for a in actors if isinstance(a, (unreal.WaterBodyLake, unreal.WaterBodyRiver))]:
         if not any(a.get_actor_label() == "ForestExclusion_" + water.get_actor_label()
                    and a.actor_has_tag("PCG_BiomeExclusion") for a in actors):

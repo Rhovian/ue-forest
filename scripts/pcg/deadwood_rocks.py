@@ -30,6 +30,16 @@ def load(path):
     return asset
 
 
+def load_forest_actors():
+    # UE 5.8.3 WorldPartitionBlueprintLibrary.cpp:LoadActors retains a native loader adapter
+    # and synchronously refreshes it. All inputs (including exclusions) must precede PCG queries.
+    descriptors = unreal.WorldPartitionBlueprintLibrary.get_actor_descs()
+    if descriptors is None:
+        raise RuntimeError("Load a World Partition forest level before running")
+    unreal.WorldPartitionBlueprintLibrary.load_actors([d.guid for d in descriptors])
+    return unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()
+
+
 def field(struct, name):
     # UE 5.8 user-defined struct fields have GUID suffixes; Python exposes no field iterator.
     # PyWrapperStruct.cpp: ExportToText delegates to UScriptStruct::ExportText; use that

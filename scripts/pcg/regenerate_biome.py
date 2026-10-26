@@ -6,7 +6,8 @@
 
 --check never loads actors, regenerates or saves; counts describe currently loaded
 instances plus on-disk WP cell descriptors. Build retains all map actors for complete
-inputs/counts. --save saves only dirty map/terrain/water/biome/PCG and ForestBiome packages.
+inputs/counts. --save includes dirty map/terrain/water/biome/PCG, ForestBiome, and the
+four approved fern/ivy material instances with UE-added shader usage flags.
 """
 
 import argparse
@@ -19,6 +20,7 @@ import time
 import traceback
 
 import unreal
+from biome_variants import PLANT_USAGE_MATERIALS
 from deadwood_rocks import get
 
 MAP = "/Game/L_vilm"
@@ -101,7 +103,7 @@ def validate(cores):
 def dirty_allowed(loaded, world):
     # FileHelpers.h SaveDirtyPackages is global; GetDirty* + SavePackages is the scoped native API.
     # EditorAssetLibrary.cpp:GetPackageForObject uses UObject::GetPackage, including external actors.
-    allowed = {unreal.EditorAssetLibrary.get_package_for_object(world).get_name()}
+    allowed = {unreal.EditorAssetLibrary.get_package_for_object(world).get_name()} | PLANT_USAGE_MATERIALS
     for actor in loaded:
         if isinstance(actor, (unreal.LandscapeProxy, unreal.WaterBody, unreal.PCGPartitionActor)) or (
                 actor.get_class().get_name().startswith("BP_PCGBiome") or actor.get_class().get_name() == "PCGWorldActor"):
@@ -115,18 +117,43 @@ class Regeneration:
     def __init__(self, cores, world, destination, save):
         self.cores, self.world, self.destination, self.save = cores, world, destination, save
         self.pending = {c for _, c in cores}
-        self.started, self.bindings = set(), []
+        self.started, self.busy, self.ready, self.bindings = set(), set(), set(), []
+        self.requesting, self.events = None, []
         self.error, self.handle, self.finishing = None, None, False
         self.deadline = time.monotonic() + 540
 
     def complete(self, component):
-        self.pending.discard(component)
+        self.busy.discard(component)
+        if component in self.started:
+            self.pending.discard(component)
+            self.started.discard(component)
+        elif component in self.pending:
+            self.ready.add(component)  # pre-existing refresh finished; force ours on the next tick
 
     def started_graph(self, component):
-        self.started.add(component)
+        self.busy.add(component)
+        if self.requesting == component:
+            self.started.add(component)
 
     def cancelled(self, component):
-        self.error = f"Generation cancelled: {component.get_path_name()}; nothing saved"
+        self.busy.discard(component)
+        if component in self.pending and component not in self.started:
+            self.ready.add(component)  # automatic refresh cancelled; requested regeneration still needed
+        else:
+            self.error = f"Generation cancelled: {component.get_path_name()}; nothing saved"
+
+    def request(self, component):
+        # Force=True does NOT clear execution/actor-query caches (PCGComponent.cpp:CreateGenerateTask).
+        # Flush after WP inputs are loaded, and again after any prior automatic refresh completes.
+        if not unreal.PCGBlueprintHelpers.flush_pcg_cache():
+            raise RuntimeError("Could not flush PCG cache; nothing saved")
+        self.requesting = component
+        try:
+            component.generate_local(True)
+        finally:
+            self.requesting = None
+        if component not in self.started:
+            self.events.append("Waiting for current automatic Core refresh before forcing regeneration")
 
     def start(self):
         # PCGComponent.cpp:GenerateInternal schedules tasks; its dynamic generated/cancelled
@@ -139,10 +166,10 @@ class Regeneration:
                 delegate.add_callable(callback)
                 self.bindings.append((delegate, callback))
         self.handle = unreal.register_slate_post_tick_callback(self.tick)
-        for actor, component in self.cores:
-            component.generate_local(True)
-            if component not in self.started:
-                raise RuntimeError(f"Core did not start (already busy or not eligible): {actor.get_actor_label()}")
+        for _, component in self.cores:
+            # GenerateInternal (PCGComponent.cpp:546) rejects busy components rather than queuing.
+            # Native completed/cancelled events queue our single pending request; no sleep/retry polling.
+            self.request(component)
 
     def cleanup(self):
         for delegate, callback in self.bindings:
@@ -154,13 +181,24 @@ class Regeneration:
         setattr(builtins, ACTIVE, None)
 
     def tick(self, _delta):
-        if self.finishing or (not self.error and self.pending and time.monotonic() < self.deadline):
+        if self.finishing:
             return
+        if not self.error and time.monotonic() < self.deadline:
+            try:
+                for component in list(self.ready):
+                    self.ready.discard(component)
+                    self.request(component)
+            except Exception as error:  # noqa: BLE001 -- return a failed deferred result
+                self.error = str(error)
+            if not self.error and (self.pending or self.busy):
+                return
         self.finishing = True  # saving can pump editor events; never reenter finalization
         output, ok = io.StringIO(), False
         with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
             try:
-                if self.error or self.pending:
+                for event in self.events:
+                    print(event)
+                if self.error or self.pending or self.busy:
                     raise RuntimeError(self.error or "Generation timed out; nothing saved; do not rerun while PCG is busy")
                 loaded = actors()
                 report(loaded, self.cores)
