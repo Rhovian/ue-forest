@@ -1,3 +1,4 @@
+# editor-py: fresh-siblings
 """Derive the level's first override: a 3 m vegetation-free shore path past its lake.
 
     scripts/editor-py scripts/pcg/shore_path.py [--check]

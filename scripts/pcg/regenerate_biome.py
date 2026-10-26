@@ -1,3 +1,4 @@
+# editor-py: fresh-siblings
 # editor-py: deferred
 """Lead only: regenerate L_vilm's partitioned Biome Core; optionally save its packages.
 

@@ -27,7 +27,14 @@ else:
     with open(sys.argv[1]) as script:
         here = os.path.dirname(os.path.abspath(sys.argv[1]))
         # argv for the script, and its folder on sys.path so it can import sibling helper modules
-        source = f"import sys\nsys.argv = {sys.argv[1:]!r}\nsys.path.insert(0, {here!r})\n" + script.read()
+        source = script.read()
+        prelude = f"import sys\nsys.argv = {sys.argv[1:]!r}\nsys.path.insert(0, {here!r})\n"
+        if "# editor-py: fresh-siblings\n" in source:
+            # CPython importlib/_bootstrap.py:_find_and_load consults sys.modules before sys.path;
+            # invalidate_caches() alone cannot replace an already imported module or its aliases.
+            siblings = [os.path.splitext(name)[0] for name in os.listdir(here) if name.endswith(".py")]
+            prelude += f"for _sibling in {siblings!r}:\n    sys.modules.pop(_sibling, None)\n"
+        source = prelude + source
 
 deadline = time.time() + TIMEOUT
 while not os.path.isdir(os.path.join(ROOT, "in")):  # created by init_unreal.py once the editor is up

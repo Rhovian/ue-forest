@@ -1,3 +1,4 @@
+# editor-py: fresh-siblings
 """Build the Trees group's shore filter graph, /Game/ForestBiome/PCG_TreesAboveShore.
 
     scripts/editor-py scripts/pcg/trees_above_shore.py [--shore CM] [--bands TOP:KEEP,...]

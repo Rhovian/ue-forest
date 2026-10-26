@@ -1,3 +1,4 @@
+# editor-py: fresh-siblings
 """Build one step 8b group at a time; regenerate Core and measure after EACH build.
 
     scripts/editor-py scripts/pcg/saplings_understory.py saplings|understory [--check]
@@ -93,6 +94,9 @@ def main():
     load(ROOT + "DA_Forest_TreesGenerator")
     for name in ("Mesh", "SkeletalMesh", "Generator", "TransformGraph", "MeshOptions", "AssetOptions"):
         field(template, name)
+    # Exercise native typed fields on detached struct copies before any asset/actor mutation.
+    for mesh in meshes.values():
+        entry(template, mesh, None, None, collision=False)
     actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()
     biomes = [a for a in actors if a.get_class().get_name().startswith("BP_PCGBiomeVolume")
               and trees in a.get_editor_property("Assets")]
@@ -120,8 +124,6 @@ def main():
             for path, weight in rows:
                 mesh = meshes[path]
                 value = entry(template, mesh, data, transform, weight, collision=False)
-                if isinstance(mesh, unreal.SkeletalMesh):
-                    put(value, Mesh=None, SkeletalMesh=mesh)
                 # Core's OrientUpward preserves upright plants; stock wind/material settings survive.
                 options = get(value, "AssetOptions")
                 put(options, OrientUpward=1.0)

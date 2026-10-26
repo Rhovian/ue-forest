@@ -1,3 +1,4 @@
+# editor-py: fresh-siblings
 """Keep the Forest Biome out of the level's lakes and rivers.
 
     scripts/editor-py scripts/pcg/water_exclusions.py [--lake-margin CM] [--river-margin CM]

@@ -1,3 +1,4 @@
+# editor-py: fresh-siblings
 """Build reusable Forest Biome Deadwood/Rocks groups with stock materials.
 
     scripts/editor-py scripts/pcg/deadwood_rocks.py [--check]
@@ -118,7 +119,9 @@ def generator(group, density, slope, priority):
 
 def entry(template, mesh, group, transform, weight=1, children=None, collision=True, aligned=False):
     value = template.copy()
-    put(value, AssetType=mesh.get_name(), Mesh=mesh, SkeletalMesh=None, Generator=group,
+    skinned = isinstance(mesh, unreal.SkeletalMesh)
+    put(value, AssetType=mesh.get_name(), Mesh=None if skinned else mesh,
+        SkeletalMesh=mesh if skinned else None, Generator=group,
         TransformGraph=transform, Weight=weight, ChildAssets=children, MeshOptionsPreset=None)
     options = get(value, "MeshOptions")
     put(options, AllowCollision=collision, Material=None)
