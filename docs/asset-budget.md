@@ -163,10 +163,13 @@ InstancedStaticMeshes/Voxels usage to the two main instances when first instanti
 usage/override bits, not authored colour/texture changes; save them to persist the compiled usage setup.
 Unrelated vendor material packages remain outside the allowlist.
 
-Regeneration detaches its three Python delegate callbacks before any package save and refuses a save
-if Python callbacks remain on Core. Earlier helper saves serialized null references for transient
-Python callback objects; the next successful `--save` marks the unbound Core actor dirty and re-saves
-it cleanly. If Slate runs but the engine frame does not advance for 10 seconds, the command fails
+Regeneration removes Python callbacks from fresh delegate properties on every loaded PCG component,
+including Local inputs and partition components, before releasing its retained callback wrappers.
+It explicitly writes cleaned delegate copies back without change notifications (which could reconstruct
+Blueprint components), preserves non-Python subscribers, and checks all live PCG components before
+every package save. Unknown or unresolved Python targets refuse saving. Earlier helper saves serialized
+null references for transient Python callbacks; `--save` marks both current Core and Local source actors
+dirty and re-saves them cleanly. If Slate runs but the engine frame does not advance for 10 seconds, the command fails
 without saving and reports a likely modal dialog (for example an unsaved-changes prompt). Dismiss
 that dialog before retrying. The helper does not change background/throttling preferences.
 

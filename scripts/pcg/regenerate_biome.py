@@ -23,6 +23,7 @@ import unreal
 from biome_variants import PLANT_USAGE_MATERIALS
 from deadwood_rocks import get
 from exact_exclusions import inputs as local_inputs
+from pcg_delegate_cleanup import assert_clean, detach
 
 MAP = "/Game/L_vilm"
 CORE = "/PCGBiomeCore/BiomeCore.BiomeCore"
@@ -180,16 +181,26 @@ class Regeneration:
     def unbind(self):
         # Component delegate UPROPERTYs serialize; Python proxy objects are transient.
         # Remove them BEFORE saving or taking a repair transaction snapshot, not just in finally.
+        # Generation may replace/copy components. Clean live properties FIRST, while
+        # wrappers still retain their proxies; do not make them look clean by only
+        # mutating the old wrappers before the explicit property writeback.
+        changed = detach(actors())
         for delegate, callback in self.bindings:
             delegate.remove_callable(callback)
         self.bindings.clear()
+        for component in changed:
+            owner = component.get_owner()
+            if owner:
+                owner.modify(True)
 
     def cleanup(self):
-        self.unbind()
-        if self.handle is not None:
-            unreal.unregister_slate_post_tick_callback(self.handle)
-            self.handle = None
-        setattr(builtins, ACTIVE, None)
+        try:
+            self.unbind()
+        finally:
+            if self.handle is not None:
+                unreal.unregister_slate_post_tick_callback(self.handle)
+                self.handle = None
+            setattr(builtins, ACTIVE, None)
 
     def tick(self, _delta):
         if self.finishing:
@@ -229,21 +240,18 @@ class Regeneration:
                 if self.error or self.pending or self.busy:
                     raise RuntimeError(self.error or "Generation timed out; nothing saved; do not rerun while PCG is busy")
                 self.unbind()
-                for actor, component in self.sources:
-                    for prop in ("on_pcg_graph_generated_external", "on_pcg_graph_cancelled_external",
-                                 "on_pcg_graph_start_generating_external"):
-                        if "_PythonCallable" in str(component.get_editor_property(prop)):
-                            raise RuntimeError(f"Python delegate remains attached to {actor.get_actor_label()}; refusing save")
-                print("All regeneration Python delegates detached before any save")
+                print(f"Python delegate save gate: {assert_clean(actors())} live component events clean")
                 loaded = actors()
                 report(loaded, self.cores)
                 if self.save:
                     # Earlier saves serialized null proxy references. Force the unbound Core
                     # actor package into the dirty-only save set to repair even a clean package.
-                    for actor, _ in self.sources:
+                    fresh_sources = roots(loaded) + [(c.get_owner(), c) for c in local_inputs(loaded)]
+                    for actor, _ in fresh_sources:
                         actor.modify(True)
                     packages = dirty_allowed(loaded, self.world)
                     for name, package in sorted(packages.items()):
+                        assert_clean(actors())  # saves can pump events; recheck every live component each time
                         if not unreal.EditorLoadingAndSavingUtils.save_packages([package], True):
                             raise RuntimeError(f"Save failed: {name}")
                         print(f"Saved {name}")
@@ -256,7 +264,11 @@ class Regeneration:
             except Exception:  # noqa: BLE001 -- deferred command must return every failure to editor-py
                 traceback.print_exc()
             finally:
-                self.cleanup()
+                try:
+                    self.cleanup()
+                except Exception:  # noqa: BLE001 -- still return a failed deferred result
+                    ok = False
+                    traceback.print_exc()
         # init_unreal.py's queue runner is synchronous; the opt-in editor-py protocol waits
         # on this result while Slate/PCG keep ticking. No alternative native queue-await API exists.
         temporary = self.destination + ".tmp"
