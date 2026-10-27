@@ -22,6 +22,7 @@ import traceback
 import unreal
 from biome_variants import PLANT_USAGE_MATERIALS
 from deadwood_rocks import get
+from exact_exclusions import inputs as local_inputs
 
 MAP = "/Game/L_vilm"
 CORE = "/PCGBiomeCore/BiomeCore.BiomeCore"
@@ -114,9 +115,11 @@ def dirty_allowed(loaded, world):
 
 
 class Regeneration:
-    def __init__(self, cores, world, destination, save):
+    def __init__(self, cores, world, destination, save, locals_=()):
         self.cores, self.world, self.destination, self.save = cores, world, destination, save
-        self.pending = {c for _, c in cores}
+        self.sources = list(cores) + [(c.get_owner(), c) for c in locals_]
+        self.stages = [list(locals_), [c for _, c in cores]] if locals_ else [[c for _, c in cores]]
+        self.pending = set(self.stages.pop(0))
         self.started, self.busy, self.ready, self.bindings = set(), set(), set(), []
         self.requesting, self.events = None, []
         self.error, self.handle, self.finishing = None, None, False
@@ -138,6 +141,8 @@ class Regeneration:
 
     def cancelled(self, component):
         self.busy.discard(component)
+        if component not in self.pending and component not in self.started:
+            return  # unrelated automatic output refresh while Local inputs are running
         if component in self.pending and component not in self.started:
             self.ready.add(component)  # automatic refresh cancelled; requested regeneration still needed
         else:
@@ -159,7 +164,7 @@ class Regeneration:
     def start(self):
         # PCGComponent.cpp:GenerateInternal schedules tasks; its dynamic generated/cancelled
         # delegates are the native completion signals. Sleeping on the game thread prevents completion.
-        for _, component in self.cores:
+        for _, component in self.sources:
             for prop, callback in (("on_pcg_graph_generated_external", self.complete),
                                    ("on_pcg_graph_cancelled_external", self.cancelled),
                                    ("on_pcg_graph_start_generating_external", self.started_graph)):
@@ -167,7 +172,7 @@ class Regeneration:
                 delegate.add_callable(callback)
                 self.bindings.append((delegate, callback))
         self.handle = unreal.register_slate_post_tick_callback(self.tick)
-        for _, component in self.cores:
+        for component in list(self.pending):
             # GenerateInternal (PCGComponent.cpp:546) rejects busy components rather than queuing.
             # Native completed/cancelled events queue our single pending request; no sleep/retry polling.
             self.request(component)
@@ -204,6 +209,17 @@ class Regeneration:
                 self.error = str(error)
             if not self.error and (self.pending or self.busy):
                 return
+            if not self.error and self.stages:
+                # Global Core reads Local generated output; forcing only Core can reuse
+                # stale input point arrays even after flushing the execution cache.
+                self.pending = set(self.stages.pop(0))
+                try:
+                    for component in list(self.pending):
+                        self.request(component)
+                except Exception as error:  # noqa: BLE001 -- fail without saving
+                    self.error = str(error)
+                if not self.error:
+                    return
         self.finishing = True  # saving can pump editor events; never reenter finalization
         output, ok = io.StringIO(), False
         with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
@@ -213,7 +229,7 @@ class Regeneration:
                 if self.error or self.pending or self.busy:
                     raise RuntimeError(self.error or "Generation timed out; nothing saved; do not rerun while PCG is busy")
                 self.unbind()
-                for actor, component in self.cores:
+                for actor, component in self.sources:
                     for prop in ("on_pcg_graph_generated_external", "on_pcg_graph_cancelled_external",
                                  "on_pcg_graph_start_generating_external"):
                         if "_PythonCallable" in str(component.get_editor_property(prop)):
@@ -224,7 +240,7 @@ class Regeneration:
                 if self.save:
                     # Earlier saves serialized null proxy references. Force the unbound Core
                     # actor package into the dirty-only save set to repair even a clean package.
-                    for actor, _ in self.cores:
+                    for actor, _ in self.sources:
                         actor.modify(True)
                     packages = dirty_allowed(loaded, self.world)
                     for name, package in sorted(packages.items()):
@@ -282,14 +298,14 @@ def main():
     unreal.WorldPartitionBlueprintLibrary.load_actors([d.guid for d in descriptors])
     cores = roots(actors())
     validate(cores)
-    job = Regeneration(cores, world, destination, args.save)
+    job = Regeneration(cores, world, destination, args.save, local_inputs(actors()))
     setattr(builtins, ACTIVE, job)
     try:
         job.start()
     except Exception:
         job.cleanup()
         raise
-    print("Regenerating all Core groups; waiting for native completion delegates")
+    print("Regenerating Local inputs, then all Core groups; waiting for native completion delegates")
     print(MARKER)
 
 

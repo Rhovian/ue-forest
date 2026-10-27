@@ -23,6 +23,34 @@ importlib.reload(terrain_samples)
 LABEL = "ForestFootpath_ShoreLake"  # deliberately outside water_exclusions.py's replacement namespace
 
 
+
+def smooth(points):
+    # SplineComponent.cpp:UpdateSpline computes tangents, not repairs to an external
+    # inset polyline. Smooth the coastline inset before making LINEAR corridor edges;
+    # three local corner cuts remove the audited 25 m inset's short backtracking loop.
+    for _ in range(3):
+        points = [points[0]] + [tuple((points[i - 1][axis] + 2 * points[i][axis] + points[i + 1][axis]) / 4
+                                     for axis in (0, 1)) for i in range(1, len(points) - 1)] + [points[-1]]
+    return points
+
+
+def corridor(points):
+    outline = offset(points, [150] * len(points), False) + offset(points, [-150] * len(points), False)[::-1]
+    # FGeomTools2D has no Python binding; reject strict non-adjacent segment crossings
+    # before authoring, rather than passing an ambiguous polygon to the native sampler.
+    def side(a, b, p):
+        return (b[0] - a[0]) * (p[1] - a[1]) - (p[0] - a[0]) * (b[1] - a[1])
+    segments = list(zip(outline, outline[1:] + outline[:1]))
+    for i, (a, b) in enumerate(segments):
+        for j in range(i + 2, len(segments)):
+            if i == 0 and j == len(segments) - 1:
+                continue
+            c, d = segments[j]
+            if side(a, b, c) * side(a, b, d) < 0 and side(c, d, a) * side(c, d, b) < 0:
+                raise RuntimeError(f"Footpath corridor self-intersects at segments {i}, {j}; adjust route")
+    return outline
+
+
 def route(actors):
     lakes = [a for a in actors if isinstance(a, unreal.WaterBodyLake)]
     if len(lakes) != 1:
@@ -58,7 +86,7 @@ def route(actors):
     peak = max(2500, math.hypot(nearest.x - dense[middle][0], nearest.y - dense[middle][1]) - 1500)
     distances = [math.copysign(2500 + (peak - 2500) * math.sin(math.pi * j / (len(indices) - 1))**2, inward)
                  for j in range(len(indices))]
-    centre = offset([dense[i] for i in indices], distances, False)
+    centre = smooth(offset([dense[i] for i in indices], distances, False))
     # FGeomTools2D::IsPointInPolygon (UE 5.8 Engine/Public/GeomTools.h) has no Python binding.
     # Even/odd crossings validate this external route against the authored water exclusion polygons.
     def inside(x, y, polygon):
@@ -91,7 +119,7 @@ def route(actors):
           f"Z {heights[i]:.0f} -> {heights[j]:.0f} cm, baseline {distance:.0f} cm")
     if grade > 0.35:
         raise RuntimeError("Footpath exceeds 35% grade over 20 m; route needs adjustment")
-    return offset(centre, [150] * len(centre), False) + offset(centre, [-150] * len(centre), False)[::-1]
+    return corridor(centre)
 
 
 def main():

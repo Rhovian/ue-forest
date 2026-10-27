@@ -142,7 +142,7 @@ After terrain changes and each group build, run
 `scripts/editor-py scripts/pcg/regenerate_biome.py --check` for a read-only Core/partition,
 instance-count and dirty-package inventory. Check-mode counts cover loaded instances only;
 on-disk PCG cell descriptors are reported separately. Run without `--check` to retain all
-L_vilm WP inputs/cells and force regeneration of the partitioned Core; the command waits
+L_vilm WP inputs/cells, refresh Local biome inputs, then force the partitioned Core; the command waits
 for native completion while the editor keeps ticking, then prints full loaded group counts.
 Add `--save` to save only dirty map, landscape/proxy, water, biome override/Core/volume,
 PCG partition/metadata and `/Game/ForestBiome` packages. Each saved package is named.
@@ -154,8 +154,8 @@ Saplings/Understory check and build commands now load/retain their World Partiti
 including the saved footpath, after an editor reopen. Check mode still makes no explicit asset edits;
 loading actors can trigger UE's automatic PCG refresh. The regeneration command waits for an existing
 refresh, flushes PCG's actor-query/execution cache and forces its own regeneration before saving.
-This prevents reuse of exclusion queries built while the WP footpath was absent; its saved spline
-geometry is retained. Confirm the path remains clear after restart and regeneration.
+Local inputs are refreshed before Core consumes their generated output. Cache flushing alone does
+not establish exclusion correctness; check the actual corridor after restart and regeneration.
 
 The save allowlist also includes exactly the fern/ivy main and billboard material instances listed
 in `biome_variants.PLANT_USAGE_MATERIALS`. UE 5.8 automatically adds Nanite usage to all four and
@@ -169,3 +169,17 @@ Python callback objects; the next successful `--save` marks the unbound Core act
 it cleanly. If Slate runs but the engine frame does not advance for 10 seconds, the command fails
 without saving and reports a likely modal dialog (for example an unsaved-changes prompt). Dismiss
 that dialog before retrying. The helper does not change background/throttling preferences.
+
+
+After rebuilding any group's TransformGraphs, run `scripts/editor-py scripts/pcg/exact_exclusions.py --check`, then the same command without `--check`, before regeneration/save. The installer appends
+continuous XY spline-interior exclusion tests to every attached `/Game/ForestBiome` TransformGraph,
+including child assets. Existing height/dampness/placement filters stay upstream. It neither copies
+nor modifies `/PCGBiomeCore` graphs, and leaves Core/Local component graph references unchanged.
+The stock Local spline exclusion uses a 400 cm interior grid, which cannot represent a 300 cm path
+reliably. The project filters query native spline interiors, temporarily span Z for the flat spline
+surface test, then restore point bounds before returning to Core. The actor query reads all loaded
+`PCG_BiomeExclusion` spline components; no hand-authored level coordinates enter the biome.
+The installer retains WP actors in build mode and saves only the referenced project graphs. It is
+idempotent until a group builder reconstructs one of those graphs, when it must be run again.
+Acceptance requires an empty footpath by world XY after regeneration and after an editor reopen;
+total tree count alone is insufficient. Visual path width/contact and frame time remain lead gates.
