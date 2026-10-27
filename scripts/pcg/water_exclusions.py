@@ -10,11 +10,38 @@ Saves nothing; save the level afterwards.
 """
 
 import argparse
+import builtins
 import math
 
 import unreal
 
 EXCLUSION = "/PCGBiomeCore/Blueprints/BP_PCGBiomeExclusionSpline"
+
+
+
+# Names survive fresh-sibling module reloads, but are scoped to the editor world.
+# FileHelpers.cpp saves empty external packages by deleting them; the missing part
+# is retaining their allowlist membership after the actor disappears from the level.
+TRACKED = "_forest_managed_actor_packages"
+
+
+def remembered_packages(world):
+    return set(getattr(builtins, TRACKED, {}).get(world.get_path_name(), ()))
+
+
+def remember_packages(world, names):
+    if not hasattr(builtins, TRACKED):
+        setattr(builtins, TRACKED, {})
+    getattr(builtins, TRACKED).setdefault(world.get_path_name(), set()).update(names)
+
+
+def destroy_managed(subsystem, actor):
+    world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
+    package = unreal.EditorAssetLibrary.get_package_for_object(actor).get_name()
+    if not subsystem.destroy_actor(actor):
+        raise RuntimeError(f"Could not destroy managed actor in {package}")
+    remember_packages(world, [package])
+    print(f"Managed deletion queued for save: {package}")
 
 
 def offset(points, distances, closed):
@@ -62,7 +89,7 @@ def main():
     actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
     for actor in actors.get_all_level_actors():
         if actor.get_actor_label().startswith("ForestExclusion_"):
-            actors.destroy_actor(actor)
+            destroy_managed(actors, actor)
     for water in actors.get_all_level_actors():
         if isinstance(water, unreal.WaterBodyLake):
             pts = [(p.x, p.y) for p in world_points(water)]

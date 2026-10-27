@@ -186,3 +186,18 @@ The installer retains WP actors in build mode and saves only the referenced proj
 idempotent until a group builder reconstructs one of those graphs, when it must be run again.
 Acceptance requires an empty footpath by world XY after regeneration and after an editor reopen;
 total tree count alone is insufficient. Visual path width/contact and frame time remain lead gates.
+
+
+Managed actor replacement records the old external package before destruction. Regeneration also
+remembers the live managed actor-package set before generation, so native deletion of a partition
+actor cannot remove its package from the save allowlist. The world-scoped names survive Python
+module reloads during the editor session. `--check` only reads them. `--save` passes dirty remembered
+packages through UE's normal SavePackages path, which deletes empty external packages on disk;
+unrelated dirty actors and names remembered for another world stay outside this allowance.
+
+The fern/ivy allowlist permits saving dirty packages; it does not force their usage flags or make
+clean materials dirty. A missing per-instance override is harmless when the required effective usage
+is inherited from its parent. Check effective Nanite/InstancedStaticMeshes/Voxels usage before
+changing these assets. Missing required usage can cause repeated editor compilation or a fallback
+material in PIE. Only enable missing required per-instance usages and save the approved instances;
+force-saving an unchanged clean material does not create a missing usage flag.

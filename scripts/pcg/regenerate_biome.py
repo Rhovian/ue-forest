@@ -24,6 +24,7 @@ from biome_variants import PLANT_USAGE_MATERIALS
 from deadwood_rocks import get
 from exact_exclusions import inputs as local_inputs
 from pcg_delegate_cleanup import assert_clean, detach
+from water_exclusions import remember_packages, remembered_packages
 
 MAP = "/Game/L_vilm"
 CORE = "/PCGBiomeCore/BiomeCore.BiomeCore"
@@ -102,14 +103,17 @@ def validate(cores):
             raise RuntimeError("Core must be partitioned, editor-generated and in saved Normal mode")
 
 
+def actor_packages(loaded):
+    return {unreal.EditorAssetLibrary.get_package_for_object(actor).get_name() for actor in loaded
+            if isinstance(actor, (unreal.LandscapeProxy, unreal.WaterBody, unreal.PCGPartitionActor))
+            or actor.get_class().get_name().startswith("BP_PCGBiome") or actor.get_class().get_name() == "PCGWorldActor"}
+
+
 def dirty_allowed(loaded, world):
-    # FileHelpers.h SaveDirtyPackages is global; GetDirty* + SavePackages is the scoped native API.
-    # EditorAssetLibrary.cpp:GetPackageForObject uses UObject::GetPackage, including external actors.
-    allowed = {unreal.EditorAssetLibrary.get_package_for_object(world).get_name()} | PLANT_USAGE_MATERIALS
-    for actor in loaded:
-        if isinstance(actor, (unreal.LandscapeProxy, unreal.WaterBody, unreal.PCGPartitionActor)) or (
-                actor.get_class().get_name().startswith("BP_PCGBiome") or actor.get_class().get_name() == "PCGWorldActor"):
-            allowed.add(unreal.EditorAssetLibrary.get_package_for_object(actor).get_name())
+    # FileHelpers.h SaveDirtyPackages is global; GetDirty* + SavePackages is scoped.
+    # Retain explicit managed package names when replacement/generation removes actors.
+    allowed = ({unreal.EditorAssetLibrary.get_package_for_object(world).get_name()} | PLANT_USAGE_MATERIALS
+               | actor_packages(loaded) | remembered_packages(world))
     utils = unreal.EditorLoadingAndSavingUtils
     dirty = list(utils.get_dirty_map_packages()) + list(utils.get_dirty_content_packages())
     return {p.get_name(): p for p in dirty if p.get_name() in allowed or p.get_name().startswith("/Game/ForestBiome/")}
@@ -307,7 +311,9 @@ def main():
         raise RuntimeError("Use the updated scripts/editor-py deferred runner")
     # UE 5.8.3 WPBlueprintLibrary.cpp:193–206 retains the native loader adapter;
     # LoadActors refreshes synchronously. Retain all map inputs and existing cell outputs.
+    remember_packages(world, actor_packages(loaded))
     unreal.WorldPartitionBlueprintLibrary.load_actors([d.guid for d in descriptors])
+    remember_packages(world, actor_packages(actors()))
     cores = roots(actors())
     validate(cores)
     job = Regeneration(cores, world, destination, args.save, local_inputs(actors()))

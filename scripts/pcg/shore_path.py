@@ -16,7 +16,7 @@ from pathlib import Path
 import terrain_samples
 import unreal
 from deadwood_rocks import load
-from water_exclusions import EXCLUSION, offset, place, signed_area, world_points
+from water_exclusions import EXCLUSION, destroy_managed, offset, place, signed_area, world_points
 
 importlib.reload(terrain_samples)
 
@@ -136,7 +136,7 @@ def main():
     # Only replace our override, leaving water splines and any future hand-authored overrides alone.
     for actor in actors:
         if actor.get_actor_label() == LABEL:
-            subsystem.destroy_actor(actor)
+            destroy_managed(subsystem, actor)
     place(LABEL, outline, 1000)
     print("Footpath built: 600 m shore arc nearest lake, 25 m inland with lake detour, 3 m wide. Regenerate ALL groups; save level")
 
