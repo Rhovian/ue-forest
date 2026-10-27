@@ -7,6 +7,18 @@ UE 5.8 C++ project on one Mac, coordinated by Niles. Decisions behind these rule
 - There is one UE editor, opened on the main checkout. **Only the Niles lead uses it**, over MCP at `http://127.0.0.1:8000/mcp` and by running Python in it with `scripts/editor-py` (a file queue under `Saved/EditorPy`, no network). The lead opens the editor itself when a task needs it (`scripts/editor.sh open`) and calls MCP with `scripts/editor-mcp`, which does not depend on the session's MCP client having connected at startup.
 - The lead's agent family (currently Claude) never runs as a worker or reviewer. Committed MCP client config is in that family's format, so no other agent connects.
 - Workers never open, drive or connect to the editor. Anything that needs the editor goes to the lead as a request.
+- Work that is judged in the editor (PCG tuning, placement, materials, lighting, anything judged by how it looks) is done by the lead directly, editing scripts and assets itself, in short change-and-look loops. It is not handed to a worker. Workers take only work they can verify without the editor, such as offline scripts or C++ with tests.
+
+## Planning
+
+- Research produces choices, not a plan. Before any build starts, the lead puts each open choice from the research and the issue to the operator and records the operator's ruling in the issue. If the approach is still open, nothing is built.
+- Work that spans several decision areas (for example canopy, ground cover, palette, moss) is split into separate issues before it starts.
+- A departure from the research or from an operator ruling, by anyone, goes to the operator before it is built on.
+
+## Visual acceptance
+
+- Counts, audits, tests and frame times are not acceptance for anything visible. Before the lead reports a visible change as ready, it captures fixed review views with MCP `CaptureViewport`, before and after the change, looks at them itself, and reports what it saw.
+- Captures use the existing level and the existing time-of-day controls (`Forest.Time`, `Forest.Pause`); no separate test maps.
 
 ## Code changes
 
