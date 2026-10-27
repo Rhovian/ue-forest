@@ -162,3 +162,10 @@ in `biome_variants.PLANT_USAGE_MATERIALS`. UE 5.8 automatically adds Nanite usag
 InstancedStaticMeshes/Voxels usage to the two main instances when first instantiated. These are shader
 usage/override bits, not authored colour/texture changes; save them to persist the compiled usage setup.
 Unrelated vendor material packages remain outside the allowlist.
+
+Regeneration detaches its three Python delegate callbacks before any package save and refuses a save
+if Python callbacks remain on Core. Earlier helper saves serialized null references for transient
+Python callback objects; the next successful `--save` marks the unbound Core actor dirty and re-saves
+it cleanly. If Slate runs but the engine frame does not advance for 10 seconds, the command fails
+without saving and reports a likely modal dialog (for example an unsaved-changes prompt). Dismiss
+that dialog before retrying. The helper does not change background/throttling preferences.

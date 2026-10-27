@@ -121,6 +121,7 @@ class Regeneration:
         self.requesting, self.events = None, []
         self.error, self.handle, self.finishing = None, None, False
         self.deadline = time.monotonic() + 540
+        self.frame, self.frame_since = None, None
 
     def complete(self, component):
         self.busy.discard(component)
@@ -171,10 +172,15 @@ class Regeneration:
             # Native completed/cancelled events queue our single pending request; no sleep/retry polling.
             self.request(component)
 
-    def cleanup(self):
+    def unbind(self):
+        # Component delegate UPROPERTYs serialize; Python proxy objects are transient.
+        # Remove them BEFORE saving or taking a repair transaction snapshot, not just in finally.
         for delegate, callback in self.bindings:
             delegate.remove_callable(callback)
         self.bindings.clear()
+
+    def cleanup(self):
+        self.unbind()
         if self.handle is not None:
             unreal.unregister_slate_post_tick_callback(self.handle)
             self.handle = None
@@ -183,6 +189,12 @@ class Regeneration:
     def tick(self, _delta):
         if self.finishing:
             return
+        frame = unreal.SystemLibrary.get_frame_count()
+        if frame != self.frame:
+            self.frame, self.frame_since = frame, time.monotonic()
+        elif self.frame_since is not None and time.monotonic() - self.frame_since > 10:
+            self.error = (f"Engine frame {frame} has not advanced for 10 s; likely a modal dialog "
+                          "(such as unsaved changes). Dismiss it before retrying; nothing saved")
         if not self.error and time.monotonic() < self.deadline:
             try:
                 for component in list(self.ready):
@@ -200,9 +212,20 @@ class Regeneration:
                     print(event)
                 if self.error or self.pending or self.busy:
                     raise RuntimeError(self.error or "Generation timed out; nothing saved; do not rerun while PCG is busy")
+                self.unbind()
+                for actor, component in self.cores:
+                    for prop in ("on_pcg_graph_generated_external", "on_pcg_graph_cancelled_external",
+                                 "on_pcg_graph_start_generating_external"):
+                        if "_PythonCallable" in str(component.get_editor_property(prop)):
+                            raise RuntimeError(f"Python delegate remains attached to {actor.get_actor_label()}; refusing save")
+                print("All regeneration Python delegates detached before any save")
                 loaded = actors()
                 report(loaded, self.cores)
                 if self.save:
+                    # Earlier saves serialized null proxy references. Force the unbound Core
+                    # actor package into the dirty-only save set to repair even a clean package.
+                    for actor, _ in self.cores:
+                        actor.modify(True)
                     packages = dirty_allowed(loaded, self.world)
                     for name, package in sorted(packages.items()):
                         if not unreal.EditorLoadingAndSavingUtils.save_packages([package], True):
