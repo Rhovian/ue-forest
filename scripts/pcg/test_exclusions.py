@@ -39,11 +39,19 @@ class TwoTierExclusionTests(unittest.TestCase):
 class BankFalloffTests(unittest.TestCase):
     def test_bands_are_contiguous_and_density_falls_off_inland(self):
         banks = saplings_understory.BANKS
+        self.assertGreaterEqual(len(banks), 2)  # one band would be the constant-density band the falloff replaced
         self.assertEqual(banks[0][1], 0)
         for (_, _, outer, near), (_, inner, _, far) in itertools.pairwise(banks):
             self.assertEqual(outer, inner)
             for kind, share in far.items():
                 self.assertLess(share, near[kind], kind)
+
+    def test_each_band_drops_what_the_nearer_band_covers(self):
+        # Distance gives density = distance / outer; a band keeps [lower, 0.99), so its lower bound is inner / outer.
+        for _, inner, outer, _ in saplings_understory.BANKS:
+            lower = saplings_understory.band_lower(inner, outer)
+            self.assertAlmostEqual(lower * outer, inner)
+        self.assertGreater(saplings_understory.band_lower(*saplings_understory.BANKS[1][1:3]), 0)
 
 
 if __name__ == "__main__":

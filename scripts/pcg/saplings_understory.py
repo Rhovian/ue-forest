@@ -64,7 +64,7 @@ def column(low, high):
 # Bank colonies (#71 item 5): extra drifts that fall off with distance from a water spline, in steps of
 # (band, inner cm, outer cm, {kind: x the kind's base density}). The river spline is its centreline, so the near band
 # covers the half width (3.75 m) and the first metre or so of bank. Flowers fall off fastest (stream_bank_01).
-BANKS = [("Near", 0, 500, {"Ferns": 3, "Herbs": 16}), ("Far", 500, 1000, {"Ferns": 1, "Herbs": 3})]
+BANKS = [("Near", 0, 500, {"Ferns": 2, "Herbs": 24}), ("Far", 500, 1000, {"Ferns": 1, "Herbs": 4})]
 
 
 def canopy_filter():
@@ -154,6 +154,12 @@ def water_near(graph, source, pin, maximum, nearest=0.0):
     return near, "Out"
 
 
+def band_lower(inner, outer):
+    """The density filter's lower bound for a band: Distance sets density = distance / outer, so this drops the inner
+    part that a nearer band covers."""
+    return inner / outer
+
+
 def bank_filter(band, inner, outer):
     """Ground above the shore between inner and outer cm of a water spline: one step of the bank falloff."""
     graph = copy_asset(ROOT + "PCG_TreesAboveShore", "PCG_UnderstoryBank" + band)
@@ -163,7 +169,7 @@ def bank_filter(band, inner, outer):
             graph.remove_node(node)
     shore = z_range(graph, shore_height() + 150, 1.0e7)
     edge(graph, inp, "In", shore, "In")
-    near, pin = water_near(graph, shore, "InsideFilter", outer, inner / outer)
+    near, pin = water_near(graph, shore, "InsideFilter", outer, band_lower(inner, outer))
     edge(graph, near, pin, out, "Out")
     save(graph)
     return graph
