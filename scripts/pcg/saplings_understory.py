@@ -11,7 +11,9 @@ Both check and build retain WP actors for their prerequisites; check makes no ex
 
 import argparse
 import importlib
+import itertools
 import math
+import random
 
 import biome_variants
 import deadwood_rocks
@@ -23,13 +25,27 @@ from trees_above_shore import shore_height, z_range
 # Colonies (#71, lush-forest-placement.md §8.1): instead of single plants evenly spread, a sparse anchor carries a
 # drift of plants as ground-projected children, so plants read as masses with moss between. (count, length cm, width cm)
 # per kind; the anchor density is divided by count, so the plant total stays about the same.
-DRIFTS = {"Ferns": (16, 550, 260), "Herbs": (30, 260, 120)}
+DRIFTS = {"Ferns": (16, 550, 260), "Herbs": (80, 320, 200)}
+SHAPES = 4  # drift outlines per kind; each variant's weight is split across them, so neighbouring drifts differ
 
 
-def drift_points(count, length, width):
-    """`count` points in an ellipse (sunflower spiral, so even spacing without grid lines), centred on the anchor."""
-    return [(length / 2 * math.sqrt((i + 0.5) / count) * math.cos(i * 2.39996),
-             width / 2 * math.sqrt((i + 0.5) / count) * math.sin(i * 2.39996), 0) for i in range(count)]
+def drift_points(count, length, width, shape):
+    """`count` points in 2-4 overlapping lobes strung along the drift's length, with ragged spacing: an irregular
+    colony outline (one fixed ellipse read as a planted row side-on, #73 review). `shape` seeds the outline."""
+    rng = random.Random(shape)
+    lobes = []
+    for _ in range(rng.randint(2, 4)):
+        lobes.append((rng.uniform(-0.35, 0.35) * length, rng.uniform(-0.25, 0.25) * width,
+                      rng.uniform(0.25, 0.45) * length, rng.uniform(0.35, 0.6) * width))
+    area = sum(rx * ry for _, _, rx, ry in lobes)
+    points, i = [], 0
+    for n, (cx, cy, rx, ry) in enumerate(lobes):
+        share = count - len(points) if n == len(lobes) - 1 else round(count * rx * ry / area)
+        for _ in range(share):
+            r, a = math.sqrt((i % share + 0.5) / share) * rng.uniform(0.8, 1.1), i * 2.39996
+            points.append((cx + rx / 2 * r * math.cos(a), cy + ry / 2 * r * math.sin(a), 0))
+            i += 1
+    return points
 
 
 def damp_filter():
@@ -134,12 +150,13 @@ def main():
     colonies = ({"SpatialDensityLow": 0.3, "SpatialDensityHigh": 1.0}, {"EnableVoronoiNoiseBreakup": True})
     for kind, rows, density in kinds:
         drift = DRIFTS.get(kind)
-        patch_list = None
+        patches = [None]
         if drift:
             count, length, width = drift
             density = density / count
-            patch_list = children(f"DA_{kind}Drift", template, [(f"PCG_{kind}Drift", drift_points(count, length, width),
-                                                                 (0.7, 1.15), [(meshes[p], w) for p, w in rows], True)])
+            patches = [children(f"DA_{kind}Drift{k}", template, [(f"PCG_{kind}Drift{k}", drift_points(count, length, width, k),
+                                                                  (0.7, 1.15), [(meshes[p], w) for p, w in rows], True)])
+                       for k in range(SHAPES)]
         # Dry ground gets the full colony density; damp ground adds half again (stream_bank_01).
         for patch, share, transform, overlap in [("Gaps", 1, plain, damp is not None)] + (
                 [("Damp", 0.5, damp, True)] if damp else []):
@@ -152,9 +169,12 @@ def main():
             put(value, GeneratorAllowOverlap=overlap)
             data.set_editor_property("Generator", value)
             save(data)
-            for path, weight in rows:
+            for (path, weight), (k, patch_list) in itertools.product(rows, enumerate(patches)):
                 mesh = meshes[path]
-                value = entry(template, mesh, data, transform, weight, children=patch_list, collision=False)
+                value = entry(template, mesh, data, transform, weight / len(patches), children=patch_list,
+                              collision=False)
+                if drift:  # one entry per variant and outline: each needs its own AssetType (forest-pcg skill)
+                    put(value, AssetType=f"{kind}{patch}_{mesh.get_name()}_{k}")
                 # Core's OrientUpward preserves upright plants; stock wind/material settings survive.
                 options = get(value, "AssetOptions")
                 put(options, OrientUpward=1.0)
