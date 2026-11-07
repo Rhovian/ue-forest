@@ -4,9 +4,10 @@
     scripts/editor-py scripts/pcg/trees_above_shore.py [--shore CM] [--bands TOP:KEEP,...]
 
 Removes points below the shore height (default: MI_ForestFloor's ShoreHeight, so trees meet the forest
-floor where the sand ends), then thins the forest edge: points up to TOP cm above the shore keep the
-KEEP fraction of trees (random, seeded), bands applied in order, everything higher kept.
-Default bands 150:0.35,350:0.7: on Vilm's gentle shore, roughly the first 20 m and 40 m inland. Regenerate the Biome Core afterwards.
+floor where the sand ends). Optional bands thin the forest edge: points up to TOP cm above the shore keep the
+KEEP fraction of trees (random, seeded), bands applied in order, everything higher kept. Default: no bands, an
+abrupt living edge (#9 edge ruling, edge_in_01: closed forest within ~5-10 m of the sand; it replaced the former
+150:0.35,350:0.7 thinning). Regenerate the Biome Core afterwards.
 """
 
 import argparse
@@ -47,10 +48,10 @@ def z_range(graph, low, high):
 def main():
     parser = argparse.ArgumentParser(prog="trees_above_shore.py")
     parser.add_argument("--shore", type=float, default=None, help="cm above sea level; default MI_ForestFloor")
-    parser.add_argument("--bands", default="150:0.35,350:0.7", help="TOP:KEEP pairs, TOP in cm above the shore")
+    parser.add_argument("--bands", default="", help="TOP:KEEP pairs, TOP in cm above the shore; empty: none")
     args = parser.parse_args()
     shore = shore_height() if args.shore is None else args.shore
-    bands = [(float(top), float(keep)) for top, keep in (pair.split(":") for pair in args.bands.split(","))]
+    bands = [(float(top), float(keep)) for top, keep in (pair.split(":") for pair in args.bands.split(",") if pair)]
 
     graph = unreal.load_asset(GRAPH)
     keep_io = {graph.get_input_node(), graph.get_output_node()}
