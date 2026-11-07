@@ -8,7 +8,7 @@ along +X (north on the island), 90 along +Y. Poses are an appendable list: addin
 POSES = [
     ("interior", 486, -512, 1.6, 0, 0),
     ("canopy_up", 486, -512, 1.6, 60, 0),
-    ("clearing", 192, -673, 1.6, 0, 45),
+    ("clearing", 269, -236, 1.6, -5, 0),  # the largest canopy gap (canopy_gaps.json, r 9 m); the old pose is now meadow
     ("stream_bank", 446, -338, 1.6, -5, 115),
     ("lake_shore", 800, -390, 1.6, 0, -48),
     ("edge_in", 550, -207, 1.6, 0, -90),

@@ -40,6 +40,11 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   `put(value, AssetType=f"<Group>_" + mesh.get_name())`.
 - Groups that must not carve the forest get a priority number above the Trees group (0): Core differences point sets
   by priority before any later filter.
+- Groups without `GeneratorAllowOverlap` are pruned against every earlier group's bounds, and beech crowns are wide:
+  island-wide saplings keep ~5% of their points, and saplings in canopy gaps kept none until overlap was allowed.
+- Distance's `SphereBounds` shape measures to the bounds' half-diagonal and is unsigned, so points inside the sphere
+  score as far. For "within r of these points" use `CENTER` with `maximum_distance = r` and a density filter below 0.99,
+  one Distance per radius (meadow.py, `canopy_filter()`).
 - Equal-weight variants with the same density share every sampler point: nudge each density (deadwood_rocks.py).
 
 ## Children
@@ -57,6 +62,10 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   every sibling shares yaw, scale and mesh pick.
 
 ## Verification
+
+- Generated points are readable with `unreal.ForestPCGLibrary.get_generated_point_locations(component, "GEN:<group>")`;
+  skinned instances (trees, saplings, anemones) are GPU-only and their transforms are not readable from Python.
+- Capture with `scripts/review/capture`: a single raw `CaptureViewport` returns the previous view's frame.
 
 - `regenerate_biome.py`'s per-group instance count misattributes components when groups share a mesh; count by mesh,
   and to split two groups sharing a mesh, disable one and count again.
