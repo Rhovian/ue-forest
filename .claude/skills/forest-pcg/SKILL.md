@@ -16,11 +16,13 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   the budget to get around it: change the design.
 - Dense cover on less than the whole island (meadow grass, fern and herb drifts, moss carpets): a sparse anchor generator plus a child patch per anchor
   (`children()` with a disc of points, `ground=True`), as in `meadow.py`. Cost then scales with the anchors.
+  The budget covers anchors only: the instance total is accepted anchors x children per patch, so measure it after
+  each change (fern drifts: 16 children each, ~194k ferns). `candidate_estimate` uses the capped density.
 - `regenerate_biome.py` prints duration and peak editor memory. Above `MEMORY_LIMIT_GB` (60) it cancels all PCG generation
   through `unreal.ForestPCGLibrary.cancel_all_pcg_generation()` (C++: `PCGComponent::CancelGeneration` is not exposed
   to Python) and saves nothing. Pass a density only as `generator()`'s `density`; a `PointsPerSquareMeter` override is
   refused because the budget would not see it.
-  A full regenerate takes about 1 minute and peaks at 35-39 GB. If a run takes much longer or the peak grows, stop and
+  A full regenerate takes about 1 minute and peaks at 35-40 GB. If a run takes much longer or the peak grows, stop and
   find out why before tuning further.
 - Change density or extent, not both, and check the estimate before each change.
 
@@ -32,14 +34,20 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
 
 ## Entries and groups
 
-- Every entry needs a **unique `AssetType`**. Entries sharing a type with another group's entries silently draw from
-  that group's points (shore trees halved the forest; meadow logs never spawned). Set
+- Every entry needs a **unique `AssetType`**, even within a group. Entries sharing a type with another group's entries
+  silently draw from that group's points (shore trees halved the forest; meadow logs never spawned); making the
+  understory drift types unique raised anemones from 107k to 433k. Set
   `put(value, AssetType=f"<Group>_" + mesh.get_name())`.
 - Groups that must not carve the forest get a priority number above the Trees group (0): Core differences point sets
   by priority before any later filter.
 - Equal-weight variants with the same density share every sampler point: nudge each density (deadwood_rocks.py).
 
 ## Children
+
+- After rebuilding any group, run `exact_exclusions.py` before `regenerate_biome.py --save`: child graphs are rebuilt
+  without the path, water and shore exclusions, so children can land across a path (#73 review).
+- One child list applies every layout to every anchor. For several patch outlines, give each entry its own list and
+  split the variant weight across them (`saplings_understory.py` drifts).
 
 - Core walks a ChildAssets list entry by entry and drops points whose bounds overlap earlier entries' points: scale
   child bounds to 5% (`children()` does this).
