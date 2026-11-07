@@ -48,7 +48,8 @@ case ${1:-} in
     wait_for 900 "MCP on port $PORT" mcp_up
     echo "MCP up at http://127.0.0.1:$PORT/mcp"
     # A fresh editor loads no World Partition cells; load them all and set morning light (review/view_ready.py).
-    "$(dirname "$0")/editor-py" "$(dirname "$0")/review/view_ready.py" || echo "could not load L_vilm's cells" >&2
+    "$(dirname "$0")/editor-py" "$(dirname "$0")/review/view_ready.py" ||
+      { echo "editor is open, but loading L_vilm's cells failed (see above)" >&2; exit 1; }
     ;;
   close)
     running || exit 0
