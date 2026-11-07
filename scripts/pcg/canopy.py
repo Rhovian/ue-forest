@@ -14,8 +14,10 @@ from deadwood_rocks import ROOT, load, save
 
 PARAMETERS = {  # tree generator graph parameter -> value
     "PointsPerSquareMeter": 0.019,  # 190 candidates/ha, unchanged
-    "ScaleMin": unreal.Vector(1.3, 1.3, 1.3),
-    "ScaleMax": unreal.Vector(1.7, 1.7, 1.7),
+    # Age roles (#71 item 3): 1.1-1.9 keeps the 1.3-1.7 mean and about the same mean crown area (E[s^2] 2.30 vs
+    # 2.26), but trunks and crown heights now range from young-mature to old.
+    "ScaleMin": unreal.Vector(1.1, 1.1, 1.1),
+    "ScaleMax": unreal.Vector(1.9, 1.9, 1.9),
 }
 
 graph = load(ROOT + "PCG_Forest_TreesGenerator")
