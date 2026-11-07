@@ -16,9 +16,20 @@ import math
 import biome_variants
 import deadwood_rocks
 import unreal
-from deadwood_rocks import ROOT, asset_list, copy_asset, edge, entry, field, generator, get, load, put, save
+from deadwood_rocks import ROOT, asset_list, children, copy_asset, edge, entry, field, generator, get, load, put, save
 from shore_path import LABEL
 from trees_above_shore import shore_height, z_range
+
+# Colonies (#71, lush-forest-placement.md §8.1): instead of single plants evenly spread, a sparse anchor carries a
+# drift of plants as ground-projected children, so plants read as masses with moss between. (count, length cm, width cm)
+# per kind; the anchor density is divided by count, so the plant total stays about the same.
+DRIFTS = {"Ferns": (16, 550, 260), "Herbs": (30, 260, 120)}
+
+
+def drift_points(count, length, width):
+    """`count` points in an ellipse (sunflower spiral, so even spacing without grid lines), centred on the anchor."""
+    return [(length / 2 * math.sqrt((i + 0.5) / count) * math.cos(i * 2.39996),
+             width / 2 * math.sqrt((i + 0.5) / count) * math.sin(i * 2.39996), 0) for i in range(count)]
 
 
 def damp_filter():
@@ -82,7 +93,7 @@ def main():
     # Sparse whole-area candidates, not the research's much higher within-colony densities.
     kinds = [("Saplings", variants.SAPLING_VARIANTS, 300)] if args.group == "saplings" else [
         # Candidates/ha inside colonies: research trial ferns 0.5-2/m2, herb clumps 2-8/m2 (#32).
-        ("Shrubs", variants.SHRUB_VARIANTS, 150), ("Ferns", variants.FERN_VARIANTS, 6000),
+        ("Shrubs", variants.SHRUB_VARIANTS, 150), ("Ferns", variants.FERN_VARIANTS, 24000),
         ("Herbs", variants.HERB_VARIANTS, 20000), ("Ivy", variants.IVY_VARIANTS, 500)]
     paths = [path for _, rows, _ in kinds for path, _ in rows]
     if len(set(paths)) != len(paths) or any(not rows or any(w <= 0 for _, w in rows) for _, rows, _ in kinds):
@@ -122,6 +133,13 @@ def main():
     # rejects low noise, leaving open moss floor between colonies.
     colonies = ({"SpatialDensityLow": 0.3, "SpatialDensityHigh": 1.0}, {"EnableVoronoiNoiseBreakup": True})
     for kind, rows, density in kinds:
+        drift = DRIFTS.get(kind)
+        patch_list = None
+        if drift:
+            count, length, width = drift
+            density = density / count
+            patch_list = children(f"DA_{kind}Drift", template, [(f"PCG_{kind}Drift", drift_points(count, length, width),
+                                                                 (0.7, 1.15), [(meshes[p], w) for p, w in rows], True)])
         # Dry ground gets the full colony density; damp ground adds half again (stream_bank_01).
         for patch, share, transform, overlap in [("Gaps", 1, plain, damp is not None)] + (
                 [("Damp", 0.5, damp, True)] if damp else []):
@@ -136,7 +154,7 @@ def main():
             save(data)
             for path, weight in rows:
                 mesh = meshes[path]
-                value = entry(template, mesh, data, transform, weight, collision=False)
+                value = entry(template, mesh, data, transform, weight, children=patch_list, collision=False)
                 # Core's OrientUpward preserves upright plants; stock wind/material settings survive.
                 options = get(value, "AssetOptions")
                 put(options, OrientUpward=1.0)
