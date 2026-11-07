@@ -11,11 +11,15 @@ UE 5.8 C++ project on one Mac, coordinated by Niles. Decisions behind these rule
 
 ## Planning
 
+- The art direction and its rulings live in docs/art-direction.md. Building against a reference’s “Ignore” list, or against a ruling there, counts as a departure and goes to the operator.
+
 - Research produces choices, not a plan. Before any build starts, the lead puts each open choice from the research and the issue to the operator and records the operator's ruling in the issue. If the approach is still open, nothing is built.
 - Work that spans several decision areas (for example canopy, ground cover, palette, moss) is split into separate issues before it starts.
 - A departure from the research or from an operator ruling, by anyone, goes to the operator before it is built on.
 
 ## Visual acceptance
+
+- Each review view is judged against the reference of the same name. The lead reports, per view, which Targets are met and which aren’t, not just “looks better”.
 
 - Counts, audits, tests and frame times are not acceptance for anything visible. Before the lead reports a visible change as ready, it captures fixed review views with MCP `CaptureViewport`, before and after the change, looks at them itself, and reports what it saw.
 - Captures use the existing level and the existing time-of-day controls (`Forest.Time`, `Forest.Pause`); no separate test maps.
