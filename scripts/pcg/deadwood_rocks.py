@@ -97,7 +97,28 @@ LOGS_PER_HA = 20  # #32 ruling: more deadwood on the floor (was 12 logs + 6 stum
 STUMPS_PER_HA = 8
 
 
+# The surface sampler covers the whole biome volume before any filter, so a generator's cost is density x volume area,
+# not density x the ground it ends up on. 600,000/ha for a 2 ha meadow asked for ~180 million candidates and drove the
+# editor into memory pressure; 120,000/ha (~56 million) is the largest that has run in reasonable time.
+MAX_CANDIDATES = 60e6
+
+
+def candidate_estimate(density, extent):
+    """Candidate points the sampler draws over the island's bounds (forest_foot.json) for this density and extent."""
+    import json
+    from pathlib import Path
+
+    x0, x1, y0, y1 = json.loads(Path(biome_variants.__file__).with_name("forest_foot.json").read_text())["island_m"]
+    cell_cap = 10000 / (2 * extent / 100) ** 2  # one point per (2 x extent)^2 cell, per hectare
+    return min(density, cell_cap) * (x1 - x0) * (y1 - y0) / 10000
+
+
 def generator(group, density, slope, priority, doubles=None, bools=None, extent=100):
+    estimate = candidate_estimate(density, extent)
+    if estimate > MAX_CANDIDATES:
+        raise RuntimeError(f"{group}: {density:.0f}/ha at extent {extent} cm samples ~{estimate / 1e6:.0f} million points over"
+                           f" the biome volume (budget {MAX_CANDIDATES / 1e6:.0f} million); lower the density or narrow"
+                           " the area")
     graph = copy_asset(ROOT + "PCG_Forest_TreesGenerator", f"PCG_Forest_{group}Generator")
     # Native parameter helpers already validate names/types and notify graph instances:
     # UE 5.8 PCG/Private/Helpers/PCGGraphParametersHelpers.cpp: ValidateAndSetValue.
