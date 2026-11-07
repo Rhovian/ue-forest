@@ -29,7 +29,11 @@ LAYERS = {  # layer -> (texture prefix, tile size in cm)
 PATCHES = f"{FAB}/Decals/Tileable_Moss_Patches_sfdnqii/Medium/sfdnqii_tier_2/Textures/T_sfdnqii_2K_B-O"
 SCALARS = {  # world units are cm; sea level is Z 0
     "ShoreHeight": 150.0,  # sand below, forest floor above
-    "ShoreBlend": 60.0,
+    "ShoreBlend": 25.0,
+    "ShoreNoise": 140.0,  # cm the shore line moves up and down with large noise: tongues and islands (#39)
+    "ShorePatch": 50.0,  # cm more from the moss-patch texture: ragged edges, sand pockets in moss
+    "LitterReach": 300.0,  # beech litter mixes into the sand this far below the shore line
+    "LitterMix": 0.85,  # at most this much litter over sand
     "WetBandTop": 40.0,  # sand is fully wet below this, fully dry at ShoreHeight
     "WetDarkening": 0.6,
     "DryBrightening": 1.25,
@@ -46,6 +50,8 @@ SCALARS = {  # world units are cm; sea level is Z 0
 }
 MOSS_NOISE_CM = 2000.0  # feature size of the noise that places moss
 MACRO_NOISE_CM = 1200.0  # feature size of the noise that hides texture repetition
+SHORE_NOISE_CM = 350.0  # feature size of the shore line's tongues and islands
+LITTER_NOISE_CM = 120.0  # feature size of the litter patches on sand
 
 
 def build():
@@ -60,11 +66,58 @@ def build():
     xy, z = g.mask(world, 8, "rg"), g.mask(world, 8, "b")
     nz = g.mask(g.node(unreal.MaterialExpressionVertexNormalWS, 9), 8, "b")
 
-    # Sand below the shore; moss on low flat ground plus patches; leaves elsewhere.
+    patch_uv = g.wire(unreal.MaterialExpressionDivide, 6, {"A": xy, "B": p["PatchTile"]})
+    patches = g.sample(PATCHES, patch_uv, 5)
+    half = g.node(unreal.MaterialExpressionConstant, 6, r=0.5)
+
+    def wobble(source, strength):
+        """(source - 0.5) * strength: a signed offset from a 0..1 noise or texture channel."""
+        centred_source = g.wire(unreal.MaterialExpressionSubtract, 6, {"A": source, "B": half})
+        return g.wire(unreal.MaterialExpressionMultiply, 6, {"A": centred_source, "B": strength})
+
+    # Sand below a noisy shore line, so sand and forest floor interleave over a few metres (transition_ground_01):
+    # never a straight contour line.
+    shore_z = g.wire(
+        unreal.MaterialExpressionAdd,
+        6,
+        {
+            "A": z,
+            "B": g.wire(
+                unreal.MaterialExpressionAdd,
+                6,
+                {
+                    "A": wobble(g.noise(7, SHORE_NOISE_CM), p["ShoreNoise"]),
+                    "B": wobble((patches, "A"), p["ShorePatch"]),
+                },
+            ),
+        },
+    )
     shore_min = g.wire(unreal.MaterialExpressionSubtract, 7, {"A": p["ShoreHeight"], "B": p["ShoreBlend"]})
     shore_max = g.wire(unreal.MaterialExpressionAdd, 7, {"A": p["ShoreHeight"], "B": p["ShoreBlend"]})
-    above = g.wire(unreal.MaterialExpressionSmoothStep, 6, {"Min": shore_min, "Max": shore_max, "Value": z})
+    above = g.wire(unreal.MaterialExpressionSmoothStep, 6, {"Min": shore_min, "Max": shore_max, "Value": shore_z})
     sand_mask = g.wire(unreal.MaterialExpressionOneMinus, 5, {"": above})
+    # Beech litter mixes into the upper sand in patches rather than forming its own band.
+    litter_low = g.wire(unreal.MaterialExpressionSubtract, 7, {"A": p["ShoreHeight"], "B": p["LitterReach"]})
+    near_shore = g.wire(
+        unreal.MaterialExpressionSmoothStep, 6, {"Min": litter_low, "Max": p["ShoreHeight"], "Value": shore_z}
+    )
+    litter_patches = g.wire(
+        unreal.MaterialExpressionSmoothStep,
+        6,
+        {
+            "Min": g.node(unreal.MaterialExpressionConstant, 7, r=0.45),
+            "Max": g.node(unreal.MaterialExpressionConstant, 7, r=0.7),
+            "Value": g.noise(7, LITTER_NOISE_CM),
+        },
+    )
+    litter = g.wire(
+        unreal.MaterialExpressionMultiply,
+        5,
+        {
+            "A": g.wire(unreal.MaterialExpressionMultiply, 5, {"A": near_shore, "B": litter_patches}),
+            "B": p["LitterMix"],
+        },
+    )
     flat = g.wire(unreal.MaterialExpressionSmoothStep, 6, {"Min": p["FlatLow"], "Max": p["FlatHigh"], "Value": nz})
     high = g.wire(unreal.MaterialExpressionSmoothStep, 6, {"Min": p["DampLow"], "Max": p["DampHigh"], "Value": z})
     damp = g.wire(
@@ -78,8 +131,6 @@ def build():
         {"A": moss_noise, "B": g.node(unreal.MaterialExpressionConstant, 6, r=0.5)},
     )
     moss_term = g.wire(unreal.MaterialExpressionMultiply, 4, {"A": centred, "B": p["MossNoiseStrength"]})
-    patch_uv = g.wire(unreal.MaterialExpressionDivide, 6, {"A": xy, "B": p["PatchTile"]})
-    patches = g.sample(PATCHES, patch_uv, 5)
     patch = g.wire(unreal.MaterialExpressionMultiply, 4, {"A": (patches, "A"), "B": p["PatchStrength"]})
     patch_term = g.wire(unreal.MaterialExpressionMultiply, 4, {"A": patch, "B": moss_noise})
     moss_sum = g.wire(
@@ -118,7 +169,8 @@ def build():
 
     def blend(sand, kind, column=2):
         floor = g.wire(lerp, column, {"A": sets["Leaves"][kind], "B": sets["Moss"][kind], "Alpha": moss_mask})
-        return g.wire(lerp, column - 1, {"A": floor, "B": sand, "Alpha": sand_mask})
+        littered = g.wire(lerp, column, {"A": sand, "B": sets["Leaves"][kind], "Alpha": litter})
+        return g.wire(lerp, column - 1, {"A": floor, "B": littered, "Alpha": sand_mask})
 
     color = blend(g.wire(unreal.MaterialExpressionMultiply, 3, {"A": sets["Sand"]["B"], "B": tint}), "B")
     low_b = g.wire(unreal.MaterialExpressionOneMinus, 2, {"": p["MacroBrightness"]})
@@ -142,7 +194,8 @@ def build():
         2,
         {"A": g.mask(sets["Leaves"]["ORM"], 3, "g"), "B": g.mask(sets["Moss"]["ORM"], 3, "g"), "Alpha": moss_mask},
     )
-    rough = g.wire(lerp, 1, {"A": floor_rough, "B": sand_rough, "Alpha": sand_mask})
+    littered_rough = g.wire(lerp, 2, {"A": sand_rough, "B": g.mask(sets["Leaves"]["ORM"], 3, "g"), "Alpha": litter})
+    rough = g.wire(lerp, 1, {"A": floor_rough, "B": littered_rough, "Alpha": sand_mask})
 
     mel.connect_material_property(color, "", unreal.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(normal, "", unreal.MaterialProperty.MP_NORMAL)
