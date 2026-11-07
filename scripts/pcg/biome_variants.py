@@ -19,6 +19,14 @@ SLAB_VARIANTS = [
 FUNGI_VARIANTS = [
     ("Bolete_Mushrooms_pdvcB/Medium/pdvcB_tier_2/StaticMeshes/pdvcB_LOD0_TIER2_000", 1),
 ]
+# Small bleached driftwood pieces (0.6-1.3 m) scattered on the beach (#38, debris; no collision).
+DRIFTWOOD_VARIANTS = [
+    ("Coast_African_Debris_Driftwood_S_01_xlnndfv/Medium/SM_xlnndfv_tier_2/StaticMeshes/SM_xlnndfv_tier_2", 1),
+    ("Coast_African_Debris_Driftwood_S_02_xlnnden/Medium/SM_xlnnden_tier_2/StaticMeshes/SM_xlnnden_tier_2", 1),
+    ("Coast_African_Debris_Driftwood_S_04_xlkoadp/Medium/SM_xlkoadp_tier_2/StaticMeshes/SM_xlkoadp_tier_2", 1),
+    ("Coast_African_Debris_Driftwood_S_06_xlkoaaw/Medium/SM_xlkoaaw_tier_2/StaticMeshes/SM_xlkoaaw_tier_2", 1),
+    ("Coast_African_Debris_Driftwood_S_07_xlknfje/Medium/SM_xlknfje_tier_2/StaticMeshes/SM_xlknfje_tier_2", 1),
+]
 SOLID_SCANS = {VENDOR + path for path, _ in LOG_VARIANTS + STUMP_VARIANTS + SLAB_VARIANTS}
 
 # Plant palettes use full /Game paths (PVE exports and Megascans Plants share no vendor root).
