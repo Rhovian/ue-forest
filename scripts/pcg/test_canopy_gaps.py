@@ -32,6 +32,9 @@ class CanopyGapTests(unittest.TestCase):
         self.assertLess(abs(x - 2060) + abs(y - 2060), 6)
         self.assertEqual(z, 10.0)
         self.assertGreaterEqual(radius, canopy_gaps.MIN_GAP - canopy_gaps.CROWN)
+        # The open sky stops short of the nearest trunk by the crown overhang.
+        nearest = min(((tx - x) ** 2 + (ty - y) ** 2) ** 0.5 for tx, ty, _ in forest(hole=(2060, 2060, 14)))
+        self.assertLessEqual(radius, nearest - canopy_gaps.CROWN + 0.05)
 
     def test_hole_beside_an_exclusion_spline_is_not_a_gap(self):
         # A footpath or stream corridor is tree-free but is not a canopy gap.

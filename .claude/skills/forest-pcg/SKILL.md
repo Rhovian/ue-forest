@@ -42,9 +42,10 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   by priority before any later filter.
 - Groups without `GeneratorAllowOverlap` are pruned against every earlier group's bounds, and beech crowns are wide:
   island-wide saplings keep ~5% of their points, and saplings in canopy gaps kept none until overlap was allowed.
-- Distance's `SphereBounds` shape measures to the bounds' half-diagonal and is unsigned, so points inside the sphere
-  score as far. For "within r of these points" use `CENTER` with `maximum_distance = r` and a density filter below 0.99,
-  one Distance per radius (meadow.py, `canopy_filter()`).
+- Distance's `SphereBounds` shape uses the bounds' half-diagonal as the radius and is signed (inside is negative), so
+  a [0, x] density filter keeps only a ring outside it. Distance is 3D: for "within r of these points" on terrain use
+  `CENTER` with `maximum_distance = r`, a density filter below 0.99, one Distance per radius, and a vertical column
+  of targets per point (meadow.py, `canopy_filter()`).
 - Equal-weight variants with the same density share every sampler point: nudge each density (deadwood_rocks.py).
 
 ## Children

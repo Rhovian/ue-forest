@@ -52,11 +52,16 @@ def drift_points(count, length, width, shape):
 # the opening (clearing_01), while noise thins the island-wide saplings to about 1/ha. Saplings are skinned: measure.
 CANOPY = 20  # about one sapling per 1.5 m2 in 0.7 ha of gaps: a few thousand skinned saplings
 
+COLUMN_STEP = 100  # cm between a gap's stacked distance targets
+COLUMN_REACH = 800  # cm above and below the gap's recorded height (mean of the surrounding trunks) that the column covers
+
 
 def canopy_filter():
-    """Ground inside a canopy gap from canopy_gaps.json. Distance's SphereBounds measures to the bounds' half-diagonal
-    and is unsigned (points inside score far), so gaps are grouped by whole-metre radius instead: one Create Points +
-    Distance (centre to centre, maximum = that radius) per group, merged."""
+    """Ground inside a canopy gap from canopy_gaps.json, by horizontal distance. Distance's SphereBounds uses the
+    bounds' half-diagonal as the radius and is signed (inside is negative), so gaps are grouped by whole-metre radius
+    instead: one Create Points + Distance (centre to centre, maximum = that radius) per group, merged. Distance is 3D,
+    so each gap is a vertical column of targets COLUMN_STEP apart: the nearest is within half a step of any ground
+    point's height, and the measured distance is the horizontal one (#75 review)."""
     import json
     from pathlib import Path
 
@@ -76,9 +81,11 @@ def canopy_filter():
         mark, settings = graph.add_node_of_type(unreal.PCGCreatePointsSettings)
         points = []
         for x, y, z in centres:
-            point = unreal.PCGPoint()
-            point.set_editor_property("transform", unreal.Transform(location=unreal.Vector(x * 100, y * 100, z * 100)))
-            points.append(point)
+            for step in range(-COLUMN_REACH, COLUMN_REACH + 1, COLUMN_STEP):
+                point = unreal.PCGPoint()
+                point.set_editor_property(
+                    "transform", unreal.Transform(location=unreal.Vector(x * 100, y * 100, z * 100 + step)))
+                points.append(point)
         settings.set_editor_property("points_to_create", points)
         settings.set_editor_property("coordinate_space", unreal.PCGCoordinateSpace.WORLD)
         settings.set_editor_property("cull_points_outside_volume", False)
