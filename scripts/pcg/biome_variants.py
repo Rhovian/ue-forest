@@ -45,6 +45,11 @@ FERN_VARIANTS = [
     ("/Game/Fab/Megascans/Plants/Lady_Fern_wdvlditia/Medium/wdvlditia_tier_2/StaticMeshes/SM_wdvlditia_VarH", 0.15),
     ("/Game/Fab/Megascans/Plants/Lady_Fern_wdvlditia/Medium/wdvlditia_tier_2/StaticMeshes/SM_wdvlditia_VarI", 0.15),
 ]
+# Lone large beech standing on the sand (#38, edge_in_05, beach_01); the Trees group's own copies of these meshes.
+SHORE_TREE_VARIANTS = [
+    ("/Game/Megaplant_Library/Tree_European_Beech/Tree_European_Beech_01/Tree_European_Beech_01_A", 1),
+    ("/Game/Megaplant_Library/Tree_European_Beech/Tree_European_Beech_01/Tree_European_Beech_01_C", 1),
+]
 # Children of logs and rocks (#32 nurse_log_01, rock_assembly_01). Only the 1 m sapling fits on a log as a seedling.
 SEEDLING_VARIANTS = [
     ("/Game/Megaplant_Library/Tree_European_Beech/Tree_European_Beech_Saplings_01/Tree_European_Beech_Sapling_01_D", 1),
