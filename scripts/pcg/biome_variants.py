@@ -29,7 +29,7 @@ SAPLING_VARIANTS = [
 ]
 SHRUB_VARIANTS = [
     ("/Game/Megaplant_Library/Shrub_Huckleberry_Oak/Shrub_Huckleberry_Oak_01/Shrub_Huckleberry_Oak_01_A", 1),
-    # Hazel A and B join after their bone-reduced re-export (#52).
+    # Hazel A and B were removed: bone reduction cannot reduce them (#52).
     ("/Game/Megaplant_Library/Tree_Common_Hazel/Tree_Common_Hazel_01/Tree_Common_Hazel_01_C", 1),
     ("/Game/Megaplant_Library/Tree_Common_Hazel/Tree_Common_Hazel_01/Tree_Common_Hazel_01_D", 1),
 ]
