@@ -93,6 +93,10 @@ def filter_graph(name, reach=0, slope=0):
     return graph
 
 
+LOGS_PER_HA = 20  # #32 ruling: more deadwood on the floor (was 12 logs + 6 stumps)
+STUMPS_PER_HA = 8
+
+
 def generator(group, density, slope, priority, doubles=None, bools=None):
     graph = copy_asset(ROOT + "PCG_Forest_TreesGenerator", f"PCG_Forest_{group}Generator")
     # Native parameter helpers already validate names/types and notify graph instances:
@@ -206,7 +210,7 @@ def main():
             raise RuntimeError(f"Expected 1..4 convex collision hulls: {name}, got {count}")
         save(mesh)
     plain = filter_graph("PCG_DeadwoodAboveShore")
-    deadwood = generator("Deadwood", 6, 20, 10)
+    deadwood = generator("Deadwood", STUMPS_PER_HA, 20, 10)
     entries = [entry(template, mesh, deadwood, plain, weight) for mesh, weight in stumps]
     for mesh, weight in logs:
         name, box = mesh.get_name(), mesh.get_bounding_box()
@@ -215,7 +219,7 @@ def main():
         long = max(getattr(box.max, a) - getattr(box.min, a) for a in "xyz") > 1000
         # Smooth hillsides can support a tilted trunk; lead checks nine terrain samples along it.
         slope = 8 if long else 20
-        group = generator("Deadwood_" + name, 12 * weight / sum(w for _, w in logs), slope, 10)
+        group = generator("Deadwood_" + name, LOGS_PER_HA * weight / sum(w for _, w in logs), slope, 10)
         log_plain = filter_graph("PCG_Log_" + name, reach=reach if long else 0, slope=slope)
         # Altitude alone is no dampness proxy; both forms need the same eligible ground.
         nurse = filter_graph("PCG_Nurse_" + name, reach=reach if long else 0, slope=slope)
@@ -233,7 +237,7 @@ def main():
     for actor in biomes:
         assets = list(actor.get_editor_property("Assets"))
         actor.set_editor_property("Assets", assets + [group for group in groups if group not in assets])
-    print(f"Deadwood/Rocks built: 12 logs + 6 stumps/ha, 30 slabs/ha candidates; {len(logs)} log variants")
+    print(f"Deadwood/Rocks built: {LOGS_PER_HA} logs + {STUMPS_PER_HA} stumps/ha, 30 slabs/ha candidates; {len(logs)} log variants")
     print("Collision: Log/Stump/Slab simple BlockAll; stock materials; assets saved")
     print("Ground groups: priority difference bypassed (canopy bounds); terrain/water filters retained")
     print("Regenerate Biome Core, inspect nurse fungi/contact/collision, then save the level")

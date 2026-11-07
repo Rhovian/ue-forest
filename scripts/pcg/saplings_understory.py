@@ -81,8 +81,9 @@ def main():
     variants = importlib.reload(biome_variants)
     # Sparse whole-area candidates, not the research's much higher within-colony densities.
     kinds = [("Saplings", variants.SAPLING_VARIANTS, 300)] if args.group == "saplings" else [
-        ("Shrubs", variants.SHRUB_VARIANTS, 150), ("Ferns", variants.FERN_VARIANTS, 4000),
-        ("Herbs", variants.HERB_VARIANTS, 4000), ("Ivy", variants.IVY_VARIANTS, 500)]
+        # Candidates/ha inside colonies: research trial ferns 0.5-2/m2, herb clumps 2-8/m2 (#32).
+        ("Shrubs", variants.SHRUB_VARIANTS, 150), ("Ferns", variants.FERN_VARIANTS, 6000),
+        ("Herbs", variants.HERB_VARIANTS, 20000), ("Ivy", variants.IVY_VARIANTS, 500)]
     paths = [path for _, rows, _ in kinds for path, _ in rows]
     if len(set(paths)) != len(paths) or any(not rows or any(w <= 0 for _, w in rows) for _, rows, _ in kinds):
         raise RuntimeError("Plant palettes must be nonempty, paths unique, weights positive")
@@ -115,11 +116,14 @@ def main():
     plain = filter_graph("PCG_PlantsAboveShore")
     damp = damp_filter() if args.group == "understory" else None
     entries = []
-    # Understory (#32 rulings, interior_01): colonies from the generator's spatial and Voronoi noise rather than an
-    # even scatter, and plants grow under trees too (overlap, so canopy bounds do not prune them).
-    colonies = ({"SpatialDensityLow": 0.0, "SpatialDensityHigh": 1.0}, {"EnableVoronoiNoiseBreakup": True})
+    # Understory (#32 rulings, interior_01): colonies rather than an even scatter, and plants grow under trees too
+    # (overlap, so canopy bounds do not prune them). The template's spatial noise is world-space with no seed
+    # parameter, so these identical settings give every understory generator the same colony field; the band
+    # rejects low noise, leaving open moss floor between colonies.
+    colonies = ({"SpatialDensityLow": 0.3, "SpatialDensityHigh": 1.0}, {"EnableVoronoiNoiseBreakup": True})
     for kind, rows, density in kinds:
-        for patch, share, transform, overlap in [("Gaps", 1 if damp is None else 0.5, plain, damp is not None)] + (
+        # Dry ground gets the full colony density; damp ground adds half again (stream_bank_01).
+        for patch, share, transform, overlap in [("Gaps", 1, plain, damp is not None)] + (
                 [("Damp", 0.5, damp, True)] if damp else []):
             doubles, bools = colonies if damp is not None else (None, None)
             data = generator(kind + patch, density * args.density_scale * share, 25, 30 if damp is None else 40,

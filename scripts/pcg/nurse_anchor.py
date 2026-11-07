@@ -6,11 +6,16 @@ import unreal
 def log_surface(log):
     # Use Geometry Script's source-mesh copy/BVH, not a custom triangle parser/ray caster:
     # UE 5.8 GeometryScript/MeshAssetFunctions.h and MeshSpatialFunctions.h.
-    mesh, outcome = unreal.GeometryScript_AssetUtils.copy_mesh_from_static_mesh(
-        log, unreal.DynamicMesh(), unreal.GeometryScriptCopyMeshFromAssetOptions(),
-        unreal.GeometryScriptMeshReadLOD(lod_type=unreal.GeometryScriptLODType.SOURCE_MODEL, lod_index=0))
-    if outcome != unreal.GeometryScriptOutcomePins.SUCCESS:
-        raise RuntimeError("Nurse anchor: could not read log source LOD0")
+    # Source LOD0 when readable; some scans' source data (wd1mbcvbw after an editor restart) is not, and then the
+    # render data's coarser mesh still gives the top surface.
+    for lod in (unreal.GeometryScriptLODType.SOURCE_MODEL, unreal.GeometryScriptLODType.RENDER_DATA):
+        mesh, outcome = unreal.GeometryScript_AssetUtils.copy_mesh_from_static_mesh(
+            log, unreal.DynamicMesh(), unreal.GeometryScriptCopyMeshFromAssetOptions(),
+            unreal.GeometryScriptMeshReadLOD(lod_type=lod, lod_index=0))
+        if outcome == unreal.GeometryScriptOutcomePins.SUCCESS:
+            break
+    else:
+        raise RuntimeError(f"Nurse anchor: could not read {log.get_name()}'s source or render LOD0")
     mesh, bvh = unreal.GeometryScript_MeshSpatial.build_bvh_for_mesh(mesh)
     return mesh, bvh
 

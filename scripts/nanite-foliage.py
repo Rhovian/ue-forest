@@ -26,5 +26,6 @@ for path in paths:
     settings.set_editor_property("enabled", True)
     settings.set_editor_property("shape_preservation", unreal.NaniteShapePreservation.VOXELIZE)
     mesh.set_editor_property("nanite_settings", settings)
-    unreal.EditorAssetLibrary.save_loaded_asset(mesh, False)
+    if not unreal.EditorAssetLibrary.save_loaded_asset(mesh, False):
+        raise SystemExit(f"could not save {path}; its Nanite settings changed only in memory")
     print(f"Nanite Voxelize: {path}")
