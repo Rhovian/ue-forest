@@ -62,8 +62,9 @@ def along_top(hits, count, min_up=0.6):
 
 
 def along_sides(hits, spacing, margin, depth=2):
-    """Points every `spacing` cm along both sides of the trunk, `margin` cm out from its edge at each station, plus
-    one beyond each end, at the ground. Follows the trunk, unlike a hull stretched by branches or a root plate."""
+    """Points every `spacing` cm along both sides of the mesh's long axis, `margin` cm out from its outermost hit at
+    each station, plus one beyond each end. Tighter than a hull where branches or a root plate stick out at only
+    some stations; where they do, the row follows them."""
     axis = 0 if max(h[0] for h in hits) - min(h[0] for h in hits) >= max(h[1] for h in hits) - min(h[1] for h in hits) else 1
     side = 1 - axis
     low, high = min(h[axis] for h in hits), max(h[axis] for h in hits)
@@ -117,8 +118,11 @@ def base_ring(hits, spacing, margin, depth=2):
     return points
 
 
-def build_points_graph(graph, points, edge, scale=(1, 1)):
-    """Copy local `points` onto every parent point, then upright each with a random yaw and scale."""
+def build_points_graph(graph, points, edge, scale=(1, 1), ground=False):
+    """Copy local `points` onto every parent point, then upright each with a random yaw and scale.
+
+    `ground` drops each point onto the landscape at its own XY (sunk 2 cm), for plants round a base: the parent's
+    local z = 0 is only the ground at its pivot, and an upright rock's frame ignores the slope (#54 review)."""
     inp, out = graph.get_input_node(), graph.get_output_node()
     for node in list(graph.get_editor_property("nodes")):
         if node not in (inp, out):
@@ -127,9 +131,12 @@ def build_points_graph(graph, points, edge, scale=(1, 1)):
         raise RuntimeError(f"{graph.get_name()}: no child points")
     create, settings = graph.add_node_of_type(unreal.PCGCreatePointsSettings)
     created = []
-    for x, y, z in points:
+    for index, (x, y, z) in enumerate(points):
         point = unreal.PCGPoint()
         point.set_editor_property("transform", unreal.Transform(location=unreal.Vector(x, y, z)))
+        # Copy Points combines this with the parent's seed (PCGCopyPoints.cpp); distinct seeds give each sibling its
+        # own yaw, scale and weighted mesh pick, which Transform Points draws from the incoming seed.
+        point.set_editor_property("seed", 1 + index)
         created.append(point)
     settings.set_editor_property("points_to_create", created)
     settings.set_editor_property("coordinate_space", unreal.PCGCoordinateSpace.WORLD)
@@ -142,13 +149,26 @@ def build_points_graph(graph, points, edge, scale=(1, 1)):
     edge(graph, inp, "In", copy, "Target")
     upright, settings = graph.add_node_of_type(unreal.PCGTransformPointsSettings)
     settings.set_editor_property("absolute_rotation", True)
-    # Created points all carry seed 0, so every child of one parent would share a seed, and with it the weighted mesh
-    # pick, yaw and scale; reseed each from its own location.
-    settings.set_editor_property("recompute_seed", True)
     settings.set_editor_property("rotation_max", unreal.Rotator(pitch=0, yaw=360, roll=0))
     settings.set_editor_property("uniform_scale", True)
     settings.set_editor_property("scale_min", unreal.Vector(scale[0], scale[0], scale[0]))
     settings.set_editor_property("scale_max", unreal.Vector(scale[1], scale[1], scale[1]))
     edge(graph, copy, "Out", upright, "In")
-    edge(graph, upright, "Out", out, "Out")
+    last = upright
+    if ground:
+        landscape, settings = graph.add_node_of_type(unreal.PCGGetLandscapeSettings)
+        settings.set_editor_property("unbounded", True)  # children of a parent near a cell edge reach past it
+        project, settings = graph.add_node_of_type(unreal.PCGProjectionSettings)
+        params = settings.get_editor_property("projection_params")
+        params.set_editor_property("project_rotations", False)  # stay upright
+        settings.set_editor_property("projection_params", params)
+        edge(graph, upright, "Out", project, "In")
+        edge(graph, landscape, "Out", project, "Projection Target")
+        sink, settings = graph.add_node_of_type(unreal.PCGTransformPointsSettings)
+        settings.set_editor_property("absolute_offset", True)
+        settings.set_editor_property("offset_min", unreal.Vector(0, 0, -2))
+        settings.set_editor_property("offset_max", unreal.Vector(0, 0, -2))
+        edge(graph, project, "Out", sink, "In")
+        last = sink
+    edge(graph, last, "Out", out, "Out")
     return graph

@@ -149,16 +149,16 @@ def entry(template, mesh, group, transform, weight=1, children=None, collision=T
 
 
 def children(name, template, layouts):
-    """One ChildAssets list from (graph name, points, scale, palette) layouts.
+    """One ChildAssets list from (graph name, points, scale, palette, on the ground) layouts.
 
     Entries sharing a layout's graph are weighted alternatives at each of its points. Core's
     BiomeCore_ChildTransformLoop walks the list entry by entry and drops points whose bounds overlap points an earlier
     entry placed, so child bounds shrink to 5%: otherwise layouts prune each other (#32 part 2: seedlings after fungi
     on the same top line kept about 1%)."""
     entries = []
-    for graph_name, points, scale, rows in layouts:
+    for graph_name, points, scale, rows, ground in layouts:
         graph = copy_asset(ROOT + "PCG_TreesAboveShore", graph_name)
-        build_points_graph(graph, points, edge, scale)
+        build_points_graph(graph, points, edge, scale, ground)
         save(graph)
         for child, w in rows:
             value = entry(template, child, None, graph, w, collision=False, aligned=True)
@@ -235,6 +235,7 @@ def main():
     plain = filter_graph("PCG_DeadwoodAboveShore")
     deadwood = generator("Deadwood", STUMPS_PER_HA, 20, 10)
     entries = [entry(template, mesh, deadwood, plain, weight) for mesh, weight in stumps]
+    densities = set()
     for index, (mesh, weight) in enumerate(logs):
         name, box = mesh.get_name(), mesh.get_bounding_box()
         # Enclose every scaled source corner relative to its pivot, irrespective of random yaw.
@@ -246,6 +247,9 @@ def main():
         # on a wgrubc1s). Neither BasicNoiseSeed, a shifted noise field nor a new cell size separated them; a
         # different density does, so nudge each variant's by 5%.
         density = LOGS_PER_HA * weight / sum(w for _, w in logs) * (1 + 0.05 * index)
+        if density in densities:
+            raise RuntimeError(f"Log variant {name} has the same generator density as another; adjust a weight")
+        densities.add(density)
         group = generator("Deadwood_" + name, density, slope, 10)
         log_plain = filter_graph("PCG_Log_" + name, reach=reach if long else 0, slope=slope)
         # Altitude alone is no dampness proxy; both forms need the same eligible ground.
@@ -260,9 +264,9 @@ def main():
                       for x, y, z in along_top(hits, 3)[::2][:2 if length > 400 else 1]]
         sides = along_sides(hits, 90, 15)
         nurse_children = children("DA_NurseChildren_" + name, template, [
-            ("PCG_Fungi_" + name, fungi_tops, (0.9, 1.3), fungi),
-            ("PCG_Seedlings_" + name, seedling_tops, (1.0, 1.5), seedlings),
-            ("PCG_LogBase_" + name, sides, (0.7, 1.1), base_plants)])
+            ("PCG_Fungi_" + name, fungi_tops, (0.9, 1.3), fungi, False),
+            ("PCG_Seedlings_" + name, seedling_tops, (1.0, 1.5), seedlings, False),
+            ("PCG_LogBase_" + name, sides, (0.7, 1.1), base_plants, True)])
         # Logs over 4 m (the Large Fallen Trees) are all nurse logs; the short piece keeps plain:nurse 2:1.
         entries += ([] if length > 400 else [entry(template, mesh, group, log_plain, 2, aligned=True)]) + [
             entry(template, mesh, group, nurse, 1, nurse_children, aligned=True)]
@@ -272,7 +276,8 @@ def main():
     rock_entries = []
     for mesh, weight in slabs:
         # rock_assembly_01: ferns and flowers packed round the base with no bare ring.
-        layouts = [("PCG_RockBase_" + mesh.get_name(), base_ring(surface_hits(mesh), 45, 5), (0.7, 1.1), base_plants)]
+        layouts = [("PCG_RockBase_" + mesh.get_name(), base_ring(surface_hits(mesh), 45, 5), (0.7, 1.1), base_plants,
+                    True)]
         rock_entries.append(entry(template, mesh, rocks, plain, weight,
                                   children("DA_RockChildren_" + mesh.get_name(), template, layouts)))
     groups = [asset_list("DA_Forest_DeadwoodAssets", entries), asset_list("DA_Forest_RocksAssets", rock_entries)]
