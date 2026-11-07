@@ -22,8 +22,10 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   through `unreal.ForestPCGLibrary.cancel_all_pcg_generation()` (C++: `PCGComponent::CancelGeneration` is not exposed
   to Python) and saves nothing. Pass a density only as `generator()`'s `density`; a `PointsPerSquareMeter` override is
   refused because the budget would not see it.
-  A full regenerate takes about 1 minute and peaks at 35-40 GB. If a run takes much longer or the peak grows, stop and
-  find out why before tuning further.
+  A full regenerate takes about 1-2 minutes and peaks at 35-45 GB after a fresh editor start. The peak creeps up
+  across many regenerates in one session (45 -> 54 GB for the same content): restart the editor (`editor.sh close`,
+  then `open`) when it passes ~50 GB, and compare peaks only after a restart. If a run takes much longer or the peak grows beyond that, stop
+  and find out why before tuning further.
 - Change density or extent, not both, and check the estimate before each change.
 
 ## Counts do not scale smoothly
