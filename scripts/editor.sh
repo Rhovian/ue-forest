@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Editor lifecycle for the lead. See AGENTS.md "Code changes".
-#   editor.sh open [editor args...]  launch with MCP on 8000; returns once MCP listens
+#   editor.sh open [editor args...]  launch with MCP on 8000; returns once MCP listens and L_vilm is fully loaded
 #   editor.sh close                  quit (Unreal prompts for unsaved assets); returns once 8000 is free
 #   editor.sh kill                   force-quit a hung editor (unsaved work is lost); returns once 8000 is free
 #   editor.sh build                  full build; the editor must be closed
@@ -47,6 +47,8 @@ case ${1:-} in
       -ModelContextProtocolStartServer -ModelContextProtocolPort=$PORT "$@"
     wait_for 900 "MCP on port $PORT" mcp_up
     echo "MCP up at http://127.0.0.1:$PORT/mcp"
+    # A fresh editor loads no World Partition cells; load them all and set morning light (review/view_ready.py).
+    "$(dirname "$0")/editor-py" "$(dirname "$0")/review/view_ready.py" || echo "could not load L_vilm's cells" >&2
     ;;
   close)
     running || exit 0
