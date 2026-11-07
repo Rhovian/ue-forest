@@ -109,7 +109,9 @@ def build_function():
     value = op(X.MaterialExpressionAdd, 5, op(X.MaterialExpressionMultiply, 5, region, p["MossAmount"]), breakup)
     low = op(X.MaterialExpressionSubtract, 5, const(0.5), p["EdgeWidth"])
     high = op(X.MaterialExpressionAdd, 5, const(0.5), p["EdgeWidth"])
-    mask = g.wire(X.MaterialExpressionSmoothStep, 4, {"Min": low, "Max": high, "Value": value})
+    threshold = g.wire(X.MaterialExpressionSmoothStep, 4, {"Min": low, "Max": high, "Value": value})
+    # Breakup alone can cross the threshold, so MossAmount also gates the result: 0 is always bare.
+    mask = op(X.MaterialExpressionMultiply, 3, threshold, g.wire(X.MaterialExpressionSaturate, 4, {"": p["MossAmount"]}))
 
     moss_uv = op(X.MaterialExpressionMultiply, 8, inputs["UV"], p["MossTile"])
     color = op(X.MaterialExpressionMultiply, 4, g.sample(f"{MOSS}_B", moss_uv, 5), p["MossBrightness"])
