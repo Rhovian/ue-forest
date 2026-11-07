@@ -5,6 +5,7 @@ public class Forest : ModuleRules
 	public Forest(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine" });
+		PrivateDependencyModuleNames.Add("PCG");
 		PrivateDependencyModuleNames.AddRange(new string[] { "EnhancedInput", "InputCore", "Water", "SunPosition" });
 
 		if (Target.bBuildEditor)

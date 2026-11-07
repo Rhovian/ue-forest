@@ -16,6 +16,7 @@ import contextlib
 import io
 import json
 import os
+import subprocess
 import time
 import traceback
 
@@ -119,6 +120,16 @@ def dirty_allowed(loaded, world):
     return {p.get_name(): p for p in dirty if p.get_name() in allowed or p.get_name().startswith("/Game/ForestBiome/")}
 
 
+MEMORY_LIMIT_GB = 60  # a normal full regenerate peaks at 35-39 GB (measured); the 600,000/ha runaway went far past it
+
+
+def resident_gb():
+    """The editor process's current resident memory (ps reports kilobytes)."""
+    out = subprocess.run(["ps", "-o", "rss=", "-p", str(os.getpid())], check=False, capture_output=True,
+                         text=True).stdout
+    return int(out.strip() or 0) / 1e6
+
+
 class Regeneration:
     def __init__(self, cores, world, destination, save, locals_=()):
         self.cores, self.world, self.destination, self.save = cores, world, destination, save
@@ -128,7 +139,10 @@ class Regeneration:
         self.started, self.busy, self.ready, self.bindings = set(), set(), set(), []
         self.requesting, self.events = None, []
         self.error, self.handle, self.finishing = None, None, False
-        self.deadline = time.monotonic() + 540
+        self.begun = time.monotonic()
+        self.deadline = self.begun + 540
+        self.memory_at, self.memory, self.peak = 0.0, 0.0, 0.0
+        self.cancel_sent = False
         self.frame, self.frame_since = None, None
 
     def complete(self, component):
@@ -148,6 +162,8 @@ class Regeneration:
         self.busy.discard(component)
         if component not in self.pending and component not in self.started:
             return  # unrelated automatic output refresh while Local inputs are running
+        if self.cancel_sent:
+            return  # our own cancel (memory limit or timeout); keep the error that caused it
         if component in self.pending and component not in self.started:
             self.ready.add(component)  # automatic refresh cancelled; requested regeneration still needed
         else:
@@ -215,6 +231,21 @@ class Regeneration:
         elif self.frame_since is not None and time.monotonic() - self.frame_since > 10:
             self.error = (f"Engine frame {frame} has not advanced for 10 s; likely a modal dialog "
                           "(such as unsaved changes). Dismiss it before retrying; nothing saved")
+        now = time.monotonic()
+        if now - self.memory_at >= 2:  # ps is a process spawn; sample every 2 s, not every frame
+            self.memory_at, self.memory = now, resident_gb()
+            self.peak = max(self.peak, self.memory)
+        if not self.error and self.memory > MEMORY_LIMIT_GB:
+            self.error = (f"Editor memory passed {MEMORY_LIMIT_GB} GB during generation; all PCG generation cancelled,"
+                          " nothing saved. A"
+                          " generator is sampling too many points (see deadwood_rocks.candidate_estimate)")
+        if (self.error or time.monotonic() >= self.deadline) and not self.cancel_sent:
+            # Stop every running generation (Local inputs and Core) instead of leaving it grinding in the background.
+            # PCGComponent::CancelGeneration is not exposed to Python; ForestPCGLibrary wraps the subsystem's
+            # CancelAllGeneration (Forest/Source/Forest/ForestPCGLibrary.cpp).
+            self.cancel_sent = True
+            if not unreal.ForestPCGLibrary.cancel_all_pcg_generation():
+                self.error = (self.error or "Generation timed out") + "; could not cancel: no PCG subsystem"
         if not self.error and time.monotonic() < self.deadline:
             try:
                 for component in list(self.ready):
@@ -263,7 +294,8 @@ class Regeneration:
                     if remaining:
                         raise RuntimeError(f"Target packages remain dirty: {sorted(remaining)}")
                     print(f"Saved {len(packages)} allowed dirty packages")
-                print("Biome Core regeneration complete")
+                print(f"Biome Core regeneration complete in {time.monotonic() - self.begun:.0f} s;"
+                      f" editor peak memory {self.peak:.1f} GB")
                 ok = True
             except Exception:  # noqa: BLE001 -- deferred command must return every failure to editor-py
                 traceback.print_exc()

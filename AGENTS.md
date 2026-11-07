@@ -49,4 +49,6 @@ UE 5.8 C++ project on one Mac, coordinated by Niles. Decisions behind these rule
 
 ## Forest Biome content
 
+- Before adding or tuning a placement group, read `.claude/skills/forest-pcg/SKILL.md` (cost budget, AssetType, children, verification), and append each newly understood PCG failure to it.
+
 - Every placed asset kind (trees, logs, stumps, rocks, children of assemblies, plants) is an appendable list of variants in the script that builds it, even when it holds one mesh, so adding a variant is a one-line change.

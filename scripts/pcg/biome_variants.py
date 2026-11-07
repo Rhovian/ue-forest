@@ -6,6 +6,11 @@ LOG_VARIANTS = [
     ("Large_Fallen_Tree_wd1mbcvbw/Medium/wd1mbcvbw_tier_2/StaticMeshes/wd1mbcvbw_tier_2", 0.15),
     ("Large_Fallen_Tree_wgrubc1s/Medium/wgrubc1s_tier_2/StaticMeshes/wgrubc1s_tier_2", 0.15),
 ]
+# Fallen logs lying in the meadow stretches (#38): only the short piece, whose footprint the meadow ground filter covers;
+# the long trunks need deadwood_rocks.py's reach-aware water keepout and 8-degree support limit.
+MEADOW_LOG_VARIANTS = [
+    ("Nordic_Forest_Tree_Fallen_Medium_xicmfco/Medium/xicmfco_tier_2/StaticMeshes/xicmfco_tier_2", 1),
+]
 STUMP_VARIANTS = [
     ("Old_Tree_Stump_wd0qcaobw/Medium/wd0qcaobw_tier_2/StaticMeshes/wd0qcaobw_tier_2", 1),
 ]
@@ -58,6 +63,14 @@ SHORE_TREE_VARIANTS = [
     ("/Game/Megaplant_Library/Tree_European_Beech/Tree_European_Beech_01/Tree_European_Beech_01_A", 1),
     ("/Game/Megaplant_Library/Tree_European_Beech/Tree_European_Beech_01/Tree_European_Beech_01_C", 1),
 ]
+# Meadow grass for the grassy coast stretches (#38, edge_in_04).
+GRASS_VARIANTS = [
+    ("/Game/Fab/Megascans/Plants/Rough_Meadow_Grass_skFjJ/Medium/skFjJ_tier_2/StaticMeshes/SM_skFjJ_VarA", 1),
+    ("/Game/Fab/Megascans/Plants/Rough_Meadow_Grass_skFjJ/Medium/skFjJ_tier_2/StaticMeshes/SM_skFjJ_VarB", 1),
+    ("/Game/Fab/Megascans/Plants/Rough_Meadow_Grass_skFjJ/Medium/skFjJ_tier_2/StaticMeshes/SM_skFjJ_VarC", 1),
+    ("/Game/Fab/Megascans/Plants/Rough_Meadow_Grass_skFjJ/Medium/skFjJ_tier_2/StaticMeshes/SM_skFjJ_VarD", 1),
+    ("/Game/Fab/Megascans/Plants/Rough_Meadow_Grass_skFjJ/Medium/skFjJ_tier_2/StaticMeshes/SM_skFjJ_VarE", 1),
+]
 # Children of logs and rocks (#32 nurse_log_01, rock_assembly_01). Only the 1 m sapling fits on a log as a seedling.
 SEEDLING_VARIANTS = [
     ("/Game/Megaplant_Library/Tree_European_Beech/Tree_European_Beech_Saplings_01/Tree_European_Beech_Sapling_01_D", 1),
@@ -84,6 +97,8 @@ PLANT_USAGE_MATERIALS = {
     "/Game/Fab/Megascans/Plants/English_Ivy_xfcnebhqx/Medium/xfcnebhqx_tier_2/Materials/MI_xfcnebhqx_Billboard",
     "/Game/Fab/Megascans/Plants/Lady_Fern_wdvlditia/Medium/wdvlditia_tier_2/Materials/MI_wdvlditia",
     "/Game/Fab/Megascans/Plants/Lady_Fern_wdvlditia/Medium/wdvlditia_tier_2/Materials/MI_wdvlditia_Billboard",
+    "/Game/Fab/Megascans/Plants/Rough_Meadow_Grass_skFjJ/Medium/skFjJ_tier_2/Materials/MI_skFjJ",
+    "/Game/Fab/Megascans/Plants/Rough_Meadow_Grass_skFjJ/Medium/skFjJ_tier_2/Materials/MI_skFjJ_Billboard",
     # Solid scans added for #32 get the same usage bits when first spawned.
     "/Game/Fab/Megascans/3D/Large_Fallen_Tree_wgrubc1s/Medium/wgrubc1s_tier_2/Materials/MI_wgrubc1s",
     "/Game/Fab/Megascans/3D/Mossy_Forest_Boulder_wc1kebr/Medium/wc1kebr_tier_2/Materials/MI_wc1kebr",
