@@ -44,6 +44,9 @@ SCALARS = {  # world units are cm; sea level is Z 0
     "DampHigh": 1200.0,
     "FlatLow": 0.85,  # vertex normal Z: steeper than FlatLow is never mossy
     "FlatHigh": 0.97,
+    "ForestMoss": 1.0,  # moss everywhere above the shore, not only on damp low ground (interior_01, #49)
+    "ForestFlatLow": 0.5,  # vertex normal Z: ForestMoss fades out on slopes steeper than this
+    "ForestFlatHigh": 0.75,
     "MossNoiseStrength": 1.6,  # how far large-scale noise pushes moss in and out of the damp zones
     "PatchTile": 800.0,
     "PatchStrength": 0.6,  # moss-patch texture adds edge detail inside the noise's mossy areas
@@ -173,10 +176,17 @@ def build():
     moss_term = g.wire(unreal.MaterialExpressionMultiply, 4, {"A": centred, "B": p["MossNoiseStrength"]})
     patch = g.wire(unreal.MaterialExpressionMultiply, 4, {"A": (patches, "A"), "B": p["PatchStrength"]})
     patch_term = g.wire(unreal.MaterialExpressionMultiply, 4, {"A": patch, "B": moss_noise})
+    gentle = g.wire(
+        unreal.MaterialExpressionSmoothStep, 6, {"Min": p["ForestFlatLow"], "Max": p["ForestFlatHigh"], "Value": nz}
+    )
+    forest = g.wire(unreal.MaterialExpressionMultiply, 5, {"A": gentle, "B": p["ForestMoss"]})
     moss_sum = g.wire(
         unreal.MaterialExpressionAdd,
         4,
-        {"A": damp, "B": g.wire(unreal.MaterialExpressionAdd, 4, {"A": moss_term, "B": patch_term})},
+        {
+            "A": g.wire(unreal.MaterialExpressionMax, 5, {"A": damp, "B": forest}),
+            "B": g.wire(unreal.MaterialExpressionAdd, 4, {"A": moss_term, "B": patch_term}),
+        },
     )
     moss_mask = g.wire(unreal.MaterialExpressionSaturate, 3, {"": moss_sum})
     macro = g.noise(6, MACRO_NOISE_CM)
