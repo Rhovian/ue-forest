@@ -86,11 +86,9 @@ subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 descriptors = unreal.WorldPartitionBlueprintLibrary.get_actor_descs()
 unreal.WorldPartitionBlueprintLibrary.load_actors([d.guid for d in descriptors])
 actors = subsystem.get_all_level_actors()
-# A rerun replaces the patches; saving a destroyed actor's external package deletes its file.
-old = [a for a in actors if a.get_actor_label().startswith(MIST + "_")]
-packages = [a.get_package() for a in old]
-for actor in old:
-    subsystem.destroy_actor(actor)
+# A rerun updates patches in place by label and destroys only those no longer placed; saving a destroyed actor's
+# external package deletes its file.
+old = {a.get_actor_label(): a for a in actors if a.get_actor_label().startswith(MIST + "_")}
 mist = []
 for i in range(110000 // MIST_CELL + 1):
     for j in range(100000 // MIST_CELL + 1):
@@ -101,14 +99,19 @@ for i in range(110000 // MIST_CELL + 1):
         # 30 cm keeps patches off the sea floor; the seeded draw keeps the pattern fixed between runs.
         if z is None or not 30 < z < MIST_BELOW or random.Random(f"{i},{j}").random() >= MIST_SHARE:
             continue
-        patch = subsystem.spawn_actor_from_class(unreal.LocalFogVolume, unreal.Vector(x, y, z))
-        patch.set_actor_label(f"{MIST}_{i:02d}_{j:02d}")
+        label = f"{MIST}_{i:02d}_{j:02d}"
+        patch = old.pop(label, None) or subsystem.spawn_actor_from_class(unreal.LocalFogVolume, unreal.Vector(x, y, z))
+        patch.set_actor_location(unreal.Vector(x, y, z), False, False)
+        patch.set_actor_label(label)
         patch.set_folder_path(MIST)
         patch.set_actor_scale3d(unreal.Vector(1, 1, 1) * (MIST_RADIUS / MIST_BASE))
         component = patch.get_component_by_class(unreal.LocalFogVolumeComponent)
         for name, value in MIST_FOG.items():
             component.set_editor_property(name, value)
         mist.append(patch)
+packages = [a.get_package() for a in old.values()]
+for actor in old.values():
+    subsystem.destroy_actor(actor)
 bark = unreal.load_asset(BARK)
 # SetMaterialInstanceVectorParameterValue already updates the instance (MaterialEditingLibrary.cpp).
 unreal.MaterialEditingLibrary.set_material_instance_vector_parameter_value(bark, "BaseColor Tint", BARK_TINT)
