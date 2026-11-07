@@ -29,8 +29,9 @@ DRIFTS = {"Ferns": (16, 550, 260), "Herbs": (80, 320, 200), "Shrubs": (5, 450, 3
           "GapShrubs": (9, 400, 350)}  # Shrubs, GapShrubs: clearing_02 masses
 # Child scale per drift kind: gap hazel overlaps into one broad waist-to-head mass (clearing_02, #81 review).
 DRIFT_SCALE = {"GapShrubs": (1.1, 1.5)}
-# Steepest slope (deg) a kind grows on; ferns and ivy clothe the coastal and stream bank faces (edge_in, #71).
-SLOPE = {"Ferns": 45, "Ivy": 50}
+# Steepest slope (deg) a kind grows on; ferns and ivy clothe the coastal and stream bank faces (edge_in, #71). The
+# coastal bluff behind edge_in rises 3-15 m at 53-66 deg (traced), so 45 deg left it bare.
+SLOPE = {"Ferns": 65, "Ivy": 70}
 SHAPES = 4  # drift outlines per kind; each variant's weight is split across them, so neighbouring drifts differ
 
 
