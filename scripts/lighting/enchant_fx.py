@@ -8,6 +8,9 @@ of the 30 m cells of land above the beach, so the wisps drift in patches; each e
 Each system sits on, and tilts with, a plane fitted to the ground over its cell, so the spawn box follows slopes and
 the wisps stay near knee height (#58 review: centre height alone left ~1 m errors on a quarter of the footprint).
 Reruns update the systems in place by label. Saves only their actor packages.
+Wisp sprites are ribbons, set in the editor through the Niagara MCP toolset (#71 item 8): InitializeParticle Sprite
+Size Mode Random Non-Uniform, Sprite Size 500x60 to 900x110 cm, Sprite Rotation -8 to 8 degrees. Round 260-480 cm
+sprites at any rotation read as blobs of haze, not clearing_01's low threads.
 """
 
 import json
