@@ -6,19 +6,29 @@ import json
 import unreal
 from poses import POSES, TIME_OF_DAY
 
+world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
+if world.get_path_name() != "/Game/L_vilm.L_vilm":
+    raise RuntimeError("Open L_vilm in the editor (not PIE) before capturing")
 partition = unreal.WorldPartitionBlueprintLibrary
 partition.load_actors([desc.guid for desc in partition.get_actor_descs()])
-world = unreal.UnrealEditorSubsystem().get_editor_world()
 unreal.SystemLibrary.execute_console_command(world, f"Forest.Time {TIME_OF_DAY}")
 
 
 def ground(x, y):
-    start, end = unreal.Vector(x, y, 100000), unreal.Vector(x, y, -100000)
-    hits = unreal.SystemLibrary.line_trace_multi(
-        world, start, end, unreal.TraceTypeQuery.TRACE_TYPE_QUERY1, True, [], unreal.DrawDebugTrace.NONE, True
-    )
-    landscape = [h for h in hits or [] if isinstance(h.to_tuple()[9], unreal.LandscapeProxy)]
-    return (landscape or hits)[0].to_tuple()[4].z if (landscape or hits) else 0.0
+    """Landscape height: props that block the ray are ignored and the trace repeated, so placing one under a pose
+    never moves its camera."""
+    start, end, ignored = unreal.Vector(x, y, 100000), unreal.Vector(x, y, -100000), []
+    for _ in range(64):
+        hit = unreal.SystemLibrary.line_trace_single(
+            world, start, end, unreal.TraceTypeQuery.TRACE_TYPE_QUERY1, True, ignored, unreal.DrawDebugTrace.NONE, True
+        )
+        if hit is None:
+            break
+        fields = hit.to_tuple()
+        if isinstance(fields[9], unreal.LandscapeProxy):
+            return fields[4].z
+        ignored.append(fields[9])
+    raise RuntimeError(f"no landscape under ({x / 100:.0f}, {y / 100:.0f}) m")
 
 
 cameras = {}

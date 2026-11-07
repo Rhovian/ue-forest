@@ -12,6 +12,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.dirname(HERE)
+FOV = 90
 
 if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
     sys.exit(__doc__)
@@ -37,6 +38,10 @@ for name, camera in cameras.items():
         "annotations": no_overlay,
     }
     path = os.path.join(out, f"{name}.png")
-    subprocess.run([os.path.join(SCRIPTS, "editor-mcp"), "-o", path, "EditorToolset.EditorAppToolset", "CaptureViewport",
-                    json.dumps(arguments)], check=True, stdout=subprocess.DEVNULL)
+    reply = subprocess.run([os.path.join(SCRIPTS, "editor-mcp"), "-o", path, "EditorToolset.EditorAppToolset",
+                            "CaptureViewport", json.dumps(arguments)], check=True, capture_output=True, text=True).stdout
+    fov = json.loads(reply)["returnValue"]["cameraFOV"]
+    if round(fov) != FOV:  # CaptureViewport keeps the viewport's own FOV; poses assume the walker's
+        os.remove(path)
+        sys.exit(f"viewport FOV is {fov}, not {FOV}: set the level viewport's field of view to {FOV} and rerun")
     print(path)
