@@ -93,24 +93,29 @@ def filter_graph(name, reach=0, slope=0):
     return graph
 
 
-def generator(group, density, slope, priority):
+LOGS_PER_HA = 20  # #32 ruling: more deadwood on the floor (was 12 logs + 6 stumps)
+STUMPS_PER_HA = 8
+
+
+def generator(group, density, slope, priority, doubles=None, bools=None, extent=100):
     graph = copy_asset(ROOT + "PCG_Forest_TreesGenerator", f"PCG_Forest_{group}Generator")
     # Native parameter helpers already validate names/types and notify graph instances:
     # UE 5.8 PCG/Private/Helpers/PCGGraphParametersHelpers.cpp: ValidateAndSetValue.
     helpers = unreal.PCGGraphParametersHelpers
-    for name, value in {
+    for name, value in ({
         "PointsPerSquareMeter": density / 10000, "SlopeMaskLow": math.cos(math.radians(slope)),
         "SlopeMaskHigh": math.cos(math.radians(5)) if group == "Rocks" else 1.0, "SpatialDensityLow": 0.35, "SpatialDensityHigh": 1.0,
         "ScaleByDensityRangeMin": 1.0, "ScaleByDensityRangeMax": 1.0, "ScramblePositionDistance": 0.0,
-    }.items():
+    } | (doubles or {})).items():
         helpers.set_double_parameter(graph, name, value)
-    for name, value in {
+    for name, value in ({
         "EnableSlopeMasking": True, "EnableWorldRayHitQuery": False, "EnableSpatialNoise": True,
         "EnableVoronoiNoiseBreakup": False, "EnableDistanceToEdge": False,
-    }.items():
+    } | (bools or {})).items():
         helpers.set_bool_parameter(graph, name, value)
     for name, value in {"ScaleMin": unreal.Vector(0.8, 0.8, 0.8), "ScaleMax": unreal.Vector(1.2, 1.2, 1.2),
-                        "PointExtents": unreal.Vector(100, 100, 100)}.items():
+                        # The surface sampler emits at most one point per cell of twice these extents.
+                        "PointExtents": unreal.Vector(extent, extent, 100)}.items():
         helpers.set_vector_parameter(graph, name, value)
     # Python uses MakeRotator(Roll, Pitch, Yaw), not the C++ constructor order (KismetMathLibrary.h).
     helpers.set_rotator_parameter(graph, "RotationMin", unreal.Rotator(pitch=0, yaw=0, roll=0))
@@ -206,7 +211,7 @@ def main():
             raise RuntimeError(f"Expected 1..4 convex collision hulls: {name}, got {count}")
         save(mesh)
     plain = filter_graph("PCG_DeadwoodAboveShore")
-    deadwood = generator("Deadwood", 6, 20, 10)
+    deadwood = generator("Deadwood", STUMPS_PER_HA, 20, 10)
     entries = [entry(template, mesh, deadwood, plain, weight) for mesh, weight in stumps]
     for mesh, weight in logs:
         name, box = mesh.get_name(), mesh.get_bounding_box()
@@ -215,7 +220,7 @@ def main():
         long = max(getattr(box.max, a) - getattr(box.min, a) for a in "xyz") > 1000
         # Smooth hillsides can support a tilted trunk; lead checks nine terrain samples along it.
         slope = 8 if long else 20
-        group = generator("Deadwood_" + name, 12 * weight / sum(w for _, w in logs), slope, 10)
+        group = generator("Deadwood_" + name, LOGS_PER_HA * weight / sum(w for _, w in logs), slope, 10)
         log_plain = filter_graph("PCG_Log_" + name, reach=reach if long else 0, slope=slope)
         # Altitude alone is no dampness proxy; both forms need the same eligible ground.
         nurse = filter_graph("PCG_Nurse_" + name, reach=reach if long else 0, slope=slope)
@@ -233,7 +238,7 @@ def main():
     for actor in biomes:
         assets = list(actor.get_editor_property("Assets"))
         actor.set_editor_property("Assets", assets + [group for group in groups if group not in assets])
-    print(f"Deadwood/Rocks built: 12 logs + 6 stumps/ha, 30 slabs/ha candidates; {len(logs)} log variants")
+    print(f"Deadwood/Rocks built: {LOGS_PER_HA} logs + {STUMPS_PER_HA} stumps/ha, 30 slabs/ha candidates; {len(logs)} log variants")
     print("Collision: Log/Stump/Slab simple BlockAll; stock materials; assets saved")
     print("Ground groups: priority difference bypassed (canopy bounds); terrain/water filters retained")
     print("Regenerate Biome Core, inspect nurse fungi/contact/collision, then save the level")

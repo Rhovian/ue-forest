@@ -6,11 +6,16 @@ import unreal
 def log_surface(log):
     # Use Geometry Script's source-mesh copy/BVH, not a custom triangle parser/ray caster:
     # UE 5.8 GeometryScript/MeshAssetFunctions.h and MeshSpatialFunctions.h.
-    mesh, outcome = unreal.GeometryScript_AssetUtils.copy_mesh_from_static_mesh(
-        log, unreal.DynamicMesh(), unreal.GeometryScriptCopyMeshFromAssetOptions(),
-        unreal.GeometryScriptMeshReadLOD(lod_type=unreal.GeometryScriptLODType.SOURCE_MODEL, lod_index=0))
-    if outcome != unreal.GeometryScriptOutcomePins.SUCCESS:
-        raise RuntimeError("Nurse anchor: could not read log source LOD0")
+    # Source LOD0 when readable; some scans' source data (wd1mbcvbw after an editor restart) is not, and then the
+    # render data's coarser mesh still gives the top surface.
+    for lod in (unreal.GeometryScriptLODType.SOURCE_MODEL, unreal.GeometryScriptLODType.RENDER_DATA):
+        mesh, outcome = unreal.GeometryScript_AssetUtils.copy_mesh_from_static_mesh(
+            log, unreal.DynamicMesh(), unreal.GeometryScriptCopyMeshFromAssetOptions(),
+            unreal.GeometryScriptMeshReadLOD(lod_type=lod, lod_index=0))
+        if outcome == unreal.GeometryScriptOutcomePins.SUCCESS:
+            break
+    else:
+        raise RuntimeError(f"Nurse anchor: could not read {log.get_name()}'s source or render LOD0")
     mesh, bvh = unreal.GeometryScript_MeshSpatial.build_bvh_for_mesh(mesh)
     return mesh, bvh
 
@@ -18,13 +23,25 @@ def log_surface(log):
 def source_anchor(log, fungi):
     mesh, bvh = log_surface(log)
     bounds = log.get_bounds()
-    _, hit, outcome = unreal.GeometryScript_MeshSpatial.find_nearest_ray_intersection_with_mesh(
-        mesh, bvh, unreal.Vector(0, 0, bounds.origin.z + bounds.box_extent.z + 100),
-        unreal.Vector(0, 0, -1), unreal.GeometryScriptSpatialQueryOptions())
-    if outcome != unreal.GeometryScriptSearchOutcomePins.FOUND or not hit.hit:
-        raise RuntimeError("Nurse anchor: no source surface at local XY (0, 0)")
+    # Local origin first: it lies on the narrow trunk, unlike the AABB center displaced by its root plate. Some
+    # scans (Large_Fallen_Tree_wgrubc1s) put the origin off the mesh; then the surface hit nearest the origin on a
+    # grid over the bounds.
+    def down(x, y):
+        _, found, outcome = unreal.GeometryScript_MeshSpatial.find_nearest_ray_intersection_with_mesh(
+            mesh, bvh, unreal.Vector(x, y, bounds.origin.z + bounds.box_extent.z + 100),
+            unreal.Vector(0, 0, -1), unreal.GeometryScriptSpatialQueryOptions())
+        return found if outcome == unreal.GeometryScriptSearchOutcomePins.FOUND and found.hit else None
+
+    hit = down(0, 0)
+    if hit is None:
+        steps = [i / 8 * 2 - 1 for i in range(9)]
+        grid = [(bounds.origin.x + u * bounds.box_extent.x, bounds.origin.y + v * bounds.box_extent.y)
+                for u in steps for v in steps]
+        hits = [found for found in (down(x, y) for x, y in sorted(grid, key=lambda p: p[0] ** 2 + p[1] ** 2)) if found]
+        if not hits:
+            raise RuntimeError(f"Nurse anchor: no source surface found on {log.get_name()}")
+        hit = hits[0]
     point = hit.hit_position.copy()
-    # Local origin lies on the narrow trunk, unlike the AABB center displaced by its root plate.
     base = fungi.get_bounds()
     point.z -= base.origin.z - base.box_extent.z + 0.25  # bury the stem base 2.5 mm, not the cap
     print(f"Nurse anchor: source surface Z={hit.hit_position.z:.3f} cm; local stem root {point}")
