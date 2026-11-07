@@ -25,7 +25,10 @@ from trees_above_shore import shore_height, z_range
 # Colonies (#71, lush-forest-placement.md §8.1): instead of single plants evenly spread, a sparse anchor carries a
 # drift of plants as ground-projected children, so plants read as masses with moss between. (count, length cm, width cm)
 # per kind; the anchor density is divided by count, so the plant total stays about the same.
-DRIFTS = {"Ferns": (16, 550, 260), "Herbs": (80, 320, 200)}
+DRIFTS = {"Ferns": (16, 550, 260), "Herbs": (80, 320, 200), "Shrubs": (5, 450, 350),
+          "GapShrubs": (9, 400, 350)}  # Shrubs, GapShrubs: clearing_02 masses
+# Child scale per drift kind: gap hazel overlaps into one broad waist-to-head mass (clearing_02, #81 review).
+DRIFT_SCALE = {"GapShrubs": (1.1, 1.5)}
 SHAPES = 4  # drift outlines per kind; each variant's weight is split across them, so neighbouring drifts differ
 
 
@@ -47,6 +50,8 @@ def drift_points(count, length, width, shape):
             i += 1
     return points
 
+
+GAP_ONLY = {"GapShrubs"}  # kinds placed only in the canopy gaps
 
 # x the Saplings density inside canopy gaps (canopy_gaps.json), with no spatial noise: regeneration is densest under
 # the opening (clearing_01), while noise thins the island-wide saplings to about 1/ha. Saplings are skinned: measure.
@@ -207,9 +212,12 @@ def main():
     kinds = [("Saplings", variants.SAPLING_VARIANTS, 300)] if args.group == "saplings" else [
         # Candidates/ha inside colonies: research trial ferns 0.5-2/m2, herb clumps 2-8/m2 (#32).
         ("Shrubs", variants.SHRUB_VARIANTS, 150), ("Ferns", variants.FERN_VARIANTS, 24000),
-        ("Herbs", variants.HERB_VARIANTS, 20000), ("Ivy", variants.IVY_VARIANTS, 500)]
-    paths = [path for _, rows, _ in kinds for path, _ in rows]
-    if len(set(paths)) != len(paths) or any(not rows or any(w <= 0 for _, w in rows) for _, rows, _ in kinds):
+        ("Herbs", variants.HERB_VARIANTS, 20000), ("Ivy", variants.IVY_VARIANTS, 500),
+        # Hazel masses in every canopy gap (0.7 ha): ~2 drifts in a 5 m gap, ~6 in a 9 m one, merging; see GAP_ONLY.
+        ("GapShrubs", variants.GAP_SHRUB_VARIANTS, 2000)]
+    paths = list({path for _, rows, _ in kinds for path, _ in rows})
+    # Unique within a kind; a mesh may serve two kinds, as their drift and gap entries carry their own AssetTypes.
+    if any(len({p for p, _ in rows}) != len(rows) or not rows or any(w <= 0 for _, w in rows) for _, rows, _ in kinds):
         raise RuntimeError("Plant palettes must be nonempty, paths unique, weights positive")
     meshes = {path: load(path) for path in paths}
     if any(not isinstance(mesh, (unreal.StaticMesh, unreal.SkeletalMesh)) for mesh in meshes.values()):
@@ -254,13 +262,15 @@ def main():
             count, length, width = drift
             density = density / count
             patches = [children(f"DA_{kind}Drift{k}", template, [(f"PCG_{kind}Drift{k}", drift_points(count, length, width, k),
-                                                                  (0.7, 1.15), [(meshes[p], w) for p, w in rows], True)])
+                                                                  DRIFT_SCALE.get(kind, (0.7, 1.15)),
+                                                                  [(meshes[p], w) for p, w in rows], True)])
                        for k in range(SHAPES)]
         # Dry ground gets the full colony density; damp ground adds half again (stream_bank_01).
-        for patch, share, transform, overlap in [("Gaps", 1, plain, damp is not None)] + (
-                [("Damp", 0.5, damp, True)] if damp else []) + (
-                [("Canopy", CANOPY, canopy_filter(), True)] if args.group == "saplings" else []) + (
-                [("Bank" + band, shares[kind], graph, True) for band, graph, shares in banks if kind in shares]):
+        spread = [("Canopy", 1, canopy_filter(), True)] if kind in GAP_ONLY else [("Gaps", 1, plain, damp is not None)] + (
+            [("Damp", 0.5, damp, True)] if damp else []) + (
+            [("Canopy", CANOPY, canopy_filter(), True)] if args.group == "saplings" else []) + (
+            [("Bank" + band, shares[kind], graph, True) for band, graph, shares in banks if kind in shares])
+        for patch, share, transform, overlap in spread:
             doubles, bools = colonies if damp is not None else (None, None)
             if patch == "Canopy":
                 doubles, bools = {"SpatialDensityLow": 1.0}, {"EnableSpatialNoise": False}
