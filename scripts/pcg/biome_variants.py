@@ -59,4 +59,12 @@ PLANT_USAGE_MATERIALS = {
     "/Game/Fab/Megascans/Plants/Beech_Fern_vmkpdbeia/Medium/vmkpdbeia_tier_2/Materials/MI_vmkpdbeia_Billboard",
     "/Game/Fab/Megascans/Plants/English_Ivy_xfcnebhqx/Medium/xfcnebhqx_tier_2/Materials/MI_xfcnebhqx",
     "/Game/Fab/Megascans/Plants/English_Ivy_xfcnebhqx/Medium/xfcnebhqx_tier_2/Materials/MI_xfcnebhqx_Billboard",
+    "/Game/Fab/Megascans/Plants/Lady_Fern_wdvlditia/Medium/wdvlditia_tier_2/Materials/MI_wdvlditia",
+    "/Game/Fab/Megascans/Plants/Lady_Fern_wdvlditia/Medium/wdvlditia_tier_2/Materials/MI_wdvlditia_Billboard",
+    # Solid scans added for #32 get the same usage bits when first spawned.
+    "/Game/Fab/Megascans/3D/Large_Fallen_Tree_wgrubc1s/Medium/wgrubc1s_tier_2/Materials/MI_wgrubc1s",
+    "/Game/Fab/Megascans/3D/Mossy_Forest_Boulder_wc1kebr/Medium/wc1kebr_tier_2/Materials/MI_wc1kebr",
+    "/Game/Fab/Megascans/3D/Mossy_Forest_Boulder_wdbncbl/Medium/wdbncbl_tier_2/Materials/MI_wdbncbl",
+    "/Game/Fab/Megascans/3D/Mossy_Forest_Boulder_wfstcdnaw/Medium/wfstcdnaw_tier_2/Materials/MI_wfstcdnaw",
+    "/Game/Fab/Megascans/3D/Mossy_Forest_Boulder_wfstchwaw/Medium/wfstchwaw_tier_2/Materials/MI_wfstchwaw",
 }

@@ -93,21 +93,21 @@ def filter_graph(name, reach=0, slope=0):
     return graph
 
 
-def generator(group, density, slope, priority):
+def generator(group, density, slope, priority, doubles=None, bools=None):
     graph = copy_asset(ROOT + "PCG_Forest_TreesGenerator", f"PCG_Forest_{group}Generator")
     # Native parameter helpers already validate names/types and notify graph instances:
     # UE 5.8 PCG/Private/Helpers/PCGGraphParametersHelpers.cpp: ValidateAndSetValue.
     helpers = unreal.PCGGraphParametersHelpers
-    for name, value in {
+    for name, value in ({
         "PointsPerSquareMeter": density / 10000, "SlopeMaskLow": math.cos(math.radians(slope)),
         "SlopeMaskHigh": math.cos(math.radians(5)) if group == "Rocks" else 1.0, "SpatialDensityLow": 0.35, "SpatialDensityHigh": 1.0,
         "ScaleByDensityRangeMin": 1.0, "ScaleByDensityRangeMax": 1.0, "ScramblePositionDistance": 0.0,
-    }.items():
+    } | (doubles or {})).items():
         helpers.set_double_parameter(graph, name, value)
-    for name, value in {
+    for name, value in ({
         "EnableSlopeMasking": True, "EnableWorldRayHitQuery": False, "EnableSpatialNoise": True,
         "EnableVoronoiNoiseBreakup": False, "EnableDistanceToEdge": False,
-    }.items():
+    } | (bools or {})).items():
         helpers.set_bool_parameter(graph, name, value)
     for name, value in {"ScaleMin": unreal.Vector(0.8, 0.8, 0.8), "ScaleMax": unreal.Vector(1.2, 1.2, 1.2),
                         "PointExtents": unreal.Vector(100, 100, 100)}.items():
