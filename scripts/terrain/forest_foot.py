@@ -51,7 +51,11 @@ def main():
     for r, c in zip(rows, cols):
         cells.setdefault((r // STEP, c // STEP), (r, c))
     points = sorted({(round((c - half) * metres), round((r - half) * metres)) for r, c in cells.values()})
-    ir, ic = np.nonzero(island)
+    # Placement bounds cover the whole island down to the beach (its connected land and sand above SAND_FROM), not just
+    # the forest-foot mask: mist and wisps also use lower coastal ground (#63 review).
+    ground, _ = label(height >= SAND_FROM)
+    whole = np.isin(ground, np.unique(ground[island]))
+    ir, ic = np.nonzero(whole)
     bounds = [round((ic.min() - half) * metres), round((ic.max() - half) * metres),
               round((ir.min() - half) * metres), round((ir.max() - half) * metres)]
     OUT.write_text(json.dumps({"shore_cm": shore * 100, "island_m": bounds, "points_m": points}) + "\n")
