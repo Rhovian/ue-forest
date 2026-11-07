@@ -15,8 +15,8 @@ import re
 
 import biome_variants
 import unreal
+from child_layouts import along_sides, along_top, base_ring, build_points_graph, surface_hits
 from long_log_keepout import water_keepout
-from nurse_anchor import build_anchor_graph, source_anchor
 from trees_above_shore import shore_height, z_range
 
 ROOT = "/Game/ForestBiome/"
@@ -148,6 +148,27 @@ def entry(template, mesh, group, transform, weight=1, children=None, collision=T
     return value
 
 
+def children(name, template, layouts):
+    """One ChildAssets list from (graph name, points, scale, palette, on the ground) layouts.
+
+    Entries sharing a layout's graph are weighted alternatives at each of its points. Core's
+    BiomeCore_ChildTransformLoop walks the list entry by entry and drops points whose bounds overlap points an earlier
+    entry placed, so child bounds shrink to 5%: otherwise layouts prune each other (#32 part 2: seedlings after fungi
+    on the same top line kept about 1%)."""
+    entries = []
+    for graph_name, points, scale, rows, ground in layouts:
+        graph = copy_asset(ROOT + "PCG_TreesAboveShore", graph_name)
+        build_points_graph(graph, points, edge, scale, ground)
+        save(graph)
+        for child, w in rows:
+            value = entry(template, child, None, graph, w, collision=False, aligned=True)
+            options = get(value, "AssetOptions")
+            put(options, ExtentsMultiplier=unreal.Vector(0.05, 0.05, 0.05))
+            put(value, AssetOptions=options)
+            entries.append(value)
+    return asset_list(name, entries)
+
+
 def asset_list(name, entries):
     data = copy_asset(ROOT + "DA_Forest_TreesAssets", name)
     data.set_editor_property("BiomeAssets", entries)
@@ -160,17 +181,18 @@ def main():
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     palettes = [VARIANTS.LOG_VARIANTS, VARIANTS.STUMP_VARIANTS, VARIANTS.SLAB_VARIANTS, VARIANTS.FUNGI_VARIANTS]
-    if any(not rows or any(weight <= 0 for _, weight in rows) for rows in palettes):
+    plants = [VARIANTS.SEEDLING_VARIANTS, VARIANTS.BASE_PLANT_VARIANTS]  # full /Game paths, shared with the plant groups
+    if any(not rows or any(weight <= 0 for _, weight in rows) for rows in palettes + plants):
         raise RuntimeError("Variant lists must be nonempty with positive weights")
     paths = [path for rows in palettes for path, _ in rows]
-    if len(paths) != len(set(paths)):
+    if len(paths) != len(set(paths)) or any(len({p for p, _ in rows}) != len(rows) for rows in plants):
         raise RuntimeError("A mesh may appear only once across the variant lists")
     logs, stumps, slabs, fungi = [[(load(VARIANTS.VENDOR + path), weight) for path, weight in rows] for rows in palettes]
-    # Shared child graphs select alternatives, not one separate scatter per fungi variant.
+    seedlings, base_plants = [[(load(path), weight) for path, weight in rows] for rows in plants]
+    # Fungi alternatives share one layout, so they need one stem-base height to bury by.
     bases = [mesh.get_bounds().origin.z - mesh.get_bounds().box_extent.z for mesh, _ in fungi]
     if max(bases) - min(bases) > 0.1:
         raise RuntimeError("Fungi variants need matching stem-base pivots (within 1 mm)")
-    anchors = {mesh.get_name(): source_anchor(mesh, fungi[0][0]) for mesh, _ in logs}
     trees = load(ROOT + "DA_Forest_TreesAssets")
     template = trees.get_editor_property("BiomeAssets")[0]
     load(ROOT + "PCG_TreesAboveShore")
@@ -213,34 +235,59 @@ def main():
     plain = filter_graph("PCG_DeadwoodAboveShore")
     deadwood = generator("Deadwood", STUMPS_PER_HA, 20, 10)
     entries = [entry(template, mesh, deadwood, plain, weight) for mesh, weight in stumps]
-    for mesh, weight in logs:
+    densities = set()
+    for index, (mesh, weight) in enumerate(logs):
         name, box = mesh.get_name(), mesh.get_bounding_box()
         # Enclose every scaled source corner relative to its pivot, irrespective of random yaw.
         reach = 1.2 * math.sqrt(sum(max(abs(getattr(box.min, axis)), abs(getattr(box.max, axis)))**2 for axis in "xyz"))
         long = max(getattr(box.max, a) - getattr(box.min, a) for a in "xyz") > 1000
         # Smooth hillsides can support a tilted trunk; lead checks nine terrain samples along it.
         slope = 8 if long else 20
-        group = generator("Deadwood_" + name, LOGS_PER_HA * weight / sum(w for _, w in logs), slope, 10)
+        # Equal-weight variants with one seed share every point (#32 part 2: each Large_Fallen_Tree wd1mbcvbw lay
+        # on a wgrubc1s). Neither BasicNoiseSeed, a shifted noise field nor a new cell size separated them; a
+        # different density does, so nudge each variant's by 5%.
+        density = LOGS_PER_HA * weight / sum(w for _, w in logs) * (1 + 0.05 * index)
+        if density in densities:
+            raise RuntimeError(f"Log variant {name} has the same generator density as another; adjust a weight")
+        densities.add(density)
+        group = generator("Deadwood_" + name, density, slope, 10)
         log_plain = filter_graph("PCG_Log_" + name, reach=reach if long else 0, slope=slope)
         # Altitude alone is no dampness proxy; both forms need the same eligible ground.
         nurse = filter_graph("PCG_Nurse_" + name, reach=reach if long else 0, slope=slope)
-        graph = copy_asset(ROOT + "PCG_TreesAboveShore", "PCG_Fungi_" + name)
-        build_anchor_graph(graph, anchors[name], edge)
-        save(graph)
-        children = asset_list("DA_NurseChildren_" + name, [
-            entry(template, child, None, graph, w, collision=False, aligned=True) for child, w in fungi])
-        entries += [entry(template, mesh, group, log_plain, 2, aligned=True),
-                    entry(template, mesh, group, nurse, 1, children, aligned=True)]
-        print(f"Log variant {name}: share {weight / sum(w for _, w in logs):.1%}, slope {slope} deg, reach {reach:.0f} cm")
+        # nurse_log_01: about one seedling per 4 m of trunk (4 on the 17 m log), two mushroom clusters on the top of
+        # a large log and one on the short piece, between the seedlings, and ferns and anemone every 90 cm along both
+        # sides of the trunk and at its ends.
+        hits = surface_hits(mesh)
+        length = max(getattr(box.max, a) - getattr(box.min, a) for a in "xy")
+        seedling_tops = along_top(hits, max(1, min(5, round(length / 400))))
+        fungi_tops = [(x, y, z - min(bases) - 0.25)  # bury the stem base 2.5 mm, not the cap
+                      for x, y, z in along_top(hits, 3)[::2][:2 if length > 400 else 1]]
+        sides = along_sides(hits, 90, 15)
+        nurse_children = children("DA_NurseChildren_" + name, template, [
+            ("PCG_Fungi_" + name, fungi_tops, (0.9, 1.3), fungi, False),
+            ("PCG_Seedlings_" + name, seedling_tops, (1.0, 1.5), seedlings, False),
+            ("PCG_LogBase_" + name, sides, (0.7, 1.1), base_plants, True)])
+        # Logs over 4 m (the Large Fallen Trees) are all nurse logs; the short piece keeps plain:nurse 2:1.
+        entries += ([] if length > 400 else [entry(template, mesh, group, log_plain, 2, aligned=True)]) + [
+            entry(template, mesh, group, nurse, 1, nurse_children, aligned=True)]
+        print(f"Log variant {name}: share {weight / sum(w for _, w in logs):.1%}, slope {slope} deg, reach {reach:.0f} cm,"
+              f" {len(seedling_tops)} seedling / {len(fungi_tops)} fungi / {len(sides)} base points")
     rocks = generator("Rocks", 30, 35, 20)
-    groups = [asset_list("DA_Forest_DeadwoodAssets", entries), asset_list("DA_Forest_RocksAssets", [
-        entry(template, mesh, rocks, plain, weight) for mesh, weight in slabs])]
+    rock_entries = []
+    for mesh, weight in slabs:
+        # rock_assembly_01: ferns and flowers packed round the base with no bare ring.
+        layouts = [("PCG_RockBase_" + mesh.get_name(), base_ring(surface_hits(mesh), 45, 5), (0.7, 1.1), base_plants,
+                    True)]
+        rock_entries.append(entry(template, mesh, rocks, plain, weight,
+                                  children("DA_RockChildren_" + mesh.get_name(), template, layouts)))
+    groups = [asset_list("DA_Forest_DeadwoodAssets", entries), asset_list("DA_Forest_RocksAssets", rock_entries)]
     for actor in biomes:
         assets = list(actor.get_editor_property("Assets"))
         actor.set_editor_property("Assets", assets + [group for group in groups if group not in assets])
     print(f"Deadwood/Rocks built: {LOGS_PER_HA} logs + {STUMPS_PER_HA} stumps/ha, 30 slabs/ha candidates; {len(logs)} log variants")
     print("Collision: Log/Stump/Slab simple BlockAll; stock materials; assets saved")
     print("Ground groups: priority difference bypassed (canopy bounds); terrain/water filters retained")
+    print("Children: nurse logs carry fungi, seedlings and base plants; rocks carry base plants")
     print("Regenerate Biome Core, inspect nurse fungi/contact/collision, then save the level")
 
 

@@ -47,11 +47,18 @@ counts only boxes, spheres and capsules and excludes convex hulls.
 Instance collision still needs a walker check after generation (the asset audit cannot verify generated components).
 
 - Deadwood: 18 candidates/ha, weighted 8 plain logs : 4 nurse logs : 6 stumps; slope at most 20°.
-  A nurse log is the same fallen log with one attached Bolete mushroom cluster via Core recursive ChildAssets.
-  `scripts/pcg/nurse_anchor.py` raycasts the source LOD0 triangles at log-local XY (0, 0), embeds
-  the stem base 0.25 cm into that surface, applies the full parent transform including scale,
-  and only then makes fungi upright. Both preflight and build fail if the source ray misses.
-  Nurse logs stay below 12 m elevation, a low-ground dampness proxy; this reduces their final share below one third.
+  A nurse log is the same fallen log with Core recursive ChildAssets (#32 part 2): about one beech seedling per
+  4 m of trunk on its top, one or two Bolete clusters on its top between them (stem base buried 0.25 cm), and
+  ferns and anemone every 90 cm along both sides of the trunk and beyond its ends. Logs over 4 m are all nurse
+  logs. `scripts/pcg/child_layouts.py` raycasts each mesh's source LOD0 (render LOD0 if the source is unreadable)
+  on a 40×40 grid for these points, in parent-local space with the ground at z = 0, applies the full parent
+  transform including scale, then makes each child upright with a random yaw.
+- Rocks carry ferns and anemone every 45 cm round the footprint's convex hull, 5 cm out, as ChildAssets.
+  Moss cushions on the top faces are not placed: Nordic Forest Ledge Moss is a pale ledge drape and reads as
+  stone plates on a slab (lead ruling on #32); the cushion relief waits for a cushion-moss asset.
+- Core walks a ChildAssets list entry by entry and drops points whose bounds overlap points an earlier entry
+  placed (`BiomeCore_ChildTransformLoop`), so child entries scale their bounds to 5% (`ExtentsMultiplier`);
+  entries sharing one layout graph are weighted alternatives at each of its points.
 - Rocks: 30 slab candidates/ha, slopes 5–35° to concentrate on banks and slopes rather than flat clearings.
 - Both use Core's inherited spatial-noise patches (density band 0.35–1), random yaw and uniform 0.8–1.2 scale.
   Counts decrease after masks and shore/water exclusions. Deadwood and Rocks bypass cross-generator
@@ -82,7 +89,7 @@ ignore all non-LandscapeProxy actors when measuring terrain contact.
 per variant. Append a row to extend a palette; run the builder again. Builder and audit reload
 this module on each run, including in an already-open editor. Lists must be nonempty, paths unique.
 All obstacle variants automatically receive collision generation and exact-path budget coverage;
-fungi remain nonblocking. Fungi alternatives share one child graph per log; their stem-base pivots
+children remain nonblocking. Fungi alternatives share one child layout per log; their stem-base pivots
 must agree within 1 mm (preflight fails otherwise). Stock materials remain assigned by each mesh.
 
 The two installed logs use weights 0.85 (2.7 m piece) and 0.15 (17.246 m Large Fallen Tree).
@@ -107,8 +114,8 @@ Plain and nurse logs now share identical terrain/shore/water eligibility. The ol
 altitude ceiling could discard selected nurses and is removed: altitude alone does not establish
 forest dampness. Plain:nurse weights stay 2:1; actual realized counts must be checked after generation.
 
-Both source logs are queried independently for nurse bark contact; no anchor is reused across scans.
-A second log's source-ray miss is a fail-fast preflight error, never a fallback to AABB height.
+Every log and rock scan is raycast independently for its child layout; no layout is reused across scans.
+A scan with too few surface hits is a fail-fast build error, never a fallback to AABB height.
 The lead must inspect collision fit and bark contact on both variants and measure frame time.
 
 ## Saplings, Understory and shore footpath (step 8b)
