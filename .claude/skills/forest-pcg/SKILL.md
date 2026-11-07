@@ -1,6 +1,6 @@
 ---
 name: forest-pcg
-description: Lessons for building and tuning this project's Biome Core PCG placement (scripts/pcg/*.py, regenerate_biome.py). Read before adding or changing a placement group, a density, a generator, child assets or a filter graph. Append each new failure here when it is understood.
+description: Lessons for this project's Biome Core PCG placement of everything on the island, forest, meadow and beach (scripts/pcg/*.py, regenerate_biome.py). Read before adding or changing a placement group, a density, a generator, child assets or a filter graph, and when diagnosing a slow or memory-heavy regenerate or plants that float, vanish or clump wrongly. Not for lighting, fog or materials. Append each new failure here when it is understood.
 ---
 
 Each rule below cost real time when it was learned. A new rule says what broke, why, and the check that prevents it.
