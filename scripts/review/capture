@@ -37,6 +37,11 @@ for name, camera in cameras.items():
         },
         "annotations": no_overlay,
     }
+    # Twice: particle distance culling reads the last rendered view, which only moves to the pose after the first call
+    # has returned and the viewport has drawn (scripts/review/warm.py).
+    for _ in range(2):
+        subprocess.run([os.path.join(SCRIPTS, "editor-py"), os.path.join(HERE, "warm.py"), json.dumps(camera)],
+                       check=True, capture_output=True)
     path = os.path.join(out, f"{name}.png")
     pending = path + ".tmp"  # a rejected capture must not replace an earlier one
     reply = subprocess.run([os.path.join(SCRIPTS, "editor-mcp"), "-o", pending, "EditorToolset.EditorAppToolset",

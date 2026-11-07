@@ -1,5 +1,4 @@
-"""Runs in the editor via scripts/editor-py: loads every World Partition actor, sets morning light, and prints each
-pose's camera location (cm) as JSON. scripts/review/capture calls it."""
+"""Runs in the editor via scripts/editor-py: loads every World Partition actor, sets morning light, and prints each pose's camera location (cm) as JSON. scripts/review/capture calls it."""
 # editor-py: fresh-siblings
 import json
 
