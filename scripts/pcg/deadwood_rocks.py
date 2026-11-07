@@ -114,6 +114,9 @@ def candidate_estimate(density, extent):
 
 
 def generator(group, density, slope, priority, doubles=None, bools=None, extent=100):
+    if doubles and "PointsPerSquareMeter" in doubles:
+        raise RuntimeError(f"{group}: pass the density as the `density` argument, not a PointsPerSquareMeter override,"
+                           " so the candidate budget checks what is installed")
     estimate = candidate_estimate(density, extent)
     if estimate > MAX_CANDIDATES:
         raise RuntimeError(f"{group}: {density:.0f}/ha at extent {extent} cm samples ~{estimate / 1e6:.0f} million points over"

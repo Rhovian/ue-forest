@@ -142,6 +142,7 @@ class Regeneration:
         self.begun = time.monotonic()
         self.deadline = self.begun + 540
         self.memory_at, self.memory, self.peak = 0.0, 0.0, 0.0
+        self.cancel_sent = False
         self.frame, self.frame_since = None, None
 
     def complete(self, component):
@@ -161,6 +162,8 @@ class Regeneration:
         self.busy.discard(component)
         if component not in self.pending and component not in self.started:
             return  # unrelated automatic output refresh while Local inputs are running
+        if self.cancel_sent:
+            return  # our own cancel (memory limit or timeout); keep the error that caused it
         if component in self.pending and component not in self.started:
             self.ready.add(component)  # automatic refresh cancelled; requested regeneration still needed
         else:
@@ -233,12 +236,16 @@ class Regeneration:
             self.memory_at, self.memory = now, resident_gb()
             self.peak = max(self.peak, self.memory)
         if not self.error and self.memory > MEMORY_LIMIT_GB:
-            self.error = (f"Editor memory passed {MEMORY_LIMIT_GB} GB during generation; cancelled, nothing saved. A"
+            self.error = (f"Editor memory passed {MEMORY_LIMIT_GB} GB during generation; all PCG generation cancelled,"
+                          " nothing saved. A"
                           " generator is sampling too many points (see deadwood_rocks.candidate_estimate)")
-        if self.error or time.monotonic() >= self.deadline:
-            for _, component in self.cores:  # stop a runaway graph instead of leaving it grinding in the background
-                if hasattr(component, "cancel_generation"):
-                    component.cancel_generation()
+        if (self.error or time.monotonic() >= self.deadline) and not self.cancel_sent:
+            # Stop every running generation (Local inputs and Core) instead of leaving it grinding in the background.
+            # PCGComponent::CancelGeneration is not exposed to Python; ForestPCGLibrary wraps the subsystem's
+            # CancelAllGeneration (Forest/Source/Forest/ForestPCGLibrary.cpp).
+            self.cancel_sent = True
+            if not unreal.ForestPCGLibrary.cancel_all_pcg_generation():
+                self.error = (self.error or "Generation timed out") + "; could not cancel: no PCG subsystem"
         if not self.error and time.monotonic() < self.deadline:
             try:
                 for component in list(self.ready):

@@ -92,10 +92,10 @@ def main():
     put(value, GeneratorAllowOverlap=True)
     group.set_editor_property("Generator", value)
     save(group)
-    # Logs: the forest's fallen-log variants (mossy, blocking), their own sparse generator on the same meadow ground.
+    # Logs: MEADOW_LOG_VARIANTS (mossy, blocking), their own sparse generator on the same meadow ground.
     log_group = generator("MeadowLogs", LOGS_PER_HA, 15, 55, {"SpatialDensityLow": 1.0}, {"EnableSpatialNoise": False})
     entries = []
-    for path, weight in variants.LOG_VARIANTS:
+    for path, weight in variants.MEADOW_LOG_VARIANTS:
         mesh = load(variants.VENDOR + path)
         value = entry(template, mesh, log_group, graph, weight, aligned=True)
         put(value, AssetType="MeadowLog_" + mesh.get_name())  # distinct from the forest deadwood's types

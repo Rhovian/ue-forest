@@ -15,7 +15,10 @@ and the check that prevents it.
   to get around it: change the design.
 - **Dense cover on a small area** (meadow grass, patches): a sparse anchor generator plus a child patch per anchor
   (`children()` with a disc of points, `ground=True`), as in `meadow.py`. Cost then scales with the anchors.
-- `regenerate_biome.py` prints duration and peak editor memory, and cancels the generation above `MEMORY_LIMIT_GB`.
+- `regenerate_biome.py` prints duration and peak editor memory. Above `MEMORY_LIMIT_GB` it cancels all PCG generation
+  through `unreal.ForestPCGLibrary.cancel_all_pcg_generation()` (C++: `PCGComponent::CancelGeneration` is not exposed
+  to Python) and saves nothing. Pass a density only as `generator()`'s `density`; a `PointsPerSquareMeter` override is
+  refused because the budget would not see it.
   A full regenerate takes about 1 minute and peaks at 35-39 GB. If a run takes much longer or the peak grows, stop and
   find out why before tuning further.
 - Change one variable at a time (density *or* extent), and check the estimate before each change.

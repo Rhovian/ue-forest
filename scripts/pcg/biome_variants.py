@@ -6,6 +6,11 @@ LOG_VARIANTS = [
     ("Large_Fallen_Tree_wd1mbcvbw/Medium/wd1mbcvbw_tier_2/StaticMeshes/wd1mbcvbw_tier_2", 0.15),
     ("Large_Fallen_Tree_wgrubc1s/Medium/wgrubc1s_tier_2/StaticMeshes/wgrubc1s_tier_2", 0.15),
 ]
+# Fallen logs lying in the meadow stretches (#38): only the short piece, whose footprint the meadow ground filter covers;
+# the long trunks need deadwood_rocks.py's reach-aware water keepout and 8-degree support limit.
+MEADOW_LOG_VARIANTS = [
+    ("Nordic_Forest_Tree_Fallen_Medium_xicmfco/Medium/xicmfco_tier_2/StaticMeshes/xicmfco_tier_2", 1),
+]
 STUMP_VARIANTS = [
     ("Old_Tree_Stump_wd0qcaobw/Medium/wd0qcaobw_tier_2/StaticMeshes/wd0qcaobw_tier_2", 1),
 ]
