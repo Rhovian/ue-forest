@@ -23,7 +23,7 @@ from PIL import Image
 from scipy.ndimage import binary_dilation, label
 
 ROOT = Path(__file__).resolve().parents[2]
-TERRAIN = ROOT / "Forest/Saved/Terrain/vilm_1513"
+TERRAIN = ROOT / "Forest/Saved/Terrain/vilm_1513_shore"  # the imported heights, after soft_shore.py
 OUT = ROOT / "scripts/pcg/forest_foot.json"
 SAND_FROM = 0.03  # m above the sea
 STEP = 2  # pixel cell side (2 m pixels): one kept point per 4 x 4 m cell the line crosses

@@ -26,8 +26,8 @@ def sample(saved, points):
 def main():
     from PIL import Image
     terrain = Path(sys.argv[1]) / "Terrain"
-    meta = json.loads((terrain / "vilm_1513.json").read_text())
-    with Image.open(terrain / "vilm_1513.png") as image:
+    meta = json.loads((terrain / "vilm_1513_shore.json").read_text())  # the imported heights, after soft_shore.py
+    with Image.open(terrain / "vilm_1513_shore.png") as image:
         heights = []
         for x, y in json.load(sys.stdin):
             col, row = round(x / meta["XYScale"] + (image.width - 1) / 2), round(y / meta["XYScale"] + (image.height - 1) / 2)
