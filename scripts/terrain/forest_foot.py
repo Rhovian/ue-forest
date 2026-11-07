@@ -10,7 +10,8 @@ Reads the landscape heightmap that heightmap.py wrote (Forest/Saved/Terrain/vilm
 world origin, 2 m per pixel, rows along +Y) and writes scripts/pcg/forest_foot.json: world (x, y) metres of every
 pixel of the island (its largest piece of land at or above SHORE_CM, default 75, MI_ForestFloor's
 ShoreHeight) that touches beach sand (3 cm up to
-SHORE_CM) connected to the sea, thinned to one point per 4 x 4 m cell it crosses. Rerun after the terrain changes.
+SHORE_CM) connected to the sea, thinned to one point per 4 x 4 m cell it crosses, and the island's bounds (island_m: x min, x max, y min,
+y max in metres) for the scripts that place things over it. Rerun after the terrain changes.
 """
 
 import json
@@ -50,7 +51,10 @@ def main():
     for r, c in zip(rows, cols):
         cells.setdefault((r // STEP, c // STEP), (r, c))
     points = sorted({(round((c - half) * metres), round((r - half) * metres)) for r, c in cells.values()})
-    OUT.write_text(json.dumps({"shore_cm": shore * 100, "points_m": points}) + "\n")
+    ir, ic = np.nonzero(island)
+    bounds = [round((ic.min() - half) * metres), round((ic.max() - half) * metres),
+              round((ir.min() - half) * metres), round((ir.max() - half) * metres)]
+    OUT.write_text(json.dumps({"shore_cm": shore * 100, "island_m": bounds, "points_m": points}) + "\n")
     print(f"{OUT.relative_to(ROOT)}: {len(points)} forest foot points (of {len(rows)} foot pixels)")
 
 
