@@ -1,4 +1,4 @@
-"""Exposure, mist and bark tone for the forest read (#35) on L_vilm.
+"""Exposure, grade, mist and bark tone for the forest read (#35) on L_vilm.
 
     scripts/editor-py scripts/lighting/forest_look.py
 
@@ -18,6 +18,11 @@ import unreal
 LABEL = "PP_ForestLook"
 SETTINGS = {  # PostProcessSettings property -> value; each one is overridden on the volume
     "auto_exposure_bias": -1.0,
+    # Grade toward interior_01's cool, rich greens: a slightly cooler white balance, more green saturation, a faint
+    # blue lift in the shadows. Sea and shade on the edge stay readable (edge_out_01).
+    "white_temp": 6900.0,
+    "color_saturation": unreal.Vector4(0.95, 1.12, 0.97, 1.0),
+    "color_gain_shadows": unreal.Vector4(0.96, 1.0, 1.04, 1.0),
 }
 FOG = {  # ExponentialHeightFogComponent property -> value
     "fog_density": 0.02,
