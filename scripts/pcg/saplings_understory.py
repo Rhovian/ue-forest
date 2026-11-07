@@ -61,6 +61,12 @@ def column(low, high):
     return [low * 100 + (high - low) * 100 * i / count for i in range(count + 1)]
 
 
+# Bank colonies (#71 item 5): extra drifts within BANK cm of a water spline, x the kind's base density. The river
+# spline is its centreline, so BANK covers the half width plus a few metres of bank.
+BANK = 900
+BANK_SHARE = {"Ferns": 2, "Herbs": 4}
+
+
 def canopy_filter():
     """Ground inside a canopy gap from canopy_gaps.json, by horizontal distance. Distance's SphereBounds uses the
     bounds' half-diagonal as the radius and is signed (inside is negative), so gaps are grouped by whole-metre radius
@@ -111,18 +117,8 @@ def canopy_filter():
     return graph
 
 
-def damp_filter():
-    graph = copy_asset(ROOT + "PCG_TreesAboveShore", "PCG_UnderstoryDamp")
-    inp, out = graph.get_input_node(), graph.get_output_node()
-    for node in list(graph.get_editor_property("nodes")):
-        if node not in (inp, out):
-            graph.remove_node(node)
-    shore = z_range(graph, shore_height() + 150, 1.0e7)
-    edge(graph, inp, "In", shore, "In")
-    low = z_range(graph, shore_height() + 150, 1200)
-    edge(graph, shore, "InsideFilter", low, "In")
-    merge, _ = graph.add_node_of_type(unreal.PCGMergeSettings)
-    edge(graph, low, "InsideFilter", merge, "In")
+def water_near(graph, source, pin, maximum):
+    """Points from (source, pin) within `maximum` cm of a water body's spline (river centreline, lake shoreline)."""
     # UE 5.8 PCGDataFromActor/PCGSplineSampler/PCGDistance implement water proximity;
     # use sampled live water splines, not a custom spatial search or actor AABBs.
     water, settings = graph.add_node_of_type(unreal.PCGDataFromActorSettings)
@@ -145,16 +141,47 @@ def damp_filter():
     edge(graph, water, "Out", sampler, "Spline")
     distance, settings = graph.add_node_of_type(unreal.PCGDistanceSettings)
     settings.set_editor_property("set_density", True)
-    settings.set_editor_property("maximum_distance", 3000)
+    settings.set_editor_property("maximum_distance", maximum)
     settings.set_editor_property("source_shape", unreal.PCGDistanceShape.CENTER)
     settings.set_editor_property("target_shape", unreal.PCGDistanceShape.CENTER)
-    edge(graph, low, "OutsideFilter", distance, "Source")
+    edge(graph, source, pin, distance, "Source")
     edge(graph, sampler, "Out", distance, "Target")
     near, settings = graph.add_node_of_type(unreal.PCGDensityFilterSettings)
     settings.set_editor_property("lower_bound", 0)
     settings.set_editor_property("upper_bound", 0.99)  # exclude the saturated no-neighbour distance
     edge(graph, distance, "Out", near, "In")
-    edge(graph, near, "Out", merge, "In")
+    return near, "Out"
+
+
+def bank_filter():
+    """Ground above the shore within BANK cm of water: ferns and flowers crowd the banks (stream_bank_01)."""
+    graph = copy_asset(ROOT + "PCG_TreesAboveShore", "PCG_UnderstoryBank")
+    inp, out = graph.get_input_node(), graph.get_output_node()
+    for node in list(graph.get_editor_property("nodes")):
+        if node not in (inp, out):
+            graph.remove_node(node)
+    shore = z_range(graph, shore_height() + 150, 1.0e7)
+    edge(graph, inp, "In", shore, "In")
+    near, pin = water_near(graph, shore, "InsideFilter", BANK)
+    edge(graph, near, pin, out, "Out")
+    save(graph)
+    return graph
+
+
+def damp_filter():
+    graph = copy_asset(ROOT + "PCG_TreesAboveShore", "PCG_UnderstoryDamp")
+    inp, out = graph.get_input_node(), graph.get_output_node()
+    for node in list(graph.get_editor_property("nodes")):
+        if node not in (inp, out):
+            graph.remove_node(node)
+    shore = z_range(graph, shore_height() + 150, 1.0e7)
+    edge(graph, inp, "In", shore, "In")
+    low = z_range(graph, shore_height() + 150, 1200)
+    edge(graph, shore, "InsideFilter", low, "In")
+    merge, _ = graph.add_node_of_type(unreal.PCGMergeSettings)
+    edge(graph, low, "InsideFilter", merge, "In")
+    near, pin = water_near(graph, low, "OutsideFilter", 3000)
+    edge(graph, near, pin, merge, "In")
     edge(graph, merge, "Out", out, "Out")
     save(graph)
     return graph
@@ -205,6 +232,7 @@ def main():
     from deadwood_rocks import filter_graph
     plain = filter_graph("PCG_PlantsAboveShore")
     damp = damp_filter() if args.group == "understory" else None
+    bank = bank_filter() if args.group == "understory" else None
     entries = []
     # Understory (#32 rulings, interior_01): colonies rather than an even scatter, and plants grow under trees too
     # (overlap, so canopy bounds do not prune them). The template's spatial noise is world-space with no seed
@@ -223,7 +251,8 @@ def main():
         # Dry ground gets the full colony density; damp ground adds half again (stream_bank_01).
         for patch, share, transform, overlap in [("Gaps", 1, plain, damp is not None)] + (
                 [("Damp", 0.5, damp, True)] if damp else []) + (
-                [("Canopy", CANOPY, canopy_filter(), True)] if args.group == "saplings" else []):
+                [("Canopy", CANOPY, canopy_filter(), True)] if args.group == "saplings" else []) + (
+                [("Bank", BANK_SHARE[kind], bank, True)] if damp and kind in BANK_SHARE else []):
             doubles, bools = colonies if damp is not None else (None, None)
             if patch == "Canopy":
                 doubles, bools = {"SpatialDensityLow": 1.0}, {"EnableSpatialNoise": False}

@@ -18,6 +18,7 @@ from pathlib import Path
 
 import meadow
 import unreal
+from water_exclusions import KEEPOUT_TAG
 
 STEP = 3  # m between probes
 RING = 20  # m: trees must surround the probe within this radius
@@ -95,7 +96,7 @@ def main():
         raise RuntimeError("No generated Trees points: load all cells and regenerate the biome first")
     exclusions = []
     for actor in unreal.EditorLevelLibrary.get_all_level_actors():
-        if actor.actor_has_tag("PCG_BiomeExclusion"):
+        if actor.actor_has_tag("PCG_BiomeExclusion") or actor.actor_has_tag(KEEPOUT_TAG):  # the wider water keepout too
             for spline in actor.get_components_by_class(unreal.SplineComponent):
                 for i in range(int(spline.get_spline_length() / 200) + 1):
                     p = spline.get_location_at_distance_along_spline(i * 200, unreal.SplineCoordinateSpace.WORLD)

@@ -9,7 +9,7 @@ POSES = [
     ("interior", 486, -512, 1.6, 0, 0),
     ("canopy_up", 486, -512, 1.6, 60, 0),
     ("clearing", 269, -236, 1.6, -5, 0),  # the largest canopy gap (canopy_gaps.json, r 9 m); the old pose is now meadow
-    ("stream_bank", 446, -338, 1.6, -5, 115),
+    ("stream_bank", 443.7, -341.1, 1.6, -5, 85),  # on the bank, 7 m off the centreline (the old pose stood in the 7.5 m channel)
     ("lake_shore", 800, -390, 1.6, 0, -48),
     ("edge_in", 550, -207, 1.6, 0, -90),
     ("edge_out", 550, -268, 1.6, 0, 90),

@@ -50,6 +50,10 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
 
 ## Children
 
+- Water exclusions are two-tier (`water_exclusions.py`): `ForestExclusion_*` (tag `PCG_BiomeExclusion`, the narrow
+  margin; Biome Core selects exclusions by that tag) keeps everything out of the water, and `ForestKeepout_*` (tag
+  `Forest_WaterKeepout`, 3 m) keeps every group but the ground plants (`exact_exclusions.PLANT_GRAPHS`) back from it.
+  A new ground-plant filter graph must be added to `PLANT_GRAPHS` to reach the banks.
 - After rebuilding any group, run `exact_exclusions.py` before `regenerate_biome.py --save`: child graphs are rebuilt
   without the path, water and shore exclusions, so children can land across a path (#73 review).
 - One child list applies every layout to every anchor. For several patch outlines, give each entry its own list and
