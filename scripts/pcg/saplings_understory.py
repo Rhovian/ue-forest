@@ -126,8 +126,10 @@ def main():
         for patch, share, transform, overlap in [("Gaps", 1, plain, damp is not None)] + (
                 [("Damp", 0.5, damp, True)] if damp else []):
             doubles, bools = colonies if damp is not None else (None, None)
+            # One point per (2 x extent)^2 cell at most, so the extent must allow the requested rate (#32 review).
+            extent = min(100, 50 / math.sqrt(density * share / 10000))
             data = generator(kind + patch, density * args.density_scale * share, 25, 30 if damp is None else 40,
-                             doubles, bools)
+                             doubles, bools, extent)
             value = data.get_editor_property("Generator")
             put(value, GeneratorAllowOverlap=overlap)
             data.set_editor_property("Generator", value)

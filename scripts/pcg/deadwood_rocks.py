@@ -97,7 +97,7 @@ LOGS_PER_HA = 20  # #32 ruling: more deadwood on the floor (was 12 logs + 6 stum
 STUMPS_PER_HA = 8
 
 
-def generator(group, density, slope, priority, doubles=None, bools=None):
+def generator(group, density, slope, priority, doubles=None, bools=None, extent=100):
     graph = copy_asset(ROOT + "PCG_Forest_TreesGenerator", f"PCG_Forest_{group}Generator")
     # Native parameter helpers already validate names/types and notify graph instances:
     # UE 5.8 PCG/Private/Helpers/PCGGraphParametersHelpers.cpp: ValidateAndSetValue.
@@ -114,7 +114,8 @@ def generator(group, density, slope, priority, doubles=None, bools=None):
     } | (bools or {})).items():
         helpers.set_bool_parameter(graph, name, value)
     for name, value in {"ScaleMin": unreal.Vector(0.8, 0.8, 0.8), "ScaleMax": unreal.Vector(1.2, 1.2, 1.2),
-                        "PointExtents": unreal.Vector(100, 100, 100)}.items():
+                        # The surface sampler emits at most one point per cell of twice these extents.
+                        "PointExtents": unreal.Vector(extent, extent, 100)}.items():
         helpers.set_vector_parameter(graph, name, value)
     # Python uses MakeRotator(Roll, Pitch, Yaw), not the C++ constructor order (KismetMathLibrary.h).
     helpers.set_rotator_parameter(graph, "RotationMin", unreal.Rotator(pitch=0, yaw=0, roll=0))

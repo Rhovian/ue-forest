@@ -21,11 +21,11 @@ for path in paths:
     if not isinstance(mesh, unreal.StaticMesh):
         continue
     settings = mesh.get_editor_property("nanite_settings")
-    if settings.enabled and settings.shape_preservation == unreal.NaniteShapePreservation.VOXELIZE:
-        continue
-    settings.set_editor_property("enabled", True)
-    settings.set_editor_property("shape_preservation", unreal.NaniteShapePreservation.VOXELIZE)
-    mesh.set_editor_property("nanite_settings", settings)
-    if not unreal.EditorAssetLibrary.save_loaded_asset(mesh, False):
+    if not settings.enabled or settings.shape_preservation != unreal.NaniteShapePreservation.VOXELIZE:
+        settings.set_editor_property("enabled", True)
+        settings.set_editor_property("shape_preservation", unreal.NaniteShapePreservation.VOXELIZE)
+        mesh.set_editor_property("nanite_settings", settings)
+        print(f"Nanite Voxelize: {path}")
+    # Always save if dirty, so a rerun after a failed save still writes the settings.
+    if not unreal.EditorAssetLibrary.save_loaded_asset(mesh, True):
         raise SystemExit(f"could not save {path}; its Nanite settings changed only in memory")
-    print(f"Nanite Voxelize: {path}")
