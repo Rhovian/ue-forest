@@ -46,6 +46,13 @@ class CanopyGapTests(unittest.TestCase):
         # Open ground at the forest's edge lacks trees in every octant.
         self.assertEqual(canopy_gaps.gaps(forest(hole=(2000, 2060, 14)), [(0, 0)]), [])
 
+    def test_envelope_encloses_every_sampled_height(self):
+        # canopy_filter's column spans this range; it must hold every traced ground height in any order.
+        for heights in ([12.04, 8.06, 9.5], [8.0], [-1.23, 3.751, 0.0]):
+            low, high = canopy_gaps.envelope(heights)
+            self.assertTrue(all(low <= h <= high for h in heights))
+            self.assertLess(high - low, max(heights) - min(heights) + 0.2)
+
     def test_column_targets_reach_every_ground_height_within_half_a_step(self):
         # canopy_filter's distance is 3D: a ground point is measured horizontally only if a target sits near its height.
         for low, high in ((8.3, 8.3), (8.0, 12.1), (-1.2, 3.75)):

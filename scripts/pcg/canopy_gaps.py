@@ -79,7 +79,12 @@ def ground_range(world, x, y, radius):
                 ignored.append(fields[9])
     if not heights:
         raise RuntimeError(f"No landscape under the gap at ({x}, {y}): load all cells first")
-    return round(min(heights), 1), round(max(heights), 1)
+    return envelope(heights)
+
+
+def envelope(heights):
+    """(low, high) in metres enclosing every sampled height, rounded outward to 0.1 m."""
+    return math.floor(min(heights) * 10) / 10, math.ceil(max(heights) * 10) / 10
 
 
 def main():
