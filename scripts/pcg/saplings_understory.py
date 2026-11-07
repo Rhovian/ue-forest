@@ -25,7 +25,7 @@ from trees_above_shore import shore_height, z_range
 # Colonies (#71, lush-forest-placement.md §8.1): instead of single plants evenly spread, a sparse anchor carries a
 # drift of plants as ground-projected children, so plants read as masses with moss between. (count, length cm, width cm)
 # per kind; the anchor density is divided by count, so the plant total stays about the same.
-DRIFTS = {"Ferns": (16, 550, 260), "Herbs": (80, 320, 200)}
+DRIFTS = {"Ferns": (16, 550, 260), "Herbs": (80, 320, 200), "Shrubs": (5, 450, 350)}  # Shrubs: clearing_02 masses
 SHAPES = 4  # drift outlines per kind; each variant's weight is split across them, so neighbouring drifts differ
 
 
