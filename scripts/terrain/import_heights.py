@@ -1,20 +1,23 @@
 """Import the softened shore heights into L_vilm's landscape (#38). Lead only; runs in the editor via scripts/editor-py.
 
-    scripts/editor-py scripts/terrain/import_heights.py [--check]
+    scripts/editor-py scripts/terrain/import_heights.py --check    # render target holds the file's values; no import
+    scripts/editor-py scripts/terrain/import_heights.py            # import into edit layer 0
+    scripts/editor-py scripts/terrain/import_heights.py --verify   # after import: landscape traces match the file
 
-Draws Forest/Saved/Terrain/vilm_1513_shore_rg.png (from scripts/terrain/soft_shore.py: R high byte, G low byte) into a
+Draws Forest/Saved/Terrain/vilm_1513_shore_rg.png (scripts/terrain/soft_shore.py: R high byte, G low byte) into a
 transient RGBA8 render target and imports it with ALandscapeProxy::LandscapeImportHeightmapFromRenderTarget
-(LandscapeEdit.cpp: height = R << 8 | G) into edit layer 0. --check imports nothing: it verifies that the render
-target holds the file's values exactly, and that the landscape's own export matches heightmap.py's vilm_1513.png
-(same pixel layout and encoding) at sample points.
+(LandscapeEdit.cpp: height = R << 8 | G). --check and --verify compare against vilm_1513_shore_samples.json, which
+soft_shore.py decodes independently of this pipeline, and raise on any mismatch. Run --verify in a separate call:
+landscape collision updates a few editor ticks after the import.
 """
 
 import argparse
+import json
 from pathlib import Path
 
 import unreal
 
-SAMPLES = [(0, 0), (756, 756), (1000, 500), (500, 1000), (1512, 1512), (300, 1200), (1200, 300)]
+TOLERANCE_CM = 2  # traced landscape height vs the file; one 16-bit step is ~0.08 cm
 
 world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
 if world.get_path_name() != "/Game/L_vilm.L_vilm":
@@ -52,30 +55,51 @@ def draw(texture):
     return target
 
 
+def ground(x, y):
+    """Landscape height at (x, y), ignoring anything else the ray meets; None off the landscape."""
+    start, end, ignored = unreal.Vector(x, y, 100000), unreal.Vector(x, y, -100000), []
+    for _ in range(64):
+        hit = unreal.SystemLibrary.line_trace_single(
+            world, start, end, unreal.TraceTypeQuery.TRACE_TYPE_QUERY1, True, ignored, unreal.DrawDebugTrace.NONE, True
+        )
+        if hit is None:
+            return None
+        fields = hit.to_tuple()
+        if isinstance(fields[9], unreal.LandscapeProxy):
+            return fields[4].z
+        ignored.append(fields[9])
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--check", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--check", action="store_true")
+    mode.add_argument("--verify", action="store_true")
     args = parser.parse_args()
+    samples = json.loads((terrain / "vilm_1513_shore_samples.json").read_text())
+    if args.verify:
+        bad = [(p, ground(p["x_cm"], p["y_cm"])) for p in samples]
+        bad = [(p, z) for p, z in bad if z is None or abs(z - p["z_cm"]) > TOLERANCE_CM]
+        if bad:
+            raise RuntimeError(f"landscape differs from the file at {len(bad)} of {len(samples)} points: {bad[:3]}")
+        print(f"landscape matches vilm_1513_shore at all {len(samples)} sample points (within {TOLERANCE_CM} cm)")
+        return
     landscapes = [a for a in unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()
                   if isinstance(a, unreal.Landscape)]
     if len(landscapes) != 1:
         raise RuntimeError(f"expected one Landscape actor, found {len(landscapes)}")
-    landscape = landscapes[0]
     shore = draw(png_rg(terrain / "vilm_1513_shore_rg.png"))
+    bad = [(p["col"], p["row"], p["encoded"], value(shore, p["col"], p["row"])) for p in samples]
+    bad = [b for b in bad if b[2] != b[3]]
+    if bad:
+        raise RuntimeError(f"render target differs from the file at {len(bad)} of {len(samples)} pixels: {bad[:3]}")
     if args.check:
-        # The file's values reach the render target exactly (no sRGB conversion or filtering).
-        expected = png_rg(terrain / "vilm_1513_shore_rg.png")
-        reference = draw(expected)
-        exported = render_target()
-        if not landscape.landscape_export_heightmap_to_render_target(exported, True, True):
-            raise RuntimeError("landscape export failed")
-        print("x y | shore RT | landscape now")
-        for x, y in SAMPLES:
-            print(x, y, "|", value(shore, x, y), value(reference, x, y), "|", value(exported, x, y))
+        print(f"render target matches the file at all {len(samples)} sample pixels; nothing imported")
         return
-    if not landscape.landscape_import_heightmap_from_render_target(shore, True, 0):
+    if not landscapes[0].landscape_import_heightmap_from_render_target(shore, True, 0):
         raise RuntimeError("landscape import failed")
-    print("imported vilm_1513_shore_rg.png into edit layer 0; regenerate the biome and save the level")
+    print("imported vilm_1513_shore_rg.png into edit layer 0; run --verify, then regenerate the biome and save")
 
 
 main()
