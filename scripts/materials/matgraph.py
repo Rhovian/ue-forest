@@ -5,6 +5,10 @@ import unreal
 mel = unreal.MaterialEditingLibrary
 
 
+# Multiplies the scanned moss albedo on the floor (forest_floor.py) and on coated roots, logs and rocks
+# (moss_coating.py), so they read as one moss; untinted it reads near-black under the canopy (#71 item 6).
+MOSS_TINT = (2.6, 3.0, 1.0)
+
 def fresh_material(path):
     """Load or create the material at path and remove every expression."""
     folder, name = path.rsplit("/", 1)

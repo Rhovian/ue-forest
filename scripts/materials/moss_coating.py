@@ -10,7 +10,7 @@ moss does not swim in the wind.
 # editor-py: fresh-siblings
 
 import unreal
-from matgraph import Graph, mel
+from matgraph import MOSS_TINT, Graph, mel
 
 FOLDER = "/Game/ForestBiome/Moss"
 FAB = "/Game/Fab/Megascans"
@@ -28,7 +28,6 @@ SCALARS = {  # shared by every coated surface; distances in cm, UVs in metres
     "PatchStrength": 0.6,
     "EdgeWidth": 0.15,
     "MossTile": 1.0,  # moss texture repeats every metre
-    "MossBrightness": 0.6,
 }
 STATIC = "static"
 TREE = "tree"
@@ -114,7 +113,11 @@ def build_function():
     mask = op(X.MaterialExpressionMultiply, 3, threshold, g.wire(X.MaterialExpressionSaturate, 4, {"": p["MossAmount"]}))
 
     moss_uv = op(X.MaterialExpressionMultiply, 8, inputs["UV"], p["MossTile"])
-    color = op(X.MaterialExpressionMultiply, 4, g.sample(f"{MOSS}_B", moss_uv, 5), p["MossBrightness"])
+    # The floor's tint (matgraph.MOSS_TINT), so roots, logs and ground read as one moss (#71 item 6); a 0.6
+    # brightness here turned trunk bases near-black.
+    tint = g.node(X.MaterialExpressionVectorParameter, 10, parameter_name="MossTint", group="Moss",
+                  default_value=unreal.LinearColor(*MOSS_TINT, 1.0))
+    color = op(X.MaterialExpressionMultiply, 4, g.sample(f"{MOSS}_B", moss_uv, 5), tint)
     normal = g.sample(f"{MOSS}_N", moss_uv, 5)
     rough = g.mask(g.sample(f"{MOSS}_ORM", moss_uv, 5), 4, "g")
 
