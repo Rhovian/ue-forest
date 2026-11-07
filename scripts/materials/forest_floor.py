@@ -29,7 +29,7 @@ LAYERS = {  # layer -> (texture prefix, tile size in cm)
 PATCHES = f"{FAB}/Decals/Tileable_Moss_Patches_sfdnqii/Medium/sfdnqii_tier_2/Textures/T_sfdnqii_2K_B-O"
 SCALARS = {  # world units are cm; sea level is Z 0
     "ShoreHeight": 150.0,  # sand below, forest floor above
-    "ShoreBlend": 25.0,
+    "ShoreBlend": 50.0,  # cm across, horizontally, of each sand/floor edge (through the slope, like ShoreWidth)
     "ShoreWidth": 300.0,  # cm across which sand and forest floor interleave (transition_ground_01: 2-4 m; #39)
     "ShorePatchShare": 0.4,  # share of that width from the moss-patch texture: ragged edges, sand pockets in moss
     "SlopeMin": 0.05,  # the slope assumed on flat ground, so the interleave still has a width there
@@ -128,8 +128,11 @@ def build():
             ),
         },
     )
-    shore_min = g.wire(unreal.MaterialExpressionSubtract, 7, {"A": p["ShoreHeight"], "B": p["ShoreBlend"]})
-    shore_max = g.wire(unreal.MaterialExpressionAdd, 7, {"A": p["ShoreHeight"], "B": p["ShoreBlend"]})
+    # Exactly flat ground at ShoreHeight stays mixed however wide it is: only a distance-to-edge field could
+    # bound that, and L_vilm has no such shelf (the shore rises through a bank, #38).
+    blend_rise = g.wire(unreal.MaterialExpressionMultiply, 6, {"A": p["ShoreBlend"], "B": tangent})
+    shore_min = g.wire(unreal.MaterialExpressionSubtract, 7, {"A": p["ShoreHeight"], "B": blend_rise})
+    shore_max = g.wire(unreal.MaterialExpressionAdd, 7, {"A": p["ShoreHeight"], "B": blend_rise})
     above = g.wire(unreal.MaterialExpressionSmoothStep, 6, {"Min": shore_min, "Max": shore_max, "Value": shore_z})
     sand_mask = g.wire(unreal.MaterialExpressionOneMinus, 5, {"": above})
     # Beech litter mixes into the upper sand in patches rather than forming its own band.
