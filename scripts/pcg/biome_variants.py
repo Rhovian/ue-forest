@@ -46,6 +46,11 @@ SHRUB_VARIANTS = [
     ("/Game/Megaplant_Library/Tree_Common_Hazel/Tree_Common_Hazel_01/Tree_Common_Hazel_01_C", 1),
     ("/Game/Megaplant_Library/Tree_Common_Hazel/Tree_Common_Hazel_01/Tree_Common_Hazel_01_D", 1),
 ]
+# Broad waist-to-head shrub masses in the canopy gaps (clearing_02): the tall hazel only, not the low huckleberry oak.
+GAP_SHRUB_VARIANTS = [
+    ("/Game/Megaplant_Library/Tree_Common_Hazel/Tree_Common_Hazel_01/Tree_Common_Hazel_01_C", 1),
+    ("/Game/Megaplant_Library/Tree_Common_Hazel/Tree_Common_Hazel_01/Tree_Common_Hazel_01_D", 1),
+]
 FERN_VARIANTS = [
     ("/Game/Fab/Megascans/Plants/Beech_Fern_vmkpdbeia/Medium/vmkpdbeia_tier_2/StaticMeshes/SM_vmkpdbeia_VarA", 1),
     ("/Game/Fab/Megascans/Plants/Lady_Fern_wdvlditia/Medium/wdvlditia_tier_2/StaticMeshes/SM_wdvlditia_VarA", 0.15),
