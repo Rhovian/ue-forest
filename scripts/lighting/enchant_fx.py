@@ -23,7 +23,7 @@ CELL = 3000  # cm; matches the emitters' 30 m box
 ABOVE = 60  # cm above the sea: land, including the low coastal meadow (clearing ~1 m), not the sand (~0.2 m)
 STEEPEST = math.tan(math.radians(25))  # ground plane gradient above which a cell gets no system
 UNEVEN = 150  # cm: largest ground deviation from the cell's plane, e.g. a bank inside the cell
-SHARE = 0.7  # of land cells that get a system; gaps between patches stay, but every open meadow gets some
+SHARE = 0.35  # of land cells that get a system: separate patches (#78 review: at 0.7 the mist joined into one band)
 
 world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
 # The island's bounds in metres (x min, x max, y min, y max), from the heightmap by scripts/terrain/forest_foot.py.

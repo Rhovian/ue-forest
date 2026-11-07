@@ -10,6 +10,7 @@ import unreal
 from matgraph import Graph, fresh_material, mel
 
 PATH = "/Game/ForestBiome/FX/M_Wisp"
+OPACITY = 0.5
 X, MP = unreal, unreal.MaterialProperty
 
 material = fresh_material(PATH)
@@ -25,7 +26,11 @@ inside = g.wire(X.MaterialExpressionOneMinus, 4, {"": edge})
 clamped = g.wire(X.MaterialExpressionSaturate, 3, {"": inside})
 soft = g.wire(X.MaterialExpressionPower, 3, {"Base": clamped}, const_exponent=2.0)
 colour = g.node(X.MaterialExpressionParticleColor, 3)
-alpha = g.wire(X.MaterialExpressionMultiply, 2, {"A": soft, "B": (colour, "A")})
+# Opacity scales every wisp and mote (#71 item 8): at full particle alpha the blue mist washed whole views
+# (interior, clearing reviews) instead of reading as ribbons; a scalar parameter, so it tunes without a rebuild.
+strength = g.node(X.MaterialExpressionScalarParameter, 3, parameter_name="Opacity", default_value=OPACITY)
+alpha = g.wire(X.MaterialExpressionMultiply, 2, {"A": g.wire(X.MaterialExpressionMultiply, 2, {"A": soft, "B": (colour, "A")}),
+                                                 "B": strength})
 faded = g.wire(X.MaterialExpressionDepthFade, 1, {"Opacity": alpha}, fade_distance_default=80.0)
 for expression, out, prop in ((colour, "", MP.MP_EMISSIVE_COLOR), (faded, "", MP.MP_OPACITY)):
     if not mel.connect_material_property(expression, out, prop):
