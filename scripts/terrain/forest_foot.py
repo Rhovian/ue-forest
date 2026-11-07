@@ -10,7 +10,7 @@ Reads the landscape heightmap that heightmap.py wrote (Forest/Saved/Terrain/vilm
 world origin, 2 m per pixel, rows along +Y) and writes scripts/pcg/forest_foot.json: world (x, y) metres of every
 pixel of the island (its largest piece of land at or above SHORE_CM, default 75, MI_ForestFloor's
 ShoreHeight) that touches beach sand (3 cm up to
-SHORE_CM) connected to the sea, thinned to one point per 4 m. Rerun after the terrain changes.
+SHORE_CM) connected to the sea, thinned to one point per 4 x 4 m cell it crosses. Rerun after the terrain changes.
 """
 
 import json
@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[2]
 TERRAIN = ROOT / "Forest/Saved/Terrain/vilm_1513"
 OUT = ROOT / "scripts/pcg/forest_foot.json"
 SAND_FROM = 0.03  # m above the sea
-STEP = 2  # pixels (2 m each) between kept points along the line
+STEP = 2  # pixel cell side (2 m pixels): one kept point per 4 x 4 m cell the line crosses
 
 
 def main():
@@ -44,9 +44,12 @@ def main():
     island = land == np.argmax(np.bincount(land.ravel())[1:]) + 1
     foot = island & binary_dilation(beach, iterations=1)
     rows, cols = np.nonzero(foot)
-    keep = (rows % STEP == 0) | (cols % STEP == 0)
-    keep &= ((rows // STEP) + (cols // STEP)) % 2 == 0
-    points = sorted({(round((c - half) * metres), round((r - half) * metres)) for r, c in zip(rows[keep], cols[keep])})
+    # One point per occupied STEP x STEP pixel cell: every foot pixel lies within one cell diagonal (~5.7 m) of a kept
+    # point, whatever the line's direction (a parity rule could drop a whole diagonal stretch; #62 review).
+    cells = {}
+    for r, c in zip(rows, cols):
+        cells.setdefault((r // STEP, c // STEP), (r, c))
+    points = sorted({(round((c - half) * metres), round((r - half) * metres)) for r, c in cells.values()})
     OUT.write_text(json.dumps({"shore_cm": shore * 100, "points_m": points}) + "\n")
     print(f"{OUT.relative_to(ROOT)}: {len(points)} forest foot points (of {len(rows)} foot pixels)")
 
