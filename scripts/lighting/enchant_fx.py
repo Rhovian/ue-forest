@@ -56,7 +56,9 @@ def ground_plane(x, y):
     None off the island."""
     samples = [(dx, dy, ground(x + dx, y + dy)) for dx in FIT for dy in FIT]
     samples = [s for s in samples if s[2] is not None]
-    if len(samples) < len(FIT) ** 2 // 2:
+    # Only a complete grid: its centred X and Y are uncorrelated, so the two one-variable slopes below are the
+    # least-squares plane; on a clipped grid they are not (#58 review round 3).
+    if len(samples) < len(FIT) ** 2:
         return None
     n = len(samples)
     mx, my, mz = (sum(s[k] for s in samples) / n for k in range(3))
