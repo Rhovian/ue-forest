@@ -48,6 +48,69 @@ def drift_points(count, length, width, shape):
     return points
 
 
+# x the Saplings density inside canopy gaps (canopy_gaps.json), with no spatial noise: regeneration is densest under
+# the opening (clearing_01), while noise thins the island-wide saplings to about 1/ha. Saplings are skinned: measure.
+CANOPY = 20  # about one sapling per 1.5 m2 in 0.7 ha of gaps: a few thousand skinned saplings
+
+COLUMN_STEP = 100  # cm between a gap's stacked distance targets, from its lowest to its highest traced ground
+
+
+def column(low, high):
+    """Target heights in cm from a gap's lowest to highest ground (m), COLUMN_STEP apart, ends included."""
+    count = max(1, math.ceil((high - low) * 100 / COLUMN_STEP))
+    return [low * 100 + (high - low) * 100 * i / count for i in range(count + 1)]
+
+
+def canopy_filter():
+    """Ground inside a canopy gap from canopy_gaps.json, by horizontal distance. Distance's SphereBounds uses the
+    bounds' half-diagonal as the radius and is signed (inside is negative), so gaps are grouped by whole-metre radius
+    instead: one Create Points + Distance (centre to centre, maximum = that radius) per group, merged. Distance is 3D,
+    so each gap is a vertical column of targets COLUMN_STEP apart spanning the gap's traced ground range: the nearest
+    is within half a step of every ground point's height, so the measured distance is the horizontal one to within
+    sqrt(r^2 + 0.5^2) - r (#75 review)."""
+    import json
+    from pathlib import Path
+
+    data = json.loads(Path(deadwood_rocks.__file__).with_name("canopy_gaps.json").read_text())
+    groups = {}
+    for x, y, low, high, radius in data["gaps_m [x, y, ground low, ground high, radius]"]:
+        groups.setdefault(int(radius), []).append((x, y, low, high))
+    graph = copy_asset(ROOT + "PCG_TreesAboveShore", "PCG_SaplingsCanopyGaps")
+    inp, out = graph.get_input_node(), graph.get_output_node()
+    for node in list(graph.get_editor_property("nodes")):
+        if node not in (inp, out):
+            graph.remove_node(node)
+    band = z_range(graph, shore_height() + 150, 1.0e7)
+    edge(graph, inp, "In", band, "In")
+    merge, _ = graph.add_node_of_type(unreal.PCGMergeSettings)
+    for radius, centres in sorted(groups.items()):
+        mark, settings = graph.add_node_of_type(unreal.PCGCreatePointsSettings)
+        points = []
+        for x, y, low, high in centres:
+            for z in column(low, high):
+                point = unreal.PCGPoint()
+                point.set_editor_property("transform", unreal.Transform(location=unreal.Vector(x * 100, y * 100, z)))
+                points.append(point)
+        settings.set_editor_property("points_to_create", points)
+        settings.set_editor_property("coordinate_space", unreal.PCGCoordinateSpace.WORLD)
+        settings.set_editor_property("cull_points_outside_volume", False)
+        distance, settings = graph.add_node_of_type(unreal.PCGDistanceSettings)
+        settings.set_editor_property("set_density", True)
+        settings.set_editor_property("maximum_distance", radius * 100)
+        settings.set_editor_property("source_shape", unreal.PCGDistanceShape.CENTER)
+        settings.set_editor_property("target_shape", unreal.PCGDistanceShape.CENTER)
+        edge(graph, band, "InsideFilter", distance, "Source")
+        edge(graph, mark, "Out", distance, "Target")
+        inside, settings = graph.add_node_of_type(unreal.PCGDensityFilterSettings)
+        settings.set_editor_property("lower_bound", 0)
+        settings.set_editor_property("upper_bound", 0.99)  # drop the saturated beyond-radius distance
+        edge(graph, distance, "Out", inside, "In")
+        edge(graph, inside, "Out", merge, "In")
+    edge(graph, merge, "Out", out, "Out")
+    save(graph)
+    return graph
+
+
 def damp_filter():
     graph = copy_asset(ROOT + "PCG_TreesAboveShore", "PCG_UnderstoryDamp")
     inp, out = graph.get_input_node(), graph.get_output_node()
@@ -159,8 +222,11 @@ def main():
                        for k in range(SHAPES)]
         # Dry ground gets the full colony density; damp ground adds half again (stream_bank_01).
         for patch, share, transform, overlap in [("Gaps", 1, plain, damp is not None)] + (
-                [("Damp", 0.5, damp, True)] if damp else []):
+                [("Damp", 0.5, damp, True)] if damp else []) + (
+                [("Canopy", CANOPY, canopy_filter(), True)] if args.group == "saplings" else []):
             doubles, bools = colonies if damp is not None else (None, None)
+            if patch == "Canopy":
+                doubles, bools = {"SpatialDensityLow": 1.0}, {"EnableSpatialNoise": False}
             # One point per (2 x extent)^2 cell at most, so the extent must allow the requested rate (#32 review).
             extent = min(100, 50 / math.sqrt(density * share / 10000))
             data = generator(kind + patch, density * args.density_scale * share, 25, 30 if damp is None else 40,
@@ -173,8 +239,8 @@ def main():
                 mesh = meshes[path]
                 value = entry(template, mesh, data, transform, weight / len(patches), children=patch_list,
                               collision=False)
-                if drift:  # one entry per variant and outline: each needs its own AssetType (forest-pcg skill)
-                    put(value, AssetType=f"{kind}{patch}_{mesh.get_name()}_{k}")
+                if drift or patch == "Canopy":  # entries sharing a mesh with another generator need their own AssetType
+                    put(value, AssetType=f"{kind}{patch}_{mesh.get_name()}" + (f"_{k}" if drift else ""))
                 # Core's OrientUpward preserves upright plants; stock wind/material settings survive.
                 options = get(value, "AssetOptions")
                 put(options, OrientUpward=1.0)
