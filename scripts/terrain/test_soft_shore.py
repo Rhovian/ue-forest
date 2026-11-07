@@ -2,14 +2,32 @@ import math
 import unittest
 
 import numpy as np
+from scipy.ndimage import distance_transform_edt
 
-from scripts.terrain.soft_shore import RAMP_DEG, RAMP_FADE, RAMP_FULL, soften
+from scripts.terrain.soft_shore import RAMP_DEG, RAMP_FADE, RAMP_FULL, beach_mask, soften
 
 RISE = math.tan(math.radians(RAMP_DEG))
 
 
 def max_step_slope(profile, metres):
     return np.max(np.diff(profile)) / metres
+
+
+def max_neighbour_slope(height, soft, metres):
+    """Steepest rise between 8-neighbouring vertices that are both on the beach or within RAMP_FULL of it, with at
+    least one on land: the band the limit promises (beyond it the original terrain fades back in)."""
+    beach = beach_mask(height)
+    inside = distance_transform_edt(~beach, sampling=metres) <= RAMP_FULL  # includes the beach (distance 0)
+    worst = 0.0
+    rows, cols = soft.shape
+    for dr, dc in ((0, 1), (1, 0), (1, 1), (1, -1)):
+        a = soft[max(-dr, 0):rows - max(dr, 0), max(-dc, 0):cols - max(dc, 0)]
+        b = soft[max(dr, 0):rows - max(-dr, 0), max(dc, 0):cols - max(-dc, 0)]
+        first = (slice(max(-dr, 0), rows - max(dr, 0)), slice(max(-dc, 0), cols - max(dc, 0)))
+        second = (slice(max(dr, 0), rows - max(-dr, 0)), slice(max(dc, 0), cols - max(-dc, 0)))
+        mask = inside[first] & inside[second] & ~(beach[first] & beach[second])
+        worst = max(worst, float(np.max(np.abs(a - b)[mask])) / (metres * np.hypot(dr, dc)))
+    return worst
 
 
 class SoftShoreTests(unittest.TestCase):
@@ -41,6 +59,18 @@ class SoftShoreTests(unittest.TestCase):
         soft = soften(height, metres)
         full = start + int(RAMP_FULL / metres)
         self.assertLessEqual(max_step_slope(soft[3, start - 1:full], metres), RISE + 1e-9)
+
+    def test_limit_holds_between_all_neighbours_in_any_direction(self):
+        metres = 2.0
+        # A coast running along rows (inland distance grows down the rows) and a diagonal coast, both with a 6 m bank
+        # right behind a 10 m beach; every pair of neighbours touching the full band rises at most RAMP_DEG.
+        across, _ = self.coast(metres, np.full(30, 6.0))
+        rows, cols = np.indices((60, 60)) * metres
+        diagonal = np.where(rows + cols < 30, -1.0, np.where(rows + cols < 44, 0.3, 6.0))
+        for height in (across.T.copy(), diagonal):
+            soft = soften(height, metres)
+            self.assertLessEqual(max_neighbour_slope(height, soft, metres), RISE + 1e-9)
+            self.assertTrue(np.all(soft <= height))
 
     def test_gentle_ground_is_unchanged(self):
         metres = 1.0
