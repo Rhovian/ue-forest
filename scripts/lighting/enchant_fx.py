@@ -16,7 +16,7 @@ SYSTEM = "/Game/ForestBiome/FX/NS_ForestEnchant"
 LABEL = "Enchant"  # label prefix and outliner folder
 CELL = 3000  # cm; matches the emitters' 30 m box
 ABOVE = 60  # cm above the sea: land, including the low coastal meadow (clearing ~1 m), not the sand (~0.2 m)
-SHARE = 0.5  # of land cells that get a system
+SHARE = 0.7  # of land cells that get a system; gaps between patches stay, but every open meadow gets some
 
 world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
 if world.get_path_name() != "/Game/L_vilm.L_vilm":
