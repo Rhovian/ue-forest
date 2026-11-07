@@ -30,9 +30,11 @@ PATCHES = f"{FAB}/Decals/Tileable_Moss_Patches_sfdnqii/Medium/sfdnqii_tier_2/Tex
 SCALARS = {  # world units are cm; sea level is Z 0
     "ShoreHeight": 150.0,  # sand below, forest floor above
     "ShoreBlend": 25.0,
-    "ShoreNoise": 140.0,  # cm the shore line moves up and down with large noise: tongues and islands (#39)
-    "ShorePatch": 50.0,  # cm more from the moss-patch texture: ragged edges, sand pockets in moss
-    "LitterReach": 300.0,  # beech litter mixes into the sand this far below the shore line
+    "ShoreWidth": 300.0,  # cm across which sand and forest floor interleave (transition_ground_01: 2-4 m; #39)
+    "ShorePatchShare": 0.4,  # share of that width from the moss-patch texture: ragged edges, sand pockets in moss
+    "SlopeMin": 0.05,  # the slope assumed on flat ground, so the interleave still has a width there
+    "SlopeMax": 2.0,
+    "LitterWidth": 400.0,  # cm out onto the sand that beech litter mixes in
     "LitterMix": 0.85,  # at most this much litter over sand
     "WetBandTop": 40.0,  # sand is fully wet below this, fully dry at ShoreHeight
     "WetDarkening": 0.6,
@@ -76,18 +78,52 @@ def build():
         return g.wire(unreal.MaterialExpressionMultiply, 6, {"A": centred_source, "B": strength})
 
     # Sand below a noisy shore line, so sand and forest floor interleave over a few metres (transition_ground_01):
-    # never a straight contour line.
+    # never a straight contour line. The material cannot measure distance from the forest edge, so a horizontal
+    # width becomes a height offset through the local slope (rise = run * tan): about ShoreWidth wide on any slope.
+    sine = g.wire(
+        unreal.MaterialExpressionSquareRoot,
+        6,
+        {
+            "": g.wire(
+                unreal.MaterialExpressionOneMinus,
+                6,
+                {"": g.wire(unreal.MaterialExpressionMultiply, 7, {"A": nz, "B": nz})},
+            )
+        },
+    )
+    cosine = g.wire(
+        unreal.MaterialExpressionMax, 6, {"A": nz, "B": g.node(unreal.MaterialExpressionConstant, 7, r=0.2)}
+    )
+    tangent = g.wire(
+        unreal.MaterialExpressionClamp,
+        5,
+        {
+            "": g.wire(unreal.MaterialExpressionDivide, 6, {"A": sine, "B": cosine}),
+            "Min": p["SlopeMin"],
+            "Max": p["SlopeMax"],
+        },
+    )
+    rise = g.wire(unreal.MaterialExpressionMultiply, 5, {"A": p["ShoreWidth"], "B": tangent})
+    one = g.node(unreal.MaterialExpressionConstant, 7, r=1.0)
+    noise_share = g.wire(unreal.MaterialExpressionSubtract, 6, {"A": one, "B": p["ShorePatchShare"]})
     shore_z = g.wire(
         unreal.MaterialExpressionAdd,
         6,
         {
             "A": z,
             "B": g.wire(
-                unreal.MaterialExpressionAdd,
-                6,
+                unreal.MaterialExpressionMultiply,
+                5,
                 {
-                    "A": wobble(g.noise(7, SHORE_NOISE_CM), p["ShoreNoise"]),
-                    "B": wobble((patches, "A"), p["ShorePatch"]),
+                    "A": rise,
+                    "B": g.wire(
+                        unreal.MaterialExpressionAdd,
+                        6,
+                        {
+                            "A": wobble(g.noise(7, SHORE_NOISE_CM), noise_share),
+                            "B": wobble((patches, "A"), p["ShorePatchShare"]),
+                        },
+                    ),
                 },
             ),
         },
@@ -97,7 +133,8 @@ def build():
     above = g.wire(unreal.MaterialExpressionSmoothStep, 6, {"Min": shore_min, "Max": shore_max, "Value": shore_z})
     sand_mask = g.wire(unreal.MaterialExpressionOneMinus, 5, {"": above})
     # Beech litter mixes into the upper sand in patches rather than forming its own band.
-    litter_low = g.wire(unreal.MaterialExpressionSubtract, 7, {"A": p["ShoreHeight"], "B": p["LitterReach"]})
+    litter_rise = g.wire(unreal.MaterialExpressionMultiply, 6, {"A": p["LitterWidth"], "B": tangent})
+    litter_low = g.wire(unreal.MaterialExpressionSubtract, 7, {"A": p["ShoreHeight"], "B": litter_rise})
     near_shore = g.wire(
         unreal.MaterialExpressionSmoothStep, 6, {"Min": litter_low, "Max": p["ShoreHeight"], "Value": shore_z}
     )
