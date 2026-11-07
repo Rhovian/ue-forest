@@ -45,8 +45,10 @@ SCALARS = {  # world units are cm; sea level is Z 0
     "FlatLow": 0.85,  # vertex normal Z: steeper than FlatLow is never mossy
     "FlatHigh": 0.97,
     "ForestMoss": 1.0,  # moss everywhere above the shore, not only on damp low ground (interior_01, #49)
-    "ForestFlatLow": 0.5,  # vertex normal Z: ForestMoss fades out on slopes steeper than this
-    "ForestFlatHigh": 0.75,
+    # Vertex normal Z: ForestMoss is full up to ~60 deg and gone past ~75 deg, so the coastal bank faces read as mossy
+    # living cover (edge_in, #71), not bare litter (was 0.5 / 0.75, ~41-60 deg).
+    "ForestFlatLow": 0.25,
+    "ForestFlatHigh": 0.5,
     "MossNoiseStrength": 1.6,  # how far large-scale noise pushes moss in and out of the damp zones
     "PatchTile": 800.0,
     "PatchStrength": 0.6,  # moss-patch texture adds edge detail inside the noise's mossy areas

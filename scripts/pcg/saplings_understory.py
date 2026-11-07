@@ -29,6 +29,8 @@ DRIFTS = {"Ferns": (16, 550, 260), "Herbs": (80, 320, 200), "Shrubs": (5, 450, 3
           "GapShrubs": (9, 400, 350)}  # Shrubs, GapShrubs: clearing_02 masses
 # Child scale per drift kind: gap hazel overlaps into one broad waist-to-head mass (clearing_02, #81 review).
 DRIFT_SCALE = {"GapShrubs": (1.1, 1.5)}
+# Steepest slope (deg) a kind grows on; ferns and ivy clothe the coastal and stream bank faces (edge_in, #71).
+SLOPE = {"Ferns": 45, "Ivy": 50}
 SHAPES = 4  # drift outlines per kind; each variant's weight is split across them, so neighbouring drifts differ
 
 
@@ -278,7 +280,7 @@ def main():
                 doubles = {**doubles, "SpatialDensityLow": 0.0}
             # One point per (2 x extent)^2 cell at most, so the extent must allow the requested rate (#32 review).
             extent = min(100, 50 / math.sqrt(density * share / 10000))
-            data = generator(kind + patch, density * args.density_scale * share, 25, 30 if damp is None else 40,
+            data = generator(kind + patch, density * args.density_scale * share, SLOPE.get(kind, 25), 30 if damp is None else 40,
                              doubles, bools, extent)
             value = data.get_editor_property("Generator")
             put(value, GeneratorAllowOverlap=overlap)
