@@ -10,8 +10,10 @@ the wisps stay near knee height (#58 review: centre height alone left ~1 m error
 Reruns update the systems in place by label. Saves only their actor packages.
 """
 
+import json
 import math
 import random
+from pathlib import Path
 
 import unreal
 
@@ -24,6 +26,8 @@ UNEVEN = 150  # cm: largest ground deviation from the cell's plane, e.g. a bank 
 SHARE = 0.7  # of land cells that get a system; gaps between patches stay, but every open meadow gets some
 
 world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
+# The island's bounds in metres (x min, x max, y min, y max), from the heightmap by scripts/terrain/forest_foot.py.
+ISLAND = json.loads((Path(unreal.Paths.project_dir()) / "../scripts/pcg/forest_foot.json").read_text())["island_m"]
 if world.get_path_name() != "/Game/L_vilm.L_vilm":
     raise RuntimeError("Open L_vilm in the editor (not PIE) before running")
 subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
@@ -70,12 +74,14 @@ def ground_plane(x, y):
 
 old = {a.get_actor_label(): a for a in subsystem.get_all_level_actors() if a.get_actor_label().startswith(LABEL + "_")}
 placed = []
-for i in range(110000 // CELL + 1):
-    for j in range(100000 // CELL + 1):
+# Cell indices over the island's bounds (scripts/terrain/forest_foot.py); y runs south with -j.
+x_min, x_max, y_min, y_max = (v * 100 for v in ISLAND)
+for i in range(math.floor(x_min / CELL), math.ceil(x_max / CELL) + 1):
+    for j in range(math.floor(-y_max / CELL), math.ceil(-y_min / CELL) + 1):
         x, y = i * CELL + CELL / 2, -j * CELL - CELL / 2
         z = ground(x, y)
-        if z is None and 15000 < x < 100000 and -95000 < y < -10000:
-            raise RuntimeError(f"no landscape under ({x / 100:.0f}, {y / 100:.0f}) m inside the island; are all cells loaded?")
+        if z is None:  # the landscape spans the island's bounds; a miss means unloaded cells
+            raise RuntimeError(f"no landscape under ({x / 100:.0f}, {y / 100:.0f}) m; are all cells loaded?")
         if z is None or z < ABOVE or random.Random(f"enchant {i},{j}").random() >= SHARE:
             continue
         plane = ground_plane(x, y)

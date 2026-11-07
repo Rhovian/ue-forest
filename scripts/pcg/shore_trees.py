@@ -23,9 +23,10 @@ PER_HA = 200  # candidates/ha island-wide; only sand near a headland survives: a
 # Core differences generator point sets by priority before the sand filter runs; the Trees group (priority 0) must
 # win, or these island-wide candidates' crown bounds clear the forest around them (#38: trees halved at priority 0).
 PRIORITY = 50
-# Outermost sand of L_vilm's six most prominent headlands, m (chosen once from the sand outline: rays from the island
-# centre every 3 degrees, ranked by how far each sticks out past its neighbours, at least 30 degrees apart; #61).
-HEADLANDS = [(141, -6), (3, -633), (719, -992), (941, -755), (987, -474), (826, -236)]
+# Outermost beach sand of L_vilm's six most prominent headlands, m: chosen once from the heightmap's beach outline
+# around the whole island (rays from its centroid every 3 degrees, ranked by how far each sticks out past its
+# +-15 degree neighbours, at least 30 degrees apart; #61, redone over the island's full extent).
+HEADLANDS = [(-512, 1252), (662, -1234), (818, -228), (-126, -528), (950, -746), (-184, -82)]
 NEAR = 2500  # cm from a headland's outermost sand
 SAND_FROM = 3  # cm: the beach lies mostly 5-20 cm above the sea (z 0), the shallow sea floor below
 
