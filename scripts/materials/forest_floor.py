@@ -53,6 +53,7 @@ SCALARS = {  # world units are cm; sea level is Z 0
     "DetailScale": 2.7,  # each layer is also sampled this many times larger, blended by slow noise (anti-tiling)
     "MacroBrightness": 0.15,  # +/- brightness variation across the ground
 }
+MOSS_TINT = matgraph.MOSS_TINT
 MOSS_NOISE_CM = 2000.0  # feature size of the noise that places moss
 MACRO_NOISE_CM = 1200.0  # feature size of the noise that hides texture repetition
 SHORE_NOISE_CM = 350.0  # feature size of the shore line's tongues and islands
@@ -216,6 +217,12 @@ def build():
             )
             for kind in ("B", "N", "ORM")
         }
+
+    # Moss albedo tint (#71 item 6, interior_01): the scanned moss reads dark grey-green under the canopy; the
+    # reference floor is a bright yellow-green. A vector parameter, so MI_ForestFloor tunes it without a rebuild.
+    moss_tint = g.node(unreal.MaterialExpressionVectorParameter, 9, parameter_name="MossTint",
+                       default_value=unreal.LinearColor(*MOSS_TINT, 1.0))
+    sets["Moss"]["B"] = g.wire(unreal.MaterialExpressionMultiply, 4, {"A": sets["Moss"]["B"], "B": moss_tint})
 
     def blend(sand, kind, column=2):
         floor = g.wire(lerp, column, {"A": sets["Leaves"][kind], "B": sets["Moss"][kind], "Alpha": moss_mask})
