@@ -11,6 +11,7 @@ POSES = [
     ("clearing", 269, -236, 1.6, -5, 0),  # the largest canopy gap (canopy_gaps.json, r 9 m); the old pose is now meadow
     ("stream_bank", 443.7, -341.1, 1.6, -5, 85),  # on the bank, 7 m off the centreline (the old pose stood in the 7.5 m channel)
     ("lake_shore", 800, -390, 1.6, 0, -48),
+    ("lake_edge", 852.7, -414.3, 1.6, -5, -105),  # 6 m off the lake shoreline, judged against lake_shore (#77 review)
     ("edge_in", 550, -207, 1.6, 0, -90),
     ("edge_out", 550, -268, 1.6, 0, 90),
     ("transition_ground", 560, -214, 1.6, -20, -90),

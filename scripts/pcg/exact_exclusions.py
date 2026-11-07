@@ -68,9 +68,19 @@ def patched_tags(graph):
             and n.get_settings().get_editor_property("mode") == unreal.PCGGetDataFromActorMode.PARSE_ACTOR_COMPONENTS}
 
 
+def exclusion_tags(name):
+    """The exclusion tags a TransformGraph named `name` must exclude: ground plants reach the bank (narrow exclusion
+    only); every other group also keeps out of the wider water keepout."""
+    return ["PCG_BiomeExclusion"] + ([] if name.startswith(PLANT_GRAPHS) else [KEEPOUT_TAG])
+
+
+def missing(name, installed):
+    """Tags still to install on a graph that already excludes `installed` (re-runs add nothing twice)."""
+    done = {str(t) for t in installed}
+    return [tag for tag in exclusion_tags(name) if tag not in done]
+
+
 def patch(graph, tag="PCG_BiomeExclusion"):
-    if str(tag) in {str(t) for t in patched_tags(graph)}:
-        return False
     previous = connections(graph)
     if not previous:
         raise RuntimeError(f"TransformGraph has no output connections: {graph.get_path_name()}")
@@ -127,10 +137,10 @@ def main():
         if args.check:
             print("Exact exclusion target:", graph.get_path_name())
         else:
-            changed = patch(graph)
-            # Ground plants grow to the narrow water exclusion; everything else keeps the wider keepout.
-            if not graph.get_name().startswith(PLANT_GRAPHS):
-                changed = patch(graph, KEEPOUT_TAG) or changed
+            todo = missing(graph.get_name(), patched_tags(graph))
+            for tag in todo:
+                patch(graph, tag)
+            changed = bool(todo)
             save(graph)
             print("Exact exclusions", "installed:" if changed else "retained:", graph.get_path_name())
     print(f"{len(targets)} project TransformGraphs; " + ("no edits, loads or saves" if args.check else "regenerate Local inputs/Core and save"))

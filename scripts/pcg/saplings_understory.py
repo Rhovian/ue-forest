@@ -61,10 +61,10 @@ def column(low, high):
     return [low * 100 + (high - low) * 100 * i / count for i in range(count + 1)]
 
 
-# Bank colonies (#71 item 5): extra drifts within BANK cm of a water spline, x the kind's base density. The river
-# spline is its centreline, so BANK covers the half width plus a few metres of bank.
-BANK = 900
-BANK_SHARE = {"Ferns": 2, "Herbs": 4}
+# Bank colonies (#71 item 5): extra drifts that fall off with distance from a water spline, in steps of
+# (band, inner cm, outer cm, {kind: x the kind's base density}). The river spline is its centreline, so the near band
+# covers the half width (3.75 m) and the first metre or so of bank. Flowers fall off fastest (stream_bank_01).
+BANKS = [("Near", 0, 500, {"Ferns": 3, "Herbs": 16}), ("Far", 500, 1000, {"Ferns": 1, "Herbs": 3})]
 
 
 def canopy_filter():
@@ -117,8 +117,9 @@ def canopy_filter():
     return graph
 
 
-def water_near(graph, source, pin, maximum):
-    """Points from (source, pin) within `maximum` cm of a water body's spline (river centreline, lake shoreline)."""
+def water_near(graph, source, pin, maximum, nearest=0.0):
+    """Points from (source, pin) between nearest x maximum and maximum cm of a water body's spline (river centreline,
+    lake shoreline)."""
     # UE 5.8 PCGDataFromActor/PCGSplineSampler/PCGDistance implement water proximity;
     # use sampled live water splines, not a custom spatial search or actor AABBs.
     water, settings = graph.add_node_of_type(unreal.PCGDataFromActorSettings)
@@ -147,22 +148,22 @@ def water_near(graph, source, pin, maximum):
     edge(graph, source, pin, distance, "Source")
     edge(graph, sampler, "Out", distance, "Target")
     near, settings = graph.add_node_of_type(unreal.PCGDensityFilterSettings)
-    settings.set_editor_property("lower_bound", 0)
+    settings.set_editor_property("lower_bound", nearest)
     settings.set_editor_property("upper_bound", 0.99)  # exclude the saturated no-neighbour distance
     edge(graph, distance, "Out", near, "In")
     return near, "Out"
 
 
-def bank_filter():
-    """Ground above the shore within BANK cm of water: ferns and flowers crowd the banks (stream_bank_01)."""
-    graph = copy_asset(ROOT + "PCG_TreesAboveShore", "PCG_UnderstoryBank")
+def bank_filter(band, inner, outer):
+    """Ground above the shore between inner and outer cm of a water spline: one step of the bank falloff."""
+    graph = copy_asset(ROOT + "PCG_TreesAboveShore", "PCG_UnderstoryBank" + band)
     inp, out = graph.get_input_node(), graph.get_output_node()
     for node in list(graph.get_editor_property("nodes")):
         if node not in (inp, out):
             graph.remove_node(node)
     shore = z_range(graph, shore_height() + 150, 1.0e7)
     edge(graph, inp, "In", shore, "In")
-    near, pin = water_near(graph, shore, "InsideFilter", BANK)
+    near, pin = water_near(graph, shore, "InsideFilter", outer, inner / outer)
     edge(graph, near, pin, out, "Out")
     save(graph)
     return graph
@@ -232,7 +233,8 @@ def main():
     from deadwood_rocks import filter_graph
     plain = filter_graph("PCG_PlantsAboveShore")
     damp = damp_filter() if args.group == "understory" else None
-    bank = bank_filter() if args.group == "understory" else None
+    banks = [(band, bank_filter(band, inner, outer), shares) for band, inner, outer, shares in BANKS
+             ] if args.group == "understory" else []
     entries = []
     # Understory (#32 rulings, interior_01): colonies rather than an even scatter, and plants grow under trees too
     # (overlap, so canopy bounds do not prune them). The template's spatial noise is world-space with no seed
@@ -252,10 +254,12 @@ def main():
         for patch, share, transform, overlap in [("Gaps", 1, plain, damp is not None)] + (
                 [("Damp", 0.5, damp, True)] if damp else []) + (
                 [("Canopy", CANOPY, canopy_filter(), True)] if args.group == "saplings" else []) + (
-                [("Bank", BANK_SHARE[kind], bank, True)] if damp and kind in BANK_SHARE else []):
+                [("Bank" + band, shares[kind], graph, True) for band, graph, shares in banks if kind in shares]):
             doubles, bools = colonies if damp is not None else (None, None)
             if patch == "Canopy":
                 doubles, bools = {"SpatialDensityLow": 1.0}, {"EnableSpatialNoise": False}
+            elif patch.startswith("Bank"):  # the colony noise still breaks the bank into runs, but keeps more of it
+                doubles = {**doubles, "SpatialDensityLow": 0.0}
             # One point per (2 x extent)^2 cell at most, so the extent must allow the requested rate (#32 review).
             extent = min(100, 50 / math.sqrt(density * share / 10000))
             data = generator(kind + patch, density * args.density_scale * share, 25, 30 if damp is None else 40,
