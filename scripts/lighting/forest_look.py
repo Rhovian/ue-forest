@@ -3,12 +3,15 @@
     scripts/editor-py scripts/lighting/forest_look.py
 
 Auto exposure stays on; its bias darkens the frame one stop so sunlit floor and bark stop blowing out while the
-shade stays readable, and from the forest edge the sea and the dark foreground both read (edge_out_01). The height
-fog starts 15 m out, so the near view stays clear and mist lies between the far trunks (interior_01), and it thins
-with height so the sea from the edge stays bright. Beech bark is mid-grey, not near-white (interior_01 Ignore).
-Saves only the volume's and the fog's actor packages and the bark instance: the sun's time-of-day rotation and
-other unsaved level edits are left alone.
+shade stays readable, and from the forest edge the sea and the dark foreground both read (edge_out_01). A light
+height fog starting 15 m out separates the far trunks (interior_01); the mist itself lies in drifting patches over
+low ground, not a blanket (high_point_01): local fog volumes on part of the ground below 7 m, i.e. the lake basin,
+the lower stream and the coast. Beech bark is mid-grey, not near-white (interior_01 Ignore).
+Saves only the volume's and the fog's actor packages, the mist actors and the bark instance: the sun's time-of-day
+rotation and other unsaved level edits are left alone.
 """
+
+import random
 
 import unreal
 
@@ -17,10 +20,20 @@ SETTINGS = {  # PostProcessSettings property -> value; each one is overridden on
     "auto_exposure_bias": -1.0,
 }
 FOG = {  # ExponentialHeightFogComponent property -> value
-    "fog_density": 0.03,
-    "fog_height_falloff": 0.12,
+    "fog_density": 0.02,
+    "fog_height_falloff": 0.2,
     "start_distance": 1500.0,  # cm
     "fog_inscattering_luminance": unreal.LinearColor(0.35, 0.45, 0.5, 1),  # cool grey-green mist
+}
+MIST = "Mist"  # label prefix and outliner folder of the patches
+MIST_BELOW = 700  # cm above the sea: low ground (lake surface 5.9 m)
+MIST_CELL = 4000  # cm grid over the island (x 0..1100 m, y -1000..0 m)
+MIST_SHARE = 0.45  # of low cells that get a patch, so patches drift apart rather than join into a sheet
+MIST_RADIUS = 25  # m; a local fog volume is a sphere of the actor's scale in metres
+MIST_FOG = {  # LocalFogVolumeComponent property -> value
+    "radial_fog_extinction": 0.05,
+    "height_fog_extinction": 0.2,
+    "fog_albedo": unreal.LinearColor(0.8, 0.9, 0.95, 1),
 }
 BARK = "/Game/Megaplant_Library/Tree_European_Beech/Materials/MI_European_Beech_Bark_01"
 BARK_TINT = unreal.LinearColor(0.284, 0.294, 0.3, 1)  # stock tint (0.473, 0.490, 0.5) scaled to 0.6
@@ -49,11 +62,51 @@ if len(fogs) != 1:
 component = fogs[0].get_component_by_class(unreal.ExponentialHeightFogComponent)
 for name, value in FOG.items():
     component.set_editor_property(name, value)
+
+def ground(x, y):
+    """Landscape height at (x, y), ignoring anything else the ray meets; None off the landscape."""
+    start, end, ignored = unreal.Vector(x, y, 100000), unreal.Vector(x, y, -100000), []
+    for _ in range(64):
+        hit = unreal.SystemLibrary.line_trace_single(
+            world, start, end, unreal.TraceTypeQuery.TRACE_TYPE_QUERY1, True, ignored, unreal.DrawDebugTrace.NONE, True
+        )
+        if hit is None:
+            return None
+        fields = hit.to_tuple()
+        if isinstance(fields[9], unreal.LandscapeProxy):
+            return fields[4].z
+        ignored.append(fields[9])
+    return None
+
+
+subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+# A rerun replaces the patches; saving a destroyed actor's external package deletes its file.
+old = [a for a in actors if a.get_actor_label().startswith(MIST + "_")]
+packages = [a.get_package() for a in old]
+for actor in old:
+    subsystem.destroy_actor(actor)
+mist = []
+for i in range(110000 // MIST_CELL + 1):
+    for j in range(100000 // MIST_CELL + 1):
+        x, y = i * MIST_CELL, -j * MIST_CELL
+        z = ground(x, y)
+        # 30 cm keeps patches off the sea floor; the seeded draw keeps the pattern fixed between runs.
+        if z is None or not 30 < z < MIST_BELOW or random.Random(f"{i},{j}").random() >= MIST_SHARE:
+            continue
+        patch = subsystem.spawn_actor_from_class(unreal.LocalFogVolume, unreal.Vector(x, y, z))
+        patch.set_actor_label(f"{MIST}_{i:02d}_{j:02d}")
+        patch.set_folder_path(MIST)
+        patch.set_actor_scale3d(unreal.Vector(MIST_RADIUS, MIST_RADIUS, MIST_RADIUS))
+        component = patch.get_component_by_class(unreal.LocalFogVolumeComponent)
+        for name, value in MIST_FOG.items():
+            component.set_editor_property(name, value)
+        mist.append(patch)
 bark = unreal.load_asset(BARK)
+# SetMaterialInstanceVectorParameterValue already updates the instance (MaterialEditingLibrary.cpp).
 unreal.MaterialEditingLibrary.set_material_instance_vector_parameter_value(bark, "BaseColor Tint", BARK_TINT)
-unreal.MaterialEditingLibrary.update_material_instance(bark)
-if not unreal.EditorLoadingAndSavingUtils.save_packages([volume.get_package(), fogs[0].get_package()], False):
-    raise RuntimeError(f"could not save {LABEL} or the height fog")
+packages += [volume.get_package(), fogs[0].get_package()] + [patch.get_package() for patch in mist]
+if not unreal.EditorLoadingAndSavingUtils.save_packages(packages, False):
+    raise RuntimeError(f"could not save {LABEL}, the height fog or the mist patches")
 if not unreal.EditorAssetLibrary.save_loaded_asset(bark, False):
     raise RuntimeError(f"could not save {BARK}")
-print(f"{LABEL}: {SETTINGS}; fog: {FOG}; bark tint {BARK_TINT}")
+print(f"{LABEL}: {SETTINGS}; fog: {FOG}; {len(mist)} mist patches; bark tint {BARK_TINT}")
