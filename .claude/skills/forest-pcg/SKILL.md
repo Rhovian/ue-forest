@@ -50,3 +50,5 @@ and the check that prevents it.
 - After an editor restart, World Partition cells are unloaded; `scripts/editor.sh open` loads them. Traces and counts
   on an unloaded level are wrong.
 - Never commit with `git commit -a` while the operator has the editor: it sweeps their unsaved-session files in.
+- Sparse obstacles survive far below their candidate density: meadow logs kept ~10% (200/ha gave 38 logs on 2 ha), so
+  15/ha gave ~3 and looked like "no logs at all". Measure the count before concluding a group is broken.
