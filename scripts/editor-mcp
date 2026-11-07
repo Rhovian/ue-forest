@@ -4,9 +4,11 @@
     scripts/editor-mcp                          list toolsets
     scripts/editor-mcp TOOLSET                  describe a toolset's tools
     scripts/editor-mcp TOOLSET TOOL [JSON]      call a tool with JSON arguments
+    scripts/editor-mcp -o FILE TOOLSET TOOL ... write a returned image (e.g. CaptureViewport) to FILE
 
 Works whether or not this session's MCP client connected at startup. Prints the tool's text result.
 """
+import base64
 import json
 import sys
 import urllib.request
@@ -38,6 +40,9 @@ def rpc(method, params=None):
 
 
 args = sys.argv[1:]
+image_path = None
+if args[:1] == ["-o"] and len(args) > 1:
+    image_path, args = args[1], args[2:]
 if len(args) > 3 or args[:1] in (["-h"], ["--help"]):
     sys.exit(__doc__)
 try:
@@ -52,5 +57,14 @@ elif len(args) == 1:
 else:
     arguments = json.loads(args[2]) if len(args) == 3 else {}
     result = rpc("tools/call", {"name": "call_tool", "arguments": {"toolset_name": args[0], "tool_name": args[1], "arguments": arguments}})
-print("\n".join(item.get("text", json.dumps(item)) for item in result.get("content", [])))
+text = "\n".join(item.get("text", json.dumps(item)) for item in result.get("content", []))
+if image_path:
+    reply = json.loads(text)
+    image = reply.get("returnValue", reply).get("image") or {}
+    if not image.get("data"):
+        sys.exit(f"no image in the result:\n{text[:2000]}")
+    with open(image_path, "wb") as out:
+        out.write(base64.b64decode(image.pop("data")))
+    text = json.dumps(reply)
+print(text)
 sys.exit(1 if result.get("isError") else 0)
