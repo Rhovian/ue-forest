@@ -251,7 +251,6 @@ def main():
             raise RuntimeError(f"Log variant {name} has the same generator density as another; adjust a weight")
         densities.add(density)
         group = generator("Deadwood_" + name, density, slope, 10)
-        log_plain = filter_graph("PCG_Log_" + name, reach=reach if long else 0, slope=slope)
         # Altitude alone is no dampness proxy; both forms need the same eligible ground.
         nurse = filter_graph("PCG_Nurse_" + name, reach=reach if long else 0, slope=slope)
         # nurse_log_01: about one seedling per 4 m of trunk (4 on the 17 m log), two mushroom clusters on the top of
@@ -268,7 +267,11 @@ def main():
             ("PCG_Seedlings_" + name, seedling_tops, (1.0, 1.5), seedlings, False),
             ("PCG_LogBase_" + name, sides, (0.7, 1.1), base_plants, True)])
         # Logs over 4 m (the Large Fallen Trees) are all nurse logs; the short piece keeps plain:nurse 2:1.
-        entries += ([] if length > 400 else [entry(template, mesh, group, log_plain, 2, aligned=True)]) + [
+        # Only the short piece has plain logs; long ones get no plain filter graph (no unused assets).
+        plain_logs = [] if length > 400 else [
+            entry(template, mesh, group, filter_graph("PCG_Log_" + name, reach=reach if long else 0, slope=slope), 2,
+                  aligned=True)]
+        entries += plain_logs + [
             entry(template, mesh, group, nurse, 1, nurse_children, aligned=True)]
         print(f"Log variant {name}: share {weight / sum(w for _, w in logs):.1%}, slope {slope} deg, reach {reach:.0f} cm,"
               f" {len(seedling_tops)} seedling / {len(fungi_tops)} fungi / {len(sides)} base points")

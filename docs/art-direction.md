@@ -171,7 +171,7 @@ The references will show things the installed set lacks. Each one is a #33 searc
 - bleached, weathered fallen trunks for the sand. The two driftwood listings checked (2026-11-06) are paid. Fallback: the installed fallen trunks with a bleached, moss-free material variant
 - edge beech variants with exposed roots. Fallback: new PVE exports from the free Megaplants European Beech (Beech A–D are upright forest trees)
 - a second fern and shrub silhouette (one mesh each today). Candidates: Lady Fern (`forest-lushness.md` §6). Megaplants Common Hazel would be a strong shrub layer, but it is a second species, so it needs a #9 ruling
-- moss clumps with height (the floor moss is a flat material). Candidates: Nordic Forest Ledge Moss, Mossy Forest Boulder (§6)
+- moss clumps with height (the floor moss is a flat material). Candidates: Mossy Forest Boulder (§6). Nordic Forest Ledge Moss was tried and rejected: it reads as pale stone plates (#32), and was removed (#68); no free cushion-moss listing was found (#33)
 - blue and violet woodland flowers (bluebell, violet or similar) for the enchanted colour accents
 - grass for the meadow-fringe stretches of coast (`edge_in_04`, `high_point_01`)
 - surface roots: mossy beech roots running across the floor and onto the sand (`transition_ground_02`); Beech A–D root flares end at the ground
