@@ -29,10 +29,11 @@ MIST = "Mist"  # label prefix and outliner folder of the patches
 MIST_BELOW = 700  # cm above the sea: low ground (lake surface 5.9 m)
 MIST_CELL = 4000  # cm grid over the island (x 0..1100 m, y -1000..0 m)
 MIST_SHARE = 0.45  # of low cells that get a patch, so patches drift apart rather than join into a sheet
-MIST_RADIUS = 25  # m; a local fog volume is a sphere of the actor's scale in metres
+MIST_RADIUS = 2500  # cm
+MIST_BASE = 500  # cm: a LocalFogVolume's radius at scale 1 (LocalFogVolumeComponent.h GetBaseVolumeSize)
 MIST_FOG = {  # LocalFogVolumeComponent property -> value
-    "radial_fog_extinction": 0.05,
-    "height_fog_extinction": 0.2,
+    "radial_fog_extinction": 0.15,
+    "height_fog_extinction": 0.6,
     "fog_albedo": unreal.LinearColor(0.8, 0.9, 0.95, 1),
 }
 BARK = "/Game/Megaplant_Library/Tree_European_Beech/Materials/MI_European_Beech_Bark_01"
@@ -80,6 +81,11 @@ def ground(x, y):
 
 
 subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+# Every World Partition cell must be loaded, or traces over unloaded landscape miss and the rebuilt patch set
+# silently shrinks (WorldPartitionBlueprintLibrary.LoadActors keeps them loaded; see deadwood_rocks.py).
+descriptors = unreal.WorldPartitionBlueprintLibrary.get_actor_descs()
+unreal.WorldPartitionBlueprintLibrary.load_actors([d.guid for d in descriptors])
+actors = subsystem.get_all_level_actors()
 # A rerun replaces the patches; saving a destroyed actor's external package deletes its file.
 old = [a for a in actors if a.get_actor_label().startswith(MIST + "_")]
 packages = [a.get_package() for a in old]
@@ -90,13 +96,15 @@ for i in range(110000 // MIST_CELL + 1):
     for j in range(100000 // MIST_CELL + 1):
         x, y = i * MIST_CELL, -j * MIST_CELL
         z = ground(x, y)
+        if z is None and 15000 < x < 100000 and -95000 < y < -10000:
+            raise RuntimeError(f"no landscape under ({x / 100:.0f}, {y / 100:.0f}) m inside the island; are all cells loaded?")
         # 30 cm keeps patches off the sea floor; the seeded draw keeps the pattern fixed between runs.
         if z is None or not 30 < z < MIST_BELOW or random.Random(f"{i},{j}").random() >= MIST_SHARE:
             continue
         patch = subsystem.spawn_actor_from_class(unreal.LocalFogVolume, unreal.Vector(x, y, z))
         patch.set_actor_label(f"{MIST}_{i:02d}_{j:02d}")
         patch.set_folder_path(MIST)
-        patch.set_actor_scale3d(unreal.Vector(MIST_RADIUS, MIST_RADIUS, MIST_RADIUS))
+        patch.set_actor_scale3d(unreal.Vector(1, 1, 1) * (MIST_RADIUS / MIST_BASE))
         component = patch.get_component_by_class(unreal.LocalFogVolumeComponent)
         for name, value in MIST_FOG.items():
             component.set_editor_property(name, value)
