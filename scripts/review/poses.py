@@ -17,7 +17,7 @@ POSES = [
     ("beach", 192, -762, 1.6, 0, -38),
     ("high_point", 600, -150, 60, -20, -115),
     ("high_point_eye", 606, -580, 1.6, 0, 136),  # the harness high point; operator on #30: both views are useful
-    ("nurse_log", 329, -500, 1.6, -15, -50),
+    ("nurse_log", 461.4, -475.2, 1.6, -15, 144),  # 4.5 m off a 17 m Large_Fallen_Tree; logs regenerate, so re-aim when one moves
     ("rock_assembly", 461, -804, 1.6, -20, -145),
 ]
 
