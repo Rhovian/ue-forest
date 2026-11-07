@@ -73,6 +73,8 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
 
 - Generated points are readable with `unreal.ForestPCGLibrary.get_generated_point_locations(component, "GEN:<group>")`;
   skinned instances (trees, saplings, anemones) are GPU-only and their transforms are not readable from Python.
+- Edits through the editor's MCP toolsets (Niagara stack inputs, for example) change the loaded asset only: save it
+  (`unreal.EditorAssetLibrary.save_loaded_asset`) and check `git status` shows it before committing.
 - Capture with `scripts/review/capture`: a single raw `CaptureViewport` returns the previous view's frame.
 
 - `regenerate_biome.py`'s per-group instance count misattributes components when groups share a mesh; count by mesh,
