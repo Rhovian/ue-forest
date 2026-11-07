@@ -1,0 +1,153 @@
+#!/usr/bin/env python3
+"""Compare review captures with their references and Targets, offline (macOS sips).
+
+    scripts/review/compare CAPTURES OUT [VIEW...]
+
+CAPTURES contains <pose>.png from capture; default: all PNGs in that directory.
+OUT receives <pose>__<reference>.png for every documented variant, including a
+labelled placeholder for missing references. Targets come from docs/art-direction.md.
+Example: scripts/review/compare Forest/Saved/Reviews/35/mist/after /tmp/compare edge_in
+The lead must still look and report Targets met/unmet; this is not visual acceptance.
+"""
+import argparse
+import json
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+# Works both as an executable and via runpy in the offline tests.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from poses import POSES
+
+NOTES = Path(__file__).resolve().parents[2] / "docs/art-direction.md"
+
+
+def read_notes(path):
+    # The Markdown source is not a standard structured-data format; parse only the
+    # documented References section and its filename headings, never the template.
+    sections = re.split(r"^## References\s*$", path.read_text(), maxsplit=1, flags=re.MULTILINE)
+    if len(sections) != 2:
+        raise ValueError(f"{path}: missing References section")
+    text = sections[1]
+    notes = {}
+    for match in re.finditer(r"^### ([^\n]*)(?:\n|$)(.*?)(?=^#{1,3} |\Z)", text, re.MULTILINE | re.DOTALL):
+        heading, body = match.groups()
+        filename = re.fullmatch(r"([a-z_]+_\d{2}\.png)(?:\s.*)?", heading)
+        if not filename:
+            raise ValueError(f"invalid reference heading: {heading}")
+        name = filename[1]
+        target = re.search(r"^- Targets: (.+(?:\n[ \t]+[^\n]+)*)", body, re.MULTILINE)
+        if not target:
+            raise ValueError(f"{name}: missing Targets")
+        if name in notes:
+            raise ValueError(f"duplicate reference: {name}")
+        notes[name] = " ".join(target[1].split())
+    return notes
+
+
+def pairings(view, notes):
+    if view not in {pose[0] for pose in POSES}:
+        raise ValueError(f"unknown view: {view}")
+    prefix = "high_point" if view == "high_point_eye" else view
+    pairs = [(name, targets) for name, targets in notes.items()
+             if re.fullmatch(re.escape(prefix) + r"_\d{2}\.png", name)]
+    if not pairs:
+        raise ValueError(f"{view}: no reference notes")
+    return sorted(pairs)
+
+
+# sips-316's local `sips --man`, JavaScript section, documents Canvas 2D,
+# sips.images and Output. Canvas handles image scaling and text metrics; only
+# word wrapping needs a loop because fillText itself does not wrap paragraphs.
+RENDER = r'''
+if (sips.images.length !== data.count || sips.images.some(img => !img.size.width || !img.size.height))
+    throw new Error('Invalid capture or reference image');
+const c = new Canvas(2400, 1600).getContext('2d');
+c.font = '28px Arial';
+let lines = [];
+for (const paragraph of data.text) {
+    let line = '';
+    for (const word of paragraph.split(' ')) {
+        const next = line ? line + ' ' + word : word;
+        if (line && c.measureText(next).width > 2280) { lines.push(line); line = word; }
+        else line = next;
+    }
+    lines.push(line, '');
+}
+lines.pop();  // Paragraph spacing is only needed between paragraphs.
+const height = 780 + lines.length * 38;
+const ctx = new Canvas(2400, height).getContext('2d');
+ctx.fillStyle = '#181c20'; ctx.fillRect(0, 0, 2400, height);
+ctx.fillStyle = '#ffffff'; ctx.font = '28px Arial';
+ctx.fillText('CAPTURE: ' + data.view + '.png', 30, 44);
+ctx.fillText('REFERENCE: ' + data.name, 1230, 44);
+sips.images.forEach((img, i) => {
+    const scale = Math.min(1140 / img.size.width, 660 / img.size.height);
+    const w = img.size.width * scale, h = img.size.height * scale;
+    ctx.drawImage(img, 30 + i * 1200 + (1140 - w) / 2, 70 + (660 - h) / 2, w, h);
+});
+if (data.missing) {
+    ctx.fillStyle = '#ffcc88';
+    ctx.fillText('MISSING REFERENCE: ' + data.name, 1230, 360);
+    ctx.fillText('No other reference substituted.', 1230, 404);
+}
+ctx.fillStyle = '#ffffff';
+lines.forEach((line, i) => ctx.fillText(line, 30, 780 + i * 38));
+new Output(ctx, data.output, 'public.png').addToQueue();
+'''
+
+
+def render(capture, reference, targets, output):
+    missing = not reference.is_file()
+    data = {"view": capture.stem, "name": reference.name, "missing": missing, "count": 1 if missing else 2,
+            "output": output.name, "text": [f"Targets — {reference.name}", targets,
+                                          "Lead review required: report Targets met and unmet. Generation is not acceptance."]}
+    with tempfile.TemporaryDirectory() as tmp:
+        script = Path(tmp) / "render.js"
+        script.write_text("const data = " + json.dumps(data) + ";\n" + RENDER)
+        images = [capture] if missing else [capture, reference]
+        completed = subprocess.run(["sips", "--js", str(script), *map(str, images), "--out", tmp],
+                                   check=False, capture_output=True, text=True)
+        result = Path(tmp) / output.name
+        if completed.returncode or not result.is_file():
+            raise ValueError(f"sips failed for capture {capture}, reference {reference} "
+                             f"(exit {completed.returncode}):\n{completed.stdout}\n{completed.stderr}")
+        output.write_bytes(result.read_bytes())
+    if missing:
+        print(f"MISSING REFERENCE: {reference} (placeholder in {output})", file=sys.stderr)
+    print(output)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("captures", type=Path)
+    parser.add_argument("out", type=Path)
+    parser.add_argument("views", nargs="*")
+    args = parser.parse_args()
+    try:
+        notes = read_notes(NOTES)
+        for reference in sorted((NOTES.parent / "art-direction").glob("*.png")):
+            if reference.name not in notes:
+                print(f"MISSING NOTES: {reference} (not compared)", file=sys.stderr)
+        views = args.views or sorted(path.stem for path in args.captures.glob("*.png"))
+        if not views:
+            raise ValueError(f"no PNG captures in {args.captures}")
+        jobs = []
+        for view in views:
+            capture = args.captures / f"{view}.png"
+            if not capture.is_file():
+                raise ValueError(f"missing capture: {capture}")
+            for name, targets in pairings(view, notes):
+                jobs.append((capture.resolve(), NOTES.parent / "art-direction" / name, targets,
+                             args.out / f"{view}__{Path(name).stem}.png"))
+        args.out.mkdir(parents=True, exist_ok=True)
+        for job in jobs:
+            render(*job)
+    except (OSError, ValueError) as error:
+        parser.exit(1, f"compare: {error}\n")
+
+
+if __name__ == "__main__":
+    main()
