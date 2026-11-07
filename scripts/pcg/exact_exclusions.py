@@ -11,8 +11,12 @@ import argparse
 
 import unreal
 from deadwood_rocks import ROOT, edge, get, load_forest_actors, save
+from water_exclusions import KEEPOUT_TAG
 
 LOCAL = "/PCGBiomeCore/LocalBiomeCore.LocalBiomeCore"
+# Ground-plant filters (saplings_understory.py, its drifts): these reach the bank (#71 item 5); every other
+# TransformGraph also excludes water_exclusions.py's wider keepout.
+PLANT_GRAPHS = ("PCG_PlantsAboveShore", "PCG_UnderstoryDamp", "PCG_UnderstoryBank", "PCG_FernsDrift", "PCG_HerbsDrift")
 
 
 def inputs(actors):
@@ -56,9 +60,27 @@ def connections(graph):
     return [e for pin in graph.get_output_node().get_editor_property("input_pins") for e in pin.get_editor_property("edges")]
 
 
-def patch(graph):
-    if any(isinstance(n.get_settings(), unreal.PCGCreateSurfaceFromSplineSettings) for n in graph.get_editor_property("nodes")):
-        return False
+def patched_tags(graph):
+    """Actor tags whose spline interiors this graph already excludes."""
+    return {n.get_settings().get_editor_property("actor_selector").get_editor_property("actor_selection_tag")
+            for n in graph.get_editor_property("nodes")
+            if isinstance(n.get_settings(), unreal.PCGDataFromActorSettings)
+            and n.get_settings().get_editor_property("mode") == unreal.PCGGetDataFromActorMode.PARSE_ACTOR_COMPONENTS}
+
+
+def exclusion_tags(name):
+    """The exclusion tags a TransformGraph named `name` must exclude: ground plants reach the bank (narrow exclusion
+    only); every other group also keeps out of the wider water keepout."""
+    return ["PCG_BiomeExclusion"] + ([] if name.startswith(PLANT_GRAPHS) else [KEEPOUT_TAG])
+
+
+def missing(name, installed):
+    """Tags still to install on a graph that already excludes `installed` (re-runs add nothing twice)."""
+    done = {str(t) for t in installed}
+    return [tag for tag in exclusion_tags(name) if tag not in done]
+
+
+def patch(graph, tag="PCG_BiomeExclusion"):
     previous = connections(graph)
     if not previous:
         raise RuntimeError(f"TransformGraph has no output connections: {graph.get_path_name()}")
@@ -67,7 +89,7 @@ def patch(graph):
     selector = settings.get_editor_property("actor_selector")
     for name, value in {"actor_filter": unreal.PCGActorFilter.ALL_WORLD_ACTORS,
                         "actor_selection": unreal.PCGActorSelection.BY_TAG,
-                        "actor_selection_tag": "PCG_BiomeExclusion", "select_multiple": True,
+                        "actor_selection_tag": tag, "select_multiple": True,
                         "must_overlap_self": False}.items():
         selector.set_editor_property(name, value)
     settings.set_editor_property("actor_selector", selector)
@@ -115,7 +137,10 @@ def main():
         if args.check:
             print("Exact exclusion target:", graph.get_path_name())
         else:
-            changed = patch(graph)
+            todo = missing(graph.get_name(), patched_tags(graph))
+            for tag in todo:
+                patch(graph, tag)
+            changed = bool(todo)
             save(graph)
             print("Exact exclusions", "installed:" if changed else "retained:", graph.get_path_name())
     print(f"{len(targets)} project TransformGraphs; " + ("no edits, loads or saves" if args.check else "regenerate Local inputs/Core and save"))

@@ -1,11 +1,15 @@
 # editor-py: fresh-siblings
 """Keep the Forest Biome out of the level's lakes and rivers.
 
-    scripts/editor-py scripts/pcg/water_exclusions.py [--lake-margin CM] [--river-margin CM]
+    scripts/editor-py scripts/pcg/water_exclusions.py [--lake-margin CM] [--river-margin CM] [--keepout CM]
 
-Replaces every ForestExclusion_* actor with Biome Core exclusion splines built from the open level's water
-bodies: each lake's shoreline pushed out by the lake margin, and a corridor along each river, its half
-width plus the river margin on each side. The ocean is handled by the trees' shore-height filter.
+Replaces every ForestExclusion_* and ForestKeepout_* actor with splines built from the open level's water
+bodies: each lake's shoreline pushed out by a margin, and a corridor along each river, its half width plus the
+margin on each side. ForestExclusion_* (tag PCG_BiomeExclusion, the narrow margin) keeps everything out of the
+water; ground plants grow up to it, so banks are green to the water (stream_bank_01, #71 item 5).
+ForestKeepout_* (tag KEEPOUT_TAG, the wider keepout) is ignored by Biome Core; exact_exclusions.py applies it to
+every group but ground plants, so trees, logs and rocks keep their distance. The ocean is handled by the shore-height
+filter.
 Saves nothing; save the level afterwards.
 """
 
@@ -67,7 +71,10 @@ def world_points(water):
     return [spline.get_location_at_spline_point(i, world) for i in range(spline.get_number_of_spline_points())]
 
 
-def place(label, outline, z):
+KEEPOUT_TAG = "Forest_WaterKeepout"
+
+
+def place(label, outline, z, tag=None):
     actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
     actor = actors.spawn_actor_from_object(unreal.load_asset(EXCLUSION), unreal.Vector(outline[0][0], outline[0][1], z))
     actor.set_actor_label(label)
@@ -78,36 +85,44 @@ def place(label, outline, z):
         spline.set_spline_point_type(i, unreal.SplinePointType.LINEAR, False)
     spline.set_closed_loop(True)
     spline.update_spline()
+    if tag:  # Biome Core selects exclusions by the PCG_BiomeExclusion tag: swap it so only exact_exclusions applies this
+        actor.tags = [tag]
     print(f"{label}: {len(outline)} points")
 
 
 def main():
     parser = argparse.ArgumentParser(prog="water_exclusions.py")
-    parser.add_argument("--lake-margin", type=float, default=300.0)
-    parser.add_argument("--river-margin", type=float, default=300.0)
+    parser.add_argument("--lake-margin", type=float, default=60.0)
+    # Negative: the river spline's width (7.5 m) is wider than its visible water, so the corridor is narrowed to it.
+    parser.add_argument("--river-margin", type=float, default=-100.0)
+    parser.add_argument("--keepout", type=float, default=300.0)
     args = parser.parse_args()
     actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
     for actor in actors.get_all_level_actors():
-        if actor.get_actor_label().startswith("ForestExclusion_"):
+        if actor.get_actor_label().startswith(("ForestExclusion_", "ForestKeepout_")):
             destroy_managed(actors, actor)
     for water in actors.get_all_level_actors():
         if isinstance(water, unreal.WaterBodyLake):
             pts = [(p.x, p.y) for p in world_points(water)]
             # Left of travel is inside for a counter-clockwise loop, so push out with a negative distance.
-            outward = -args.lake_margin if signed_area(pts) > 0 else args.lake_margin
-            place(f"ForestExclusion_{water.get_actor_label()}", offset(pts, [outward] * len(pts), True), 1000.0)
+            sign = -1 if signed_area(pts) > 0 else 1
+            for prefix, margin, tag in (("ForestExclusion_", args.lake_margin, None),
+                                        ("ForestKeepout_", args.keepout, KEEPOUT_TAG)):
+                place(prefix + water.get_actor_label(), offset(pts, [sign * margin] * len(pts), True), 1000.0, tag)
         elif isinstance(water, unreal.WaterBodyRiver):
             body = water.get_editor_property("water_body_component")
             spline = water.get_editor_property("spline_comp")
             pts = [(p.x, p.y) for p in world_points(water)]
-            half = [
-                body.get_river_width_at_spline_input_key(float(i)) / 2 + args.river_margin
-                if hasattr(body, "get_river_width_at_spline_input_key")
-                else 500.0 + args.river_margin
-                for i in range(spline.get_number_of_spline_points())
-            ]
-            left, right = offset(pts, half, False), offset(pts, [-h for h in half], False)
-            place(f"ForestExclusion_{water.get_actor_label()}", left + right[::-1], 1000.0)
+            for prefix, margin, tag in (("ForestExclusion_", args.river_margin, None),
+                                        ("ForestKeepout_", args.keepout, KEEPOUT_TAG)):
+                half = [
+                    body.get_river_width_at_spline_input_key(float(i)) / 2 + margin
+                    if hasattr(body, "get_river_width_at_spline_input_key")
+                    else 500.0 + margin
+                    for i in range(spline.get_number_of_spline_points())
+                ]
+                left, right = offset(pts, half, False), offset(pts, [-h for h in half], False)
+                place(prefix + water.get_actor_label(), left + right[::-1], 1000.0, tag)
 
 
 if __name__ == "__main__":
