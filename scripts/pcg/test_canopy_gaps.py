@@ -7,6 +7,7 @@ sys.modules.setdefault("unreal", MagicMock())
 sys.path.insert(0, str(Path(__file__).parent))
 
 import canopy_gaps
+import saplings_understory
 
 
 def forest(hole=None, size=120, spacing=4):
@@ -44,6 +45,15 @@ class CanopyGapTests(unittest.TestCase):
     def test_forest_edge_is_not_a_gap(self):
         # Open ground at the forest's edge lacks trees in every octant.
         self.assertEqual(canopy_gaps.gaps(forest(hole=(2000, 2060, 14)), [(0, 0)]), [])
+
+    def test_column_targets_reach_every_ground_height_within_half_a_step(self):
+        # canopy_filter's distance is 3D: a ground point is measured horizontally only if a target sits near its height.
+        for low, high in ((8.3, 8.3), (8.0, 12.1), (-1.2, 3.75)):
+            targets = saplings_understory.column(low, high)
+            self.assertAlmostEqual(targets[0], low * 100)
+            self.assertAlmostEqual(targets[-1], high * 100)
+            for ground in [low * 100 + (high - low) * 100 * k / 97 for k in range(98)]:
+                self.assertLessEqual(min(abs(ground - t) for t in targets), saplings_understory.COLUMN_STEP / 2 + 1e-6)
 
 
 if __name__ == "__main__":

@@ -52,23 +52,29 @@ def drift_points(count, length, width, shape):
 # the opening (clearing_01), while noise thins the island-wide saplings to about 1/ha. Saplings are skinned: measure.
 CANOPY = 20  # about one sapling per 1.5 m2 in 0.7 ha of gaps: a few thousand skinned saplings
 
-COLUMN_STEP = 100  # cm between a gap's stacked distance targets
-COLUMN_REACH = 800  # cm above and below the gap's recorded height (mean of the surrounding trunks) that the column covers
+COLUMN_STEP = 100  # cm between a gap's stacked distance targets, from its lowest to its highest traced ground
+
+
+def column(low, high):
+    """Target heights in cm from a gap's lowest to highest ground (m), COLUMN_STEP apart, ends included."""
+    count = max(1, math.ceil((high - low) * 100 / COLUMN_STEP))
+    return [low * 100 + (high - low) * 100 * i / count for i in range(count + 1)]
 
 
 def canopy_filter():
     """Ground inside a canopy gap from canopy_gaps.json, by horizontal distance. Distance's SphereBounds uses the
     bounds' half-diagonal as the radius and is signed (inside is negative), so gaps are grouped by whole-metre radius
     instead: one Create Points + Distance (centre to centre, maximum = that radius) per group, merged. Distance is 3D,
-    so each gap is a vertical column of targets COLUMN_STEP apart: the nearest is within half a step of any ground
-    point's height, and the measured distance is the horizontal one (#75 review)."""
+    so each gap is a vertical column of targets COLUMN_STEP apart spanning the gap's traced ground range: the nearest
+    is within half a step of every ground point's height, so the measured distance is the horizontal one to within
+    sqrt(r^2 + 0.5^2) - r (#75 review)."""
     import json
     from pathlib import Path
 
-    gaps = json.loads(Path(deadwood_rocks.__file__).with_name("canopy_gaps.json").read_text())["gaps_m"]
+    data = json.loads(Path(deadwood_rocks.__file__).with_name("canopy_gaps.json").read_text())
     groups = {}
-    for x, y, z, radius in gaps:
-        groups.setdefault(int(radius), []).append((x, y, z))
+    for x, y, low, high, radius in data["gaps_m [x, y, ground low, ground high, radius]"]:
+        groups.setdefault(int(radius), []).append((x, y, low, high))
     graph = copy_asset(ROOT + "PCG_TreesAboveShore", "PCG_SaplingsCanopyGaps")
     inp, out = graph.get_input_node(), graph.get_output_node()
     for node in list(graph.get_editor_property("nodes")):
@@ -80,11 +86,10 @@ def canopy_filter():
     for radius, centres in sorted(groups.items()):
         mark, settings = graph.add_node_of_type(unreal.PCGCreatePointsSettings)
         points = []
-        for x, y, z in centres:
-            for step in range(-COLUMN_REACH, COLUMN_REACH + 1, COLUMN_STEP):
+        for x, y, low, high in centres:
+            for z in column(low, high):
                 point = unreal.PCGPoint()
-                point.set_editor_property(
-                    "transform", unreal.Transform(location=unreal.Vector(x * 100, y * 100, z * 100 + step)))
+                point.set_editor_property("transform", unreal.Transform(location=unreal.Vector(x * 100, y * 100, z)))
                 points.append(point)
         settings.set_editor_property("points_to_create", points)
         settings.set_editor_property("coordinate_space", unreal.PCGCoordinateSpace.WORLD)

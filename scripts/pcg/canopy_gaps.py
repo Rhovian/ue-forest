@@ -7,7 +7,8 @@ Reads the Trees group's generated points (ForestPCGLibrary.GetGeneratedPointLoca
 after a regenerate, and again whenever the Trees group changes. A gap is ground whose nearest trunk is at least MIN_GAP
 away while trees stand in all eight octants within RING (so shores are not gaps), at least KEEPOUT from the stream, lake
 and footpath exclusion splines (their corridors are tree-free but not gaps), and outside the meadows.
-saplings_understory.py reads the JSON and grows dense regeneration in each gap.
+saplings_understory.py reads the JSON and grows dense regeneration in each gap; each gap records the lowest and
+highest ground inside it.
 """
 
 import json
@@ -56,6 +57,31 @@ def gaps(trunks, exclusions):
     return kept
 
 
+def ground_range(world, x, y, radius):
+    """(lowest, highest) landscape height in metres inside the gap, traced on a 1 m grid: canopy_filter's column of
+    distance targets spans exactly this range, so its distance is horizontal for every ground point in the gap."""
+    heights = []
+    for dx in range(-int(radius), int(radius) + 1):
+        for dy in range(-int(radius), int(radius) + 1):
+            if dx * dx + dy * dy > radius * radius:
+                continue
+            ignored = []
+            for _ in range(32):  # step through trees and plants to the landscape
+                start, end = unreal.Vector((x + dx) * 100, (y + dy) * 100, 1.0e5), unreal.Vector((x + dx) * 100, (y + dy) * 100, -1.0e5)
+                hit = unreal.SystemLibrary.line_trace_single(world, start, end, unreal.TraceTypeQuery.TRACE_TYPE_QUERY1, True,
+                                                             ignored, unreal.DrawDebugTrace.NONE, True)
+                if hit is None:
+                    break
+                fields = hit.to_tuple()
+                if isinstance(fields[9], unreal.LandscapeProxy):
+                    heights.append(fields[4].z / 100)
+                    break
+                ignored.append(fields[9])
+    if not heights:
+        raise RuntimeError(f"No landscape under the gap at ({x}, {y}): load all cells first")
+    return round(min(heights), 1), round(max(heights), 1)
+
+
 def main():
     trunks = [(p.x / 100, p.y / 100, p.z / 100) for actor in unreal.EditorLevelLibrary.get_all_level_actors()
               for component in actor.get_components_by_class(unreal.PCGComponent)
@@ -71,8 +97,10 @@ def main():
                     exclusions.append((p.x / 100, p.y / 100))
     if not exclusions:
         raise RuntimeError("No exclusion splines loaded: run water_exclusions.py and shore_path.py first")
-    found = gaps(trunks, exclusions)
-    OUT.write_text(json.dumps({"trees": len(trunks), "gaps_m": found}, indent=0) + "\n")
+    world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
+    found = [(x, y, *ground_range(world, x, y, radius), radius) for x, y, _, radius in gaps(trunks, exclusions)]
+    OUT.write_text(json.dumps({"trees": len(trunks), "gaps_m [x, y, ground low, ground high, radius]": found},
+                              indent=0) + "\n")
     print(f"{len(found)} canopy gaps from {len(trunks)} trees -> {OUT.name}; "
           f"{sum(math.pi * r * r for *_, r in found) / 10000:.1f} ha open")
 
