@@ -1,7 +1,7 @@
 """Named review views of L_vilm (#30), one per art-direction reference name (docs/art-direction.md).
 
 Each pose is (name, x m, y m, height above ground m, pitch, yaw). Height 1.6 is the walker's eye; high_point is
-60 m, as its reference prompt ("Aerial view from 60 m"). UE yaw 0 looks
+60 m, as its reference prompt ("Aerial view from 60 m"); high_point_eye is judged against the same references. UE yaw 0 looks
 along +X (north on the island), 90 along +Y. Poses are an appendable list: adding a view is one line.
 """
 
@@ -16,6 +16,7 @@ POSES = [
     ("transition_ground", 560, -214, 1.6, -20, -90),
     ("beach", 192, -762, 1.6, 0, -38),
     ("high_point", 600, -150, 60, -20, -115),
+    ("high_point_eye", 606, -580, 1.6, 0, 136),  # the harness high point; operator on #30: both views are useful
     ("nurse_log", 329, -500, 1.6, -15, -50),
     ("rock_assembly", 461, -804, 1.6, -20, -145),
 ]
