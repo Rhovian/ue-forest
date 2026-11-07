@@ -58,6 +58,14 @@ SHORE_TREE_VARIANTS = [
     ("/Game/Megaplant_Library/Tree_European_Beech/Tree_European_Beech_01/Tree_European_Beech_01_A", 1),
     ("/Game/Megaplant_Library/Tree_European_Beech/Tree_European_Beech_01/Tree_European_Beech_01_C", 1),
 ]
+# Meadow grass for the grassy coast stretches (#38, edge_in_04).
+GRASS_VARIANTS = [
+    ("/Game/Fab/Megascans/Plants/Rough_Meadow_Grass_skFjJ/Medium/skFjJ_tier_2/StaticMeshes/SM_skFjJ_VarA", 1),
+    ("/Game/Fab/Megascans/Plants/Rough_Meadow_Grass_skFjJ/Medium/skFjJ_tier_2/StaticMeshes/SM_skFjJ_VarB", 1),
+    ("/Game/Fab/Megascans/Plants/Rough_Meadow_Grass_skFjJ/Medium/skFjJ_tier_2/StaticMeshes/SM_skFjJ_VarC", 1),
+    ("/Game/Fab/Megascans/Plants/Rough_Meadow_Grass_skFjJ/Medium/skFjJ_tier_2/StaticMeshes/SM_skFjJ_VarD", 1),
+    ("/Game/Fab/Megascans/Plants/Rough_Meadow_Grass_skFjJ/Medium/skFjJ_tier_2/StaticMeshes/SM_skFjJ_VarE", 1),
+]
 # Children of logs and rocks (#32 nurse_log_01, rock_assembly_01). Only the 1 m sapling fits on a log as a seedling.
 SEEDLING_VARIANTS = [
     ("/Game/Megaplant_Library/Tree_European_Beech/Tree_European_Beech_Saplings_01/Tree_European_Beech_Sapling_01_D", 1),
@@ -84,6 +92,8 @@ PLANT_USAGE_MATERIALS = {
     "/Game/Fab/Megascans/Plants/English_Ivy_xfcnebhqx/Medium/xfcnebhqx_tier_2/Materials/MI_xfcnebhqx_Billboard",
     "/Game/Fab/Megascans/Plants/Lady_Fern_wdvlditia/Medium/wdvlditia_tier_2/Materials/MI_wdvlditia",
     "/Game/Fab/Megascans/Plants/Lady_Fern_wdvlditia/Medium/wdvlditia_tier_2/Materials/MI_wdvlditia_Billboard",
+    "/Game/Fab/Megascans/Plants/Rough_Meadow_Grass_skFjJ/Medium/skFjJ_tier_2/Materials/MI_skFjJ",
+    "/Game/Fab/Megascans/Plants/Rough_Meadow_Grass_skFjJ/Medium/skFjJ_tier_2/Materials/MI_skFjJ_Billboard",
     # Solid scans added for #32 get the same usage bits when first spawned.
     "/Game/Fab/Megascans/3D/Large_Fallen_Tree_wgrubc1s/Medium/wgrubc1s_tier_2/Materials/MI_wgrubc1s",
     "/Game/Fab/Megascans/3D/Mossy_Forest_Boulder_wc1kebr/Medium/wc1kebr_tier_2/Materials/MI_wc1kebr",
