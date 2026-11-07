@@ -1,5 +1,5 @@
-"""Runs in the editor via scripts/editor-py: loads every World Partition actor, sets morning light, and prints each
-pose's camera location (cm) as JSON. scripts/review/capture calls it."""
+"""Runs in the editor via scripts/editor-py: loads every World Partition actor, sets morning light, warms up particle
+systems, and prints each pose's camera location (cm) as JSON. scripts/review/capture calls it."""
 # editor-py: fresh-siblings
 import json
 
@@ -12,6 +12,12 @@ if world.get_path_name() != "/Game/L_vilm.L_vilm":
 partition = unreal.WorldPartitionBlueprintLibrary
 partition.load_actors([desc.guid for desc in partition.get_actor_descs()])
 unreal.SystemLibrary.execute_console_command(world, f"Forest.Time {TIME_OF_DAY}")
+# The editor viewport does not tick particles between captures, so the wisps and motes (#40) would be empty: run every
+# system 10 s ahead.
+for actor in unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors():
+    for component in actor.get_components_by_class(unreal.NiagaraComponent):
+        component.activate(True)
+        component.advance_simulation(300, 1 / 30)
 
 
 def ground(x, y):
