@@ -80,7 +80,13 @@ BANKS = [("Near", 0, 500, {"Ferns": 2, "Herbs": 24, "Balsam": 12}), ("Far", 500,
 
 
 def canopy_filter():
-    """Ground inside a canopy gap from canopy_gaps.json, by horizontal distance. Distance's SphereBounds uses the
+    """Ground inside a canopy gap from canopy_gaps.json, high enough to be forest floor."""
+    return openings_filter("PCG_SaplingsCanopyGaps", "gaps_m [x, y, ground low, ground high, radius]",
+                           shore_height() + 150, 1.0e7)
+
+
+def openings_filter(name, key, low, high):
+    """Ground between low and high cm inside an opening listed under key in canopy_gaps.json, by horizontal distance. Distance's SphereBounds uses the
     bounds' half-diagonal as the radius and is signed (inside is negative), so gaps are grouped by whole-metre radius
     instead: one Create Points + Distance (centre to centre, maximum = that radius) per group, merged. Distance is 3D,
     so each gap is a vertical column of targets COLUMN_STEP apart spanning the gap's traced ground range: the nearest
@@ -91,21 +97,21 @@ def canopy_filter():
 
     data = json.loads(Path(deadwood_rocks.__file__).with_name("canopy_gaps.json").read_text())
     groups = {}
-    for x, y, low, high, radius in data["gaps_m [x, y, ground low, ground high, radius]"]:
-        groups.setdefault(int(radius), []).append((x, y, low, high))
-    graph = copy_asset(ROOT + "PCG_TreesAboveShore", "PCG_SaplingsCanopyGaps")
+    for x, y, ground_low, ground_high, radius in data[key]:
+        groups.setdefault(int(radius), []).append((x, y, ground_low, ground_high))
+    graph = copy_asset(ROOT + "PCG_TreesAboveShore", name)
     inp, out = graph.get_input_node(), graph.get_output_node()
     for node in list(graph.get_editor_property("nodes")):
         if node not in (inp, out):
             graph.remove_node(node)
-    band = z_range(graph, shore_height() + 150, 1.0e7)
+    band = z_range(graph, low, high)
     edge(graph, inp, "In", band, "In")
     merge, _ = graph.add_node_of_type(unreal.PCGMergeSettings)
     for radius, centres in sorted(groups.items()):
         mark, settings = graph.add_node_of_type(unreal.PCGCreatePointsSettings)
         points = []
-        for x, y, low, high in centres:
-            for z in column(low, high):
+        for x, y, ground_low, ground_high in centres:
+            for z in column(ground_low, ground_high):
                 point = unreal.PCGPoint()
                 point.set_editor_property("transform", unreal.Transform(location=unreal.Vector(x * 100, y * 100, z)))
                 points.append(point)

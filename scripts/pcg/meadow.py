@@ -29,7 +29,7 @@ from deadwood_rocks import (
     put,
     save,
 )
-from saplings_understory import drift_points
+from saplings_understory import drift_points, openings_filter
 from trees_above_shore import shore_height, z_range
 
 # (x m, y m, radius m) per meadow stretch: the coastal meadow at the clearing view, and grassland on the north-west lobe.
@@ -41,24 +41,16 @@ PATCH_RADIUS = 300  # cm
 # Heather (#82): violet drifts on the sunny meadow ground; anchors survive about as the logs do (~10%).
 HEATHER_PER_HA = 300  # drift anchors
 HEATHER_DRIFT = (18, 450, 300)  # (plants, length cm, width cm) per drift
-# Coastal forest edge (#82): the same low ground (shore height up to TOP) all round the island, outside the meadows
-# too, at a lower density with the template's spatial noise, so heather lies in separate patches, not a pink line.
+# Coastal forest edge (#82): low ground in the open edge openings all round the island (canopy_gaps.py), at a lower
+# density with the template's spatial noise, so heather lies in separate patches, not a pink line.
 EDGE_HEATHER_PER_HA = 100
 LOGS_PER_HA = 60  # ~10% survive the slope mask and meadow filter (measured: 200/ha -> 38 logs on 2 ha); ~11 logs
 
 
 def edge_graph():
-    """Low coastal ground (shore height up to TOP) anywhere on the island: the sunny forest edge above the sand."""
-    graph = copy_asset(ROOT + "PCG_TreesAboveShore", "PCG_HeatherEdge")
-    inp, out = graph.get_input_node(), graph.get_output_node()
-    for node in list(graph.get_editor_property("nodes")):
-        if node not in (inp, out):
-            graph.remove_node(node)
-    low = z_range(graph, shore_height(), TOP)
-    edge(graph, inp, "In", low, "In")
-    edge(graph, low, "InsideFilter", out, "Out")
-    save(graph)
-    return graph
+    """Low coastal ground (shore height up to TOP) inside a forest-edge opening (canopy_gaps.py): open sky beside the
+    forest, so heather stays off the shaded beech floor (#95 review: low ground alone includes closed canopy)."""
+    return openings_filter("PCG_HeatherEdge", "edges_m [x, y, ground low, ground high, radius]", shore_height(), TOP)
 
 
 def meadow_graph():

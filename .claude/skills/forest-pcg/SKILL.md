@@ -27,7 +27,8 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   then `open`) when it passes ~50 GB, and compare peaks only after a restart. If a run takes much longer or the peak grows beyond that, stop
   and find out why before tuning further.
   The first regenerate after a fresh `editor.sh open` sometimes fails with `PCGComponent: Internal Error -
-  ObjectInstance is null!` and saves nothing; run it again (twice seen, both passed on the retry).
+  ObjectInstance is null!` or passes the 60 GB guard, and saves nothing; run it again (seen three times, each
+  passed on the retry at 45-48 GB).
 - Change density or extent, not both, and check the estimate before each change.
 
 ## Counts do not scale smoothly
