@@ -48,13 +48,16 @@ MASTERS = {  # stock master -> (coated copy, how it finds up)
     "/Game/Fab/Materials/Standard/M_MS_Base_Fuzz": ("M_MS_Base_Fuzz_Moss", STATIC),
     "/ProceduralVegetationEditor/SampleAssets/Materials/MasterMaterials/MA_Foliage_Trees": ("M_Foliage_Trees_Moss", TREE),
 }
+SLAB = {"SlopeLow": 0.75, "SlopeHigh": 0.92}  # faces within ~25-40 deg of up
 LOG = {"SlopeLow": -0.5, "SlopeHigh": 0.1}  # top and sides down past the middle: no pale side stripe (nurse_log_01, #71)
 COATED = {  # instances that get the coating, with their overrides; one line per variant
     f"{FAB}/3D/Large_Fallen_Tree_wd1mbcvbw/Medium/wd1mbcvbw_tier_2/Materials/MI_wd1mbcvbw": LOG,
     f"{FAB}/3D/Large_Fallen_Tree_wgrubc1s/Medium/wgrubc1s_tier_2/Materials/MI_wgrubc1s": LOG,
     f"{FAB}/3D/Nordic_Forest_Tree_Fallen_Medium_xicmfco/Medium/xicmfco_tier_2/Materials/MI_xicmfco": LOG,
     f"{FAB}/3D/Old_Tree_Stump_wd0qcaobw/Medium/wd0qcaobw_tier_2/Materials/MI_wd0qcaobw": LOG,
-    f"{FAB}/3D/Limestone_Slab_ubxbadpda/Medium/ubxbadpda_tier_2/Materials/MI_ubxbadpda": {},  # top face (rock_assembly_01)
+    # Top face only (rock_assembly_01: "mostly bare sides"); the default band coated most of its tilted sides, and
+    # the moss shell (moss_shells.py) carries the top's thickness (#110 review).
+    f"{FAB}/3D/Limestone_Slab_ubxbadpda/Medium/ubxbadpda_tier_2/Materials/MI_ubxbadpda": SLAB,
     "/Game/Megaplant_Library/Tree_European_Beech/Materials/MI_European_Beech_Bark_01": {},
 }
 ATTRIBUTES = [  # MakeMaterialAttributes pins passed straight through on the tree master
