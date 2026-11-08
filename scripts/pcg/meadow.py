@@ -29,6 +29,7 @@ from deadwood_rocks import (
     put,
     save,
 )
+from saplings_understory import drift_points
 from trees_above_shore import shore_height, z_range
 
 # (x m, y m, radius m) per meadow stretch: the coastal meadow at the clearing view, and grassland on the north-west lobe.
@@ -37,6 +38,9 @@ TOP = 300  # cm above the sea: low coastal ground, below the forest understory (
 ANCHORS_PER_HA = 2000  # anchor clumps; cheap island-wide, only the meadow ground keeps them
 PATCH = 40  # child clumps per anchor, spread over PATCH_RADIUS
 PATCH_RADIUS = 300  # cm
+# Heather (#82): violet drifts on the sunny meadow ground; anchors survive about as the logs do (~10%).
+HEATHER_PER_HA = 300  # drift anchors
+HEATHER_DRIFT = (18, 450, 300)  # (plants, length cm, width cm) per drift
 LOGS_PER_HA = 60  # ~10% survive the slope mask and meadow filter (measured: 200/ha -> 38 logs on 2 ha); ~11 logs
 
 
@@ -110,12 +114,27 @@ def main():
         put(options, OrientUpward=1.0)
         put(value, AssetOptions=options)
         entries.append(value)
+    # Heather drifts: their own sparse generator on the meadow ground, each anchor carrying an irregular drift.
+    heather = [(load(path), weight) for path, weight in variants.HEATHER_VARIANTS]
+    heather_group = generator("MeadowHeather", HEATHER_PER_HA, 25, 58, {"SpatialDensityLow": 1.0},
+                              {"EnableSpatialNoise": False})
+    value = heather_group.get_editor_property("Generator")
+    put(value, GeneratorAllowOverlap=True)
+    heather_group.set_editor_property("Generator", value)
+    save(heather_group)
+    for index, (mesh, weight) in enumerate(heather):
+        drift = children(f"DA_HeatherDrift{index}", template, [(f"PCG_HeatherDrift{index}",
+                                                                drift_points(*HEATHER_DRIFT, index), (0.8, 1.2), heather, True)])
+        value = entry(template, mesh, heather_group, graph, weight, children=drift, collision=False)
+        put(value, AssetType="MeadowHeather_" + mesh.get_name())
+        entries.append(value)
     assets = asset_list("DA_Forest_MeadowAssets", entries)
     for actor in biomes:
         current = list(actor.get_editor_property("Assets"))
         if assets not in current:
             actor.set_editor_property("Assets", current + [assets])
-    print(f"Meadow: {len(grass)} grass variants, anchors at {ANCHORS_PER_HA}/ha x {PATCH} clumps, logs at {LOGS_PER_HA}/ha on"
+    print(f"Meadow: {len(grass)} grass variants, anchors at {ANCHORS_PER_HA}/ha x {PATCH} clumps, {len(heather)} heather"
+          f" variants in drifts at {HEATHER_PER_HA}/ha, logs at {LOGS_PER_HA}/ha on"
           f" {len(MEADOWS)} stretches")
 
 

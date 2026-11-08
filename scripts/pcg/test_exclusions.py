@@ -16,7 +16,7 @@ from water_exclusions import KEEPOUT_TAG
 class TwoTierExclusionTests(unittest.TestCase):
     def test_ground_plants_reach_the_narrow_water_exclusion_only(self):
         for name in ("PCG_PlantsAboveShore", "PCG_UnderstoryDamp", "PCG_UnderstoryBankNear", "PCG_FernsDrift2",
-                     "PCG_HerbsDrift0"):
+                     "PCG_HerbsDrift0", "PCG_BalsamDrift1"):
             self.assertEqual(exact_exclusions.exclusion_tags(name), ["PCG_BiomeExclusion"], name)
 
     def test_every_other_group_also_keeps_out_of_the_wider_keepout(self):
