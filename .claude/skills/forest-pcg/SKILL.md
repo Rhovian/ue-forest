@@ -30,6 +30,12 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   ObjectInstance is null!` or passes the 60 GB guard, and saves nothing; run it again (seen three times, each
   passed on the retry at 45-48 GB).
 - Change density or extent, not both, and check the estimate before each change.
+- Continuous ankle-high cover (~10-15 plants/m2) is out of PCG's reach island-wide: 500 anchors/ha x 15 children gave
+  under 1/m2 and nothing visible in the interior view, and the density that read lush would be tens of millions of
+  instances. Use Landscape Grass from the floor material (forest_floor.py, #100): it spawns only around the camera.
+  It ignores PCG exclusions, so its weight is masked by T_GroundcoverMask (groundcover_mask.py, baked from the
+  water and footpath splines); rebake it when those splines change. GrassVariety density reads far sparser than its
+  "per 10 m2" label: measure in the view.
 
 ## Counts do not scale smoothly
 
