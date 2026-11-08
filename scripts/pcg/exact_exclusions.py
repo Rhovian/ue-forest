@@ -15,8 +15,9 @@ from water_exclusions import KEEPOUT_TAG
 
 LOCAL = "/PCGBiomeCore/LocalBiomeCore.LocalBiomeCore"
 # Ground-plant filters (saplings_understory.py, its drifts): these reach the bank (#71 item 5); every other
-# TransformGraph also excludes water_exclusions.py's wider keepout.
-PLANT_GRAPHS = ("PCG_PlantsAboveShore", "PCG_UnderstoryDamp", "PCG_UnderstoryBank", "PCG_FernsDrift", "PCG_HerbsDrift",
+# TransformGraph also excludes water_exclusions.py's wider keepout. The fern drifts' children keep out of it too, so
+# the water's front 3 m holds the low flowers and leaves and the fern runs stand behind them (#105).
+PLANT_GRAPHS = ("PCG_PlantsAboveShore", "PCG_UnderstoryDamp", "PCG_UnderstoryBank", "PCG_HerbsDrift",
                 "PCG_BalsamDrift", "PCG_FoxgloveDrift")
 
 
