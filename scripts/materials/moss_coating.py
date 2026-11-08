@@ -21,8 +21,20 @@ SCALARS = {  # shared by every coated surface; distances in cm, UVs in metres
     "SlopeLow": 0.35,  # surface normal Z: moss starts on faces tilted up past SlopeLow, full at SlopeHigh
     "SlopeHigh": 0.75,
     "SlopeWeight": 1.0,
-    "BaseTop": 90.0,  # trees: moss climbs root flares and trunks to about this height
-    "BaseFade": 150.0,
+    # Trees: each climbs to its own height (#99; the same 90 cm band on every trunk read as a green sock). The
+    # per-instance seed picks the height where moss starts to thin, between ClimbLow and ClimbHigh, and the fade above
+    # it; EdgeRelief makes the edge ragged; the trunk side facing (SideX, SideY) climbs SideHeight higher and the far
+    # side as much lower. Moss below ContactTop is always full, so every root flare joins the floor (interior_01).
+    "ClimbLow": 90.0,
+    "ClimbHigh": 230.0,
+    "FadeLow": 40.0,
+    "FadeHigh": 140.0,
+    "EdgeRelief": 70.0,
+    "EdgeTile": 0.35,  # ragged edge repeats every ~3 m of bark UV
+    "SideHeight": 50.0,
+    "SideX": -0.6,
+    "SideY": 0.8,
+    "ContactTop": 45.0,
     "BaseWeight": 1.0,
     "PatchTile": 0.5,  # breakup texture repeats every 2 m
     "PatchStrength": 0.6,
@@ -84,10 +96,11 @@ def build_function():
         ("BaseColor", T.FUNCTION_INPUT_VECTOR3), ("Normal", T.FUNCTION_INPUT_VECTOR3),
         ("Roughness", T.FUNCTION_INPUT_SCALAR), ("UpZ", T.FUNCTION_INPUT_SCALAR),
         ("Height", T.FUNCTION_INPUT_SCALAR), ("UV", T.FUNCTION_INPUT_VECTOR2),
+        ("Seed", T.FUNCTION_INPUT_SCALAR), ("Side", T.FUNCTION_INPUT_SCALAR),
     ]):
         inputs[name] = g.node(X.MaterialExpressionFunctionInput, 10, input_name=name, input_type=kind, sort_priority=order)
     p = {name: g.node(X.MaterialExpressionScalarParameter, 10, parameter_name=name, default_value=value, group="Moss")
-         for name, value in SCALARS.items()}
+         for name, value in SCALARS.items() if name not in ("SideX", "SideY")}  # those live in the tree master
 
     def op(cls, column, a, b):
         return g.wire(cls, column, {"A": a, "B": b})
@@ -96,13 +109,22 @@ def build_function():
         return g.node(X.MaterialExpressionConstant, 9, r=value)
 
     slope = g.wire(X.MaterialExpressionSmoothStep, 8, {"Min": p["SlopeLow"], "Max": p["SlopeHigh"], "Value": inputs["UpZ"]})
-    base_max = op(X.MaterialExpressionAdd, 9, p["BaseTop"], p["BaseFade"])
-    above = g.wire(X.MaterialExpressionSmoothStep, 8, {"Min": p["BaseTop"], "Max": base_max, "Value": inputs["Height"]})
+    patches = g.sample(PATCHES, op(X.MaterialExpressionMultiply, 8, inputs["UV"], p["PatchTile"]), 7)
+    edge_patches = g.sample(PATCHES, op(X.MaterialExpressionMultiply, 9, inputs["UV"], p["EdgeTile"]), 9)
+    second = g.wire(X.MaterialExpressionFrac, 10, {"": op(X.MaterialExpressionMultiply, 10, inputs["Seed"], const(7.31))})
+    climb = g.wire(X.MaterialExpressionLinearInterpolate, 9, {"A": p["ClimbLow"], "B": p["ClimbHigh"], "Alpha": inputs["Seed"]})
+    ragged = op(X.MaterialExpressionMultiply, 9, op(X.MaterialExpressionSubtract, 9, (edge_patches, "A"), const(0.5)),
+                p["EdgeRelief"])
+    sided = op(X.MaterialExpressionMultiply, 9, inputs["Side"], p["SideHeight"])
+    top = op(X.MaterialExpressionMax, 8, op(X.MaterialExpressionAdd, 8, climb, op(X.MaterialExpressionAdd, 9, ragged, sided)),
+             p["ContactTop"])
+    fade = g.wire(X.MaterialExpressionLinearInterpolate, 9, {"A": p["FadeLow"], "B": p["FadeHigh"], "Alpha": second})
+    base_max = op(X.MaterialExpressionAdd, 8, top, fade)
+    above = g.wire(X.MaterialExpressionSmoothStep, 8, {"Min": top, "Max": base_max, "Value": inputs["Height"]})
     base = g.wire(X.MaterialExpressionOneMinus, 7, {"": above})
     # Union, not product: base OR slope (moss-techniques.md).
     region = op(X.MaterialExpressionMax, 6, op(X.MaterialExpressionMultiply, 7, base, p["BaseWeight"]),
                 op(X.MaterialExpressionMultiply, 7, slope, p["SlopeWeight"]))
-    patches = g.sample(PATCHES, op(X.MaterialExpressionMultiply, 8, inputs["UV"], p["PatchTile"]), 7)
     breakup = op(X.MaterialExpressionMultiply, 6, op(X.MaterialExpressionSubtract, 6, (patches, "A"), const(0.5)),
                  p["PatchStrength"])
     value = op(X.MaterialExpressionAdd, 5, op(X.MaterialExpressionMultiply, 5, region, p["MossAmount"]), breakup)
@@ -143,7 +165,8 @@ def coat_inputs(g, mode):
         height = g.node(X.MaterialExpressionConstant, 8, r=1.0e6)  # no base band on rocks and logs
         uv = g.wire(X.MaterialExpressionDivide, 8, {"A": g.mask(g.node(X.MaterialExpressionWorldPosition, 9), 8, "rg"),
                                                     "B": g.node(X.MaterialExpressionConstant, 9, r=100.0)})
-        return up, height, uv
+        zero = g.node(X.MaterialExpressionConstant, 8, r=0.0)
+        return up, height, uv, zero, zero
     # Rest pose, interpolated from the vertex shader (moss-techniques.md: never the wind-deformed normal).
     normal = g.wire(X.MaterialExpressionVertexInterpolator, 8, {"": g.node(X.MaterialExpressionPreSkinnedNormal, 9)})
     position = g.node(X.MaterialExpressionLocalPosition, 9)
@@ -152,7 +175,29 @@ def coat_inputs(g, mode):
     uv_scale = g.node(X.MaterialExpressionScalarParameter, 9, parameter_name="BarkUVToMetres", default_value=1.0,
                       group="Moss")
     uv = g.wire(X.MaterialExpressionMultiply, 8, {"A": g.node(X.MaterialExpressionTextureCoordinate, 9), "B": uv_scale})
-    return g.mask(normal, 7, "b"), g.mask(rest, 7, "b"), uv
+    # Per-tree seed hashed from the instance origin in metres: PerInstanceRandom is 0 on Biome Core's skinned trees (#99).
+    # The origin is the instance transform, so the seed stays put in the wind.
+    origin = g.wire(X.MaterialExpressionTransformPosition, 10, {"": g.node(X.MaterialExpressionConstant3Vector, 11)},
+                    transform_source_type=unreal.MaterialPositionTransformSource.TRANSFORMPOSSOURCE_INSTANCE,
+                    transform_type=unreal.MaterialPositionTransformSource.TRANSFORMPOSSOURCE_WORLD)
+    metres = g.wire(X.MaterialExpressionDivide, 9, {"A": g.mask(origin, 10, "rg"),
+                                                    "B": g.node(X.MaterialExpressionConstant, 10, r=100.0)})
+    phase = g.wire(X.MaterialExpressionDotProduct, 9, {
+        "A": metres, "B": g.node(X.MaterialExpressionConstant2Vector, 10, r=12.9898, g=78.233)})
+    seed = g.wire(X.MaterialExpressionFrac, 8, {"": g.wire(X.MaterialExpressionMultiply, 8, {
+        "A": g.wire(X.MaterialExpressionSine, 9, {"": phase}, period=6.283185),
+        "B": g.node(X.MaterialExpressionConstant, 9, r=43758.5453)})})
+    # The side bias is a world direction (one moss side across the forest), brought into each tree's rest frame.
+    side_world = g.wire(X.MaterialExpressionAppendVector, 9, {
+        "A": g.wire(X.MaterialExpressionAppendVector, 10, {
+            "A": g.node(X.MaterialExpressionScalarParameter, 11, parameter_name="SideX", default_value=SCALARS["SideX"], group="Moss"),
+            "B": g.node(X.MaterialExpressionScalarParameter, 11, parameter_name="SideY", default_value=SCALARS["SideY"], group="Moss")}),
+        "B": g.node(X.MaterialExpressionConstant, 10, r=0.0)})
+    side_local = g.wire(X.MaterialExpressionTransform, 8, {"": side_world},
+                        transform_source_type=unreal.MaterialVectorCoordTransformSource.TRANSFORMSOURCE_WORLD,
+                        transform_type=unreal.MaterialVectorCoordTransform.TRANSFORM_LOCAL)
+    side = g.wire(X.MaterialExpressionDotProduct, 7, {"A": g.mask(normal, 8, "rg"), "B": g.mask(side_local, 7, "rg")})
+    return g.mask(normal, 7, "b"), g.mask(rest, 7, "b"), uv, seed, side
 
 
 def coated_master(source_path, name, function, mode):
@@ -164,8 +209,8 @@ def coated_master(source_path, name, function, mode):
     g.row = 200  # below the stock graph
     call = g.node(X.MaterialExpressionMaterialFunctionCall, 2)
     call.set_material_function(function)
-    up, height, uv = coat_inputs(g, mode)
-    for pin, source in {"UpZ": up, "Height": height, "UV": uv}.items():
+    up, height, uv, seed, side = coat_inputs(g, mode)
+    for pin, source in {"UpZ": up, "Height": height, "UV": uv, "Seed": seed, "Side": side}.items():
         mel.connect_material_expressions(source, "", call, pin) or fail(name, pin)
     if mode == STATIC:
         for pin, prop in {"BaseColor": MP.MP_BASE_COLOR, "Normal": MP.MP_NORMAL, "Roughness": MP.MP_ROUGHNESS}.items():
