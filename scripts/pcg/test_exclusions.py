@@ -46,6 +46,12 @@ class BankFalloffTests(unittest.TestCase):
             for kind, share in far.items():
                 self.assertLess(share, near[kind], kind)
 
+    def test_bank_flowers_take_part_in_every_band(self):
+        # Anemone and balsam (#82) are the bank flowers (stream_bank_01: flowers densest on banks).
+        for _, _, _, shares in saplings_understory.BANKS:
+            for kind in ("Herbs", "Balsam"):
+                self.assertIn(kind, shares)
+
     def test_each_band_drops_what_the_nearer_band_covers(self):
         # Distance gives density = distance / outer; a band keeps [lower, 0.99), so its lower bound is inner / outer.
         for _, inner, outer, _ in saplings_understory.BANKS:
