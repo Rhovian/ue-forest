@@ -5,9 +5,9 @@
 
 Operator ruling (#38): some driftwood is fine, a distinct line between sand and forest is not. So debris is scattered
 over the whole beach sand (SAND_FROM up to the shore height), not banded by distance from the forest foot. Small
-pieces (DRIFTWOOD_VARIANTS) use the template's spatial noise, so they gather into occasional small piles with bare sand
-between; a few large trunks (LOG_VARIANTS with a bleached, moss-free child of each log's material; MossAmount 0 is
-bare, moss_coating.py) lie apart. Saves assets and attaches the group; the lead regenerates Core and saves the level.
+pieces (DRIFTWOOD_VARIANTS) lie in small piles, each placed stick the anchor of PILE more around it, with bare sand
+between piles; large trunks (LOG_VARIANTS with a
+bleached, moss-free child of each log's material; MossAmount 0 is bare, moss_coating.py) lie apart. Saves assets and attaches the group; the lead regenerates Core and saves the level.
 """
 
 import importlib
@@ -17,6 +17,7 @@ import unreal
 from deadwood_rocks import (
     ROOT,
     asset_list,
+    children,
     copy_asset,
     edge,
     entry,
@@ -27,13 +28,21 @@ from deadwood_rocks import (
     put,
     save,
 )
+from saplings_understory import drift_points
 from trees_above_shore import shore_height, z_range
 
 FOLDER = ROOT + "Driftwood"
-BLEACH = {"MossAmount": 0.0, "Saturation": 0.25, "Brightness": 1.7}
+BLEACH = {"MossAmount": 0.0, "Saturation": 0.15, "Brightness": 2.4}  # sun-bleached grey; at 1.7 sticks read black in shade
 SAND_FROM = 3  # cm above the sea
-STICKS_PER_HA = 2500  # candidates/ha; ~17,600 pieces island-wide. Between ~1,800 and 2,500 the count jumps (~400 -> 17,600)
-TRUNKS_PER_HA = 12
+# Candidates/ha, without spatial noise, so counts scale with density: trunks 12 -> 4, 60 -> 21, 800 -> 266 island-wide.
+# At 12/ha (4 trunks) the beach read as bare sand with twigs (operator: "dont see any driftwood on the sand at all").
+# Each generator samples the whole biome volume for this thin strip of sand: five stick generators at 2,500/ha passed
+# the 60 GB regenerate limit, so the count comes from children (PILE per anchor), which cost no volume sampling.
+STICKS_PER_HA = 1000  # pile anchors per stick variant, nudged 5% apart; 1,000 peaked at 37 GB after a restart, 1,500 at 58 GB
+PILE = 12  # sticks around each anchor, in an irregular patch PILE_SIZE cm long and wide
+PILE_SIZE = (450, 300)
+TRUNKS_PER_HA = 800
+TRUNK_PRIORITY, STICK_PRIORITY = 55, 60  # lower numbers place first
 mel = unreal.MaterialEditingLibrary
 
 
@@ -49,6 +58,17 @@ def driftwood_material(mesh):
         mel.set_material_instance_scalar_parameter_value(instance, parameter, value)
     save(instance)
     return instance
+
+
+def bleach(assets, materials):
+    """Give every entry of the asset list its mesh's bleached material (children() leaves the source material)."""
+    entries = list(assets.get_editor_property("BiomeAssets"))
+    for value in entries:
+        options = get(value, "MeshOptions")
+        put(options, Material=materials[get(value, "Mesh").get_name()])
+        put(value, MeshOptions=options)
+    assets.set_editor_property("BiomeAssets", entries)
+    save(assets)
 
 
 def sand_graph():
@@ -77,13 +97,22 @@ def main():
     sticks = [(load(variants.VENDOR + path), weight) for path, weight in variants.DRIFTWOOD_VARIANTS]
     materials = {mesh.get_name(): driftwood_material(mesh) for mesh, _ in logs + sticks}
     graph = sand_graph()
-    # Priority 60 so the forest and shore trees win Core's priority difference; slope up to 35 degrees (the soft rise).
-    # Sticks keep the spatial noise (piles with bare sand between); trunks are rare and need none.
-    stick_group = generator("DebrisSticks", STICKS_PER_HA, 35, 60)
-    trunk_group = generator("DebrisTrunks", TRUNKS_PER_HA, 35, 60, {"SpatialDensityLow": 1.0}, {"EnableSpatialNoise": False})
+    # Priorities above the trees' so the forest and shore trees win Core's priority difference; slope up to 35 degrees
+    # (the soft rise). Trunks come before sticks: at equal priority the ~17,600 sticks were placed first and pruned all
+    # but 4 trunks island-wide; this way the sticks are pruned around the trunks instead.
+    # No spatial noise: its density picks the variant, so with one shared stick generator only 2 of 5 meshes ever
+    # spawned, and it made counts jump nonlinearly. Each stick variant gets its own generator, densities nudged apart
+    # (equal densities share every point, deadwood_rocks.py).
+    flat = ({"SpatialDensityLow": 1.0}, {"EnableSpatialNoise": False})
+    trunk_group = generator("DebrisTrunks", TRUNKS_PER_HA, 35, TRUNK_PRIORITY, *flat)
     entries = []
-    for mesh, weight in sticks:
-        value = entry(template, mesh, stick_group, graph, weight, collision=False, aligned=True)
+    for index, (mesh, weight) in enumerate(sticks):
+        density = STICKS_PER_HA * weight * (1 + 0.05 * index)
+        stick_group = generator("DebrisSticks_" + mesh.get_name(), density, 35, STICK_PRIORITY, *flat)
+        pile = children(f"DA_DebrisPile{index}", template, [(f"PCG_DebrisPile{index}", drift_points(PILE, *PILE_SIZE, index),
+                                                             (0.8, 1.3), sticks, True)])
+        bleach(pile, materials)
+        value = entry(template, mesh, stick_group, graph, collision=False, aligned=True, children=pile)
         put(value, AssetType="Driftwood_" + mesh.get_name())
         options = get(value, "MeshOptions")
         put(options, Material=materials[mesh.get_name()])  # sun-bleached, like the trunks
@@ -101,7 +130,7 @@ def main():
         current = list(actor.get_editor_property("Assets"))
         if assets not in current:
             actor.set_editor_property("Assets", current + [assets])
-    print(f"Debris: {len(sticks)} driftwood pieces at {STICKS_PER_HA}/ha (noise patches), {len(logs)} bleached trunks at"
+    print(f"Debris: {len(sticks)} driftwood pieces, piles of 1 + {PILE} at {STICKS_PER_HA}/ha each, {len(logs)} bleached trunks at"
           f" {TRUNKS_PER_HA}/ha, on beach sand")
 
 
