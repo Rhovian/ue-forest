@@ -73,7 +73,7 @@ class CanopyGapTests(unittest.TestCase):
         self.assertFalse(any(abs(x - shaded[0]) < 12 and abs(y - shaded[1]) < 12 for x, y in centres), centres)
         self.assertTrue(any(abs(x - open_hole[0]) < 8 and abs(y - open_hole[1]) < 8 for x, y in centres), centres)
         for x, y in centres:  # nothing under the crown
-            self.assertGreater(((x - veteran[0]) ** 2 + (y - veteran[1]) ** 2) ** 0.5, canopy_gaps.VETERAN_CROWN - 4)
+            self.assertGreater(((x - veteran[0]) ** 2 + (y - veteran[1]) ** 2) ** 0.5, canopy_gaps.VETERAN_CROWN)
 
     def test_envelope_encloses_every_sampled_height(self):
         # canopy_filter's column spans this range; it must hold every traced ground height in any order.
