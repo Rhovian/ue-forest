@@ -32,6 +32,10 @@ DRIFT_SCALE = {"GapShrubs": (1.1, 1.5)}
 # Steepest slope (deg) a kind grows on; ferns and ivy clothe the coastal and stream bank faces (edge_in, #71). The
 # coastal bluff behind edge_in rises 3-15 m at 53-66 deg (traced), so 45 deg left it bare.
 SLOPE = {"Ferns": 65, "Ivy": 70}
+# Steep faces (edge_in's unbroken fern band on the coastal bluff, stream banks): an extra Steep patch, x the kind's
+# base density, only on slopes between STEEP and the kind's SLOPE limit.
+STEEP = 30
+STEEP_SHARE = {"Ferns": 5}
 SHAPES = 4  # drift outlines per kind; each variant's weight is split across them, so neighbouring drifts differ
 
 
@@ -272,13 +276,16 @@ def main():
         spread = [("Canopy", 1, canopy_filter(), True)] if kind in GAP_ONLY else [("Gaps", 1, plain, damp is not None)] + (
             [("Damp", 0.5, damp, True)] if damp else []) + (
             [("Canopy", CANOPY, canopy_filter(), True)] if args.group == "saplings" else []) + (
-            [("Bank" + band, shares[kind], graph, True) for band, graph, shares in banks if kind in shares])
+            [("Bank" + band, shares[kind], graph, True) for band, graph, shares in banks if kind in shares]) + (
+            [("Steep", STEEP_SHARE[kind], plain, True)] if damp and kind in STEEP_SHARE else [])
         for patch, share, transform, overlap in spread:
             doubles, bools = colonies if damp is not None else (None, None)
             if patch == "Canopy":
                 doubles, bools = {"SpatialDensityLow": 1.0}, {"EnableSpatialNoise": False}
             elif patch.startswith("Bank"):  # the colony noise still breaks the bank into runs, but keeps more of it
                 doubles = {**doubles, "SpatialDensityLow": 0.0}
+            elif patch == "Steep":  # SlopeMaskHigh below 1 keeps only ground steeper than STEEP
+                doubles = {**doubles, "SpatialDensityLow": 0.0, "SlopeMaskHigh": math.cos(math.radians(STEEP))}
             # One point per (2 x extent)^2 cell at most, so the extent must allow the requested rate (#32 review).
             extent = min(100, 50 / math.sqrt(density * share / 10000))
             data = generator(kind + patch, density * args.density_scale * share, SLOPE.get(kind, 25), 30 if damp is None else 40,
