@@ -26,6 +26,9 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   across many regenerates in one session (45 -> 54 GB for the same content): restart the editor (`editor.sh close`,
   then `open`) when it passes ~50 GB, and compare peaks only after a restart. If a run takes much longer or the peak grows beyond that, stop
   and find out why before tuning further.
+  The first regenerate after a fresh `editor.sh open` sometimes fails with `PCGComponent: Internal Error -
+  ObjectInstance is null!` or passes the 60 GB guard, and saves nothing; run it again (seen three times, each
+  passed on the retry at 45-48 GB).
 - Change density or extent, not both, and check the estimate before each change.
 
 ## Counts do not scale smoothly
@@ -52,6 +55,14 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   `CENTER` with `maximum_distance = r`, a density filter below 0.99, one Distance per radius, and a vertical column
   of targets per point (meadow.py, `canopy_filter()`).
 - Equal-weight variants with the same density share every sampler point: nudge each density (deadwood_rocks.py).
+- With spatial noise on, a point's noise density picks the entry: five driftwood sticks on one noisy generator spawned
+  only 2 meshes. Give each variant its own noise-free generator, or put the variants in a mixed child palette.
+- A thin target area (beach sand) still costs a whole-volume sample per generator: five stick generators at
+  2,500/ha passed the 60 GB limit. Get the count from children (piles of 12 per anchor, debris_band.py). One anchor
+  generator at the summed density did not behave like five sparse ones (a wall of logs at 5,000/ha, a bare view at
+  2,000/ha): measure before merging generators.
+- A group can exist and still be invisible from the fixed views: check the instances' distance and bearing from the
+  pose (4 trunks island-wide read as "no driftwood"), and their material in shade (bleach strong enough to read pale).
 
 ## Children
 

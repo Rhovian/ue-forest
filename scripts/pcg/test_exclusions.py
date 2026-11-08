@@ -16,7 +16,7 @@ from water_exclusions import KEEPOUT_TAG
 class TwoTierExclusionTests(unittest.TestCase):
     def test_ground_plants_reach_the_narrow_water_exclusion_only(self):
         for name in ("PCG_PlantsAboveShore", "PCG_UnderstoryDamp", "PCG_UnderstoryBankNear", "PCG_FernsDrift2",
-                     "PCG_HerbsDrift0"):
+                     "PCG_HerbsDrift0", "PCG_BalsamDrift1"):
             self.assertEqual(exact_exclusions.exclusion_tags(name), ["PCG_BiomeExclusion"], name)
 
     def test_every_other_group_also_keeps_out_of_the_wider_keepout(self):
@@ -45,6 +45,12 @@ class BankFalloffTests(unittest.TestCase):
             self.assertEqual(outer, inner)
             for kind, share in far.items():
                 self.assertLess(share, near[kind], kind)
+
+    def test_bank_flowers_take_part_in_every_band(self):
+        # Anemone and balsam (#82) are the bank flowers (stream_bank_01: flowers densest on banks).
+        for _, _, _, shares in saplings_understory.BANKS:
+            for kind in ("Herbs", "Balsam"):
+                self.assertIn(kind, shares)
 
     def test_each_band_drops_what_the_nearer_band_covers(self):
         # Distance gives density = distance / outer; a band keeps [lower, 0.99), so its lower bound is inner / outer.

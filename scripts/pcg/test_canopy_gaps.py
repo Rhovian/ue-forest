@@ -46,6 +46,21 @@ class CanopyGapTests(unittest.TestCase):
         # Open ground at the forest's edge lacks trees in every octant.
         self.assertEqual(canopy_gaps.gaps(forest(hole=(2000, 2060, 14)), [(0, 0)]), [])
 
+    def test_forest_edge_has_edge_openings_with_open_sky(self):
+        # Heather's edge openings (#82): open ground beside the forest, each clear of trunks by its radius + CROWN.
+        trunks = forest()
+        found = canopy_gaps.gaps(trunks, [(0, 0)], edge=True)
+        self.assertTrue(found)
+        for x, y, _, radius in found:
+            nearest = min(((tx - x) ** 2 + (ty - y) ** 2) ** 0.5 for tx, ty, _ in trunks)
+            self.assertGreaterEqual(nearest, canopy_gaps.EDGE_GAP)
+            self.assertLessEqual(radius, min(nearest - canopy_gaps.CROWN, canopy_gaps.EDGE_MAX) + 0.05)
+
+    def test_closed_canopy_has_no_edge_openings_inside(self):
+        # Shaded floor under closed canopy is not the sunny forest edge; openings lie only outside the trunks.
+        for x, y, _, _ in canopy_gaps.gaps(forest(), [(0, 0)], edge=True):
+            self.assertFalse(2000 <= x <= 2120 and 2000 <= y <= 2120, (x, y))
+
     def test_envelope_encloses_every_sampled_height(self):
         # canopy_filter's column spans this range; it must hold every traced ground height in any order.
         for heights in ([12.04, 8.06, 9.5], [8.0], [-1.23, 3.751, 0.0]):

@@ -25,7 +25,7 @@ from trees_above_shore import shore_height, z_range
 # Colonies (#71, lush-forest-placement.md §8.1): instead of single plants evenly spread, a sparse anchor carries a
 # drift of plants as ground-projected children, so plants read as masses with moss between. (count, length cm, width cm)
 # per kind; the anchor density is divided by count, so the plant total stays about the same.
-DRIFTS = {"Ferns": (16, 550, 260), "Herbs": (80, 320, 200), "Shrubs": (5, 450, 350),
+DRIFTS = {"Ferns": (16, 550, 260), "Herbs": (80, 320, 200), "Balsam": (40, 280, 180), "Shrubs": (5, 450, 350),
           "GapShrubs": (9, 400, 350)}  # Shrubs, GapShrubs: clearing_02 masses
 # Child scale per drift kind: gap hazel overlaps into one broad waist-to-head mass (clearing_02, #81 review).
 DRIFT_SCALE = {"GapShrubs": (1.1, 1.5)}
@@ -76,11 +76,17 @@ def column(low, high):
 # Bank colonies (#71 item 5): extra drifts that fall off with distance from a water spline, in steps of
 # (band, inner cm, outer cm, {kind: x the kind's base density}). The river spline is its centreline, so the near band
 # covers the half width (3.75 m) and the first metre or so of bank. Flowers fall off fastest (stream_bank_01).
-BANKS = [("Near", 0, 500, {"Ferns": 2, "Herbs": 24}), ("Far", 500, 1000, {"Ferns": 1, "Herbs": 4})]
+BANKS = [("Near", 0, 500, {"Ferns": 2, "Herbs": 24, "Balsam": 12}), ("Far", 500, 1000, {"Ferns": 1, "Herbs": 4, "Balsam": 2})]
 
 
 def canopy_filter():
-    """Ground inside a canopy gap from canopy_gaps.json, by horizontal distance. Distance's SphereBounds uses the
+    """Ground inside a canopy gap from canopy_gaps.json, high enough to be forest floor."""
+    return openings_filter("PCG_SaplingsCanopyGaps", "gaps_m [x, y, ground low, ground high, radius]",
+                           shore_height() + 150, 1.0e7)
+
+
+def openings_filter(name, key, low, high):
+    """Ground between low and high cm inside an opening listed under key in canopy_gaps.json, by horizontal distance. Distance's SphereBounds uses the
     bounds' half-diagonal as the radius and is signed (inside is negative), so gaps are grouped by whole-metre radius
     instead: one Create Points + Distance (centre to centre, maximum = that radius) per group, merged. Distance is 3D,
     so each gap is a vertical column of targets COLUMN_STEP apart spanning the gap's traced ground range: the nearest
@@ -91,21 +97,21 @@ def canopy_filter():
 
     data = json.loads(Path(deadwood_rocks.__file__).with_name("canopy_gaps.json").read_text())
     groups = {}
-    for x, y, low, high, radius in data["gaps_m [x, y, ground low, ground high, radius]"]:
-        groups.setdefault(int(radius), []).append((x, y, low, high))
-    graph = copy_asset(ROOT + "PCG_TreesAboveShore", "PCG_SaplingsCanopyGaps")
+    for x, y, ground_low, ground_high, radius in data[key]:
+        groups.setdefault(int(radius), []).append((x, y, ground_low, ground_high))
+    graph = copy_asset(ROOT + "PCG_TreesAboveShore", name)
     inp, out = graph.get_input_node(), graph.get_output_node()
     for node in list(graph.get_editor_property("nodes")):
         if node not in (inp, out):
             graph.remove_node(node)
-    band = z_range(graph, shore_height() + 150, 1.0e7)
+    band = z_range(graph, low, high)
     edge(graph, inp, "In", band, "In")
     merge, _ = graph.add_node_of_type(unreal.PCGMergeSettings)
     for radius, centres in sorted(groups.items()):
         mark, settings = graph.add_node_of_type(unreal.PCGCreatePointsSettings)
         points = []
-        for x, y, low, high in centres:
-            for z in column(low, high):
+        for x, y, ground_low, ground_high in centres:
+            for z in column(ground_low, ground_high):
                 point = unreal.PCGPoint()
                 point.set_editor_property("transform", unreal.Transform(location=unreal.Vector(x * 100, y * 100, z)))
                 points.append(point)
@@ -220,6 +226,8 @@ def main():
         # Candidates/ha inside colonies: research trial ferns 0.5-2/m2, herb clumps 2-8/m2 (#32).
         ("Shrubs", variants.SHRUB_VARIANTS, 150), ("Ferns", variants.FERN_VARIANTS, 24000),
         ("Herbs", variants.HERB_VARIANTS, 20000), ("Ivy", variants.IVY_VARIANTS, 500),
+        # A yellow accent beside the white anemone (#82): fewer, smaller colonies.
+        ("Balsam", variants.BALSAM_VARIANTS, 6000),
         # Hazel masses in every canopy gap (0.7 ha): ~2 drifts in a 5 m gap, ~6 in a 9 m one, merging; see GAP_ONLY.
         ("GapShrubs", variants.GAP_SHRUB_VARIANTS, 2000)]
     paths = list({path for _, rows, _ in kinds for path, _ in rows})

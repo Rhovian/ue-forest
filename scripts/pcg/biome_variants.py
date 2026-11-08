@@ -89,6 +89,23 @@ BASE_PLANT_VARIANTS = [
 HERB_VARIANTS = [
     ("/Game/Megaplant_Library/Plant_Wood_Anemone/Plant_Wood_Anemone_01/Plant_Wood_Anemone_01_A", 1),
 ]
+# Second flower colour (#82): small pale yellow balsam, a beech-wood floor and bank plant, in its own colonies.
+BALSAM_VARIANTS = [
+    ("/Game/Megaplant_Library/Plant_Small_Balsam/Plant_Small_Balsam_01/Plant_Small_Balsam_01_A", 1),
+    ("/Game/Megaplant_Library/Plant_Small_Balsam/Plant_Small_Balsam_01/Plant_Small_Balsam_01_B", 1),
+    ("/Game/Megaplant_Library/Plant_Small_Balsam/Plant_Small_Balsam_01/Plant_Small_Balsam_01_C", 1),
+    ("/Game/Megaplant_Library/Plant_Small_Balsam/Plant_Small_Balsam_01/Plant_Small_Balsam_01_D", 1),
+    ("/Game/Megaplant_Library/Plant_Small_Balsam/Plant_Small_Balsam_01/Plant_Small_Balsam_01_E", 1),
+]
+# Pink-purple heather (#82) in drifts on the sunny meadow stretches (meadow.py), not the shaded beech floor.
+HEATHER_VARIANTS = [
+    ("/Game/Megaplant_Library/Shrub_Heather/Shrub_Heather_01/Shrub_Heather_01_A", 1),
+    ("/Game/Megaplant_Library/Shrub_Heather/Shrub_Heather_01/Shrub_Heather_01_B", 1),
+    ("/Game/Megaplant_Library/Shrub_Heather/Shrub_Heather_01/Shrub_Heather_01_C", 1),
+    ("/Game/Megaplant_Library/Shrub_Heather/Shrub_Heather_01/Shrub_Heather_01_D", 1),
+    ("/Game/Megaplant_Library/Shrub_Heather/Shrub_Heather_01/Shrub_Heather_01_E", 1),
+    ("/Game/Megaplant_Library/Shrub_Heather/Shrub_Heather_01/Shrub_Heather_01_F", 1),
+]
 IVY_VARIANTS = [
     ("/Game/Fab/Megascans/Plants/English_Ivy_xfcnebhqx/Medium/xfcnebhqx_tier_2/StaticMeshes/SM_xfcnebhqx_VarA", 1),
 ]
