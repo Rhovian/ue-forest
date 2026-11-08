@@ -78,7 +78,9 @@ GRASS = f"{FOLDER}/DA_ForestGroundcover"  # a LandscapeGrassType; DA_ per the na
 # GrassVariety density ("per 10 m2") summed over the variants, where the weight is 1. Measured in the interior view:
 # 120 and 250 read as a few scattered tufts; 1000 matches the #98 trial that read as one continuous layer.
 GRASS_DENSITY = 1000.0
-GRASS_CULL = (2500, 4000)  # cm: fade start, gone
+# cm beyond which groundcover is not spawned. No fade: StartCullDistance only feeds PerInstanceFadeAmount, which the
+# Project Nature materials do not read (#108 review), so plants stop at this distance.
+GRASS_CULL = 4000
 GRASS_SCALE = (0.9, 1.6)
 GRASS_NOISE_CM = 900.0  # feature size of the runs and openings
 # No groundcover in water or on the footpath: groundcover_mask.py's 1 m grid over the island's bounds (forest_foot.json).
@@ -100,8 +102,8 @@ def grass_type():
             raise SystemExit(f"missing groundcover mesh {path}")
         variety.set_editor_property("grass_mesh", mesh)
         variety.set_editor_property("grass_density", unreal.PerPlatformFloat(default=GRASS_DENSITY * weight / total))
-        variety.set_editor_property("start_cull_distance", unreal.PerPlatformInt(default=GRASS_CULL[0]))
-        variety.set_editor_property("end_cull_distance", unreal.PerPlatformInt(default=GRASS_CULL[1]))
+        variety.set_editor_property("start_cull_distance", unreal.PerPlatformInt(default=GRASS_CULL))
+        variety.set_editor_property("end_cull_distance", unreal.PerPlatformInt(default=GRASS_CULL))
         variety.set_editor_property("scale_x", unreal.FloatInterval(*GRASS_SCALE))
         variety.set_editor_property("scaling", unreal.GrassScaling.UNIFORM)
         variety.set_editor_property("random_rotation", True)
