@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Editor lifecycle for the lead. See AGENTS.md "Code changes".
 #   editor.sh open [editor args...]  launch with MCP on 8000; returns once MCP listens and L_vilm is fully loaded
-#   editor.sh close                  save dirty packages, quit; force-quit if a dialog still holds it; returns once 8000 is free
+#   editor.sh close                  save dirty packages (stops if that fails), quit, force-quit if a dialog still holds it; returns once 8000 is free
 #   editor.sh kill                   force-quit a hung editor (unsaved work is lost); returns once 8000 is free
 #   editor.sh build                  full build; the editor must be closed
 #   editor.sh hot                    hot reload build; .cpp function bodies only, editor open
@@ -43,6 +43,9 @@ case ${1:-} in
     running && { echo "editor already running" >&2; exit 1; }
     wait_for 60 "port $PORT to free" eval '! port_busy'
     launched=$(mktemp); trap 'rm -f "$launched"' EXIT
+    # Packages left by an earlier forced exit raise a restore prompt at startup whatever bAutoSaveEnable says
+    # (PackageAutoSaver reads this file on its own), and the prompt blocks MCP and editor-py until clicked.
+    rm -f "$(dirname "$UPROJECT")/Saved/Autosaves/PackageRestoreData.json"
     open -n -a "$UE_ROOT/Engine/Binaries/Mac/UnrealEditor.app" --args "$UPROJECT" \
       -ModelContextProtocolStartServer -ModelContextProtocolPort=$PORT "$@"
     wait_for 900 "MCP on port $PORT" mcp_up
@@ -54,10 +57,14 @@ case ${1:-} in
   close)
     running || exit 0
     # Save first, so quitting never stops on Unreal's unsaved-changes dialog: a modal blocks MCP and editor-py, and
-    # the lead closes the editor unattended. If the save cannot run (editor already stuck), quit anyway.
-    echo 'print("saved", unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True))' \
-      | EDITOR_PY_TIMEOUT=300 "$(dirname "$0")/editor-py" - || echo "could not save before quitting" >&2
-    osascript -e 'quit app "UnrealEditor"'
+    # the lead closes the editor unattended. A failed or unfinished save stops here, with the editor still open:
+    # use kill only when losing its unsaved work is acceptable.
+    echo 'if not unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True): raise SystemExit("not saved")' \
+      | EDITOR_PY_TIMEOUT=300 "$(dirname "$0")/editor-py" - ||
+      { echo "could not save dirty packages; editor left open (editor.sh kill discards them)" >&2; exit 1; }
+    # Everything is saved now, so a dialog that still holds the editor (or a quit request it cannot answer) is
+    # force-quit below without losing work.
+    osascript -e 'quit app "UnrealEditor"' || true
     if ! wait_for 120 "the editor to quit" eval '! running'; then
       echo "force-quitting: a dialog still holds the editor after the save" >&2
       pkill -9 -f "UnrealEditor.*$UPROJECT" || true
