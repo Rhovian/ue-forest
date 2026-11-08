@@ -11,6 +11,7 @@ places each shell as a child at its host's exact transform. Rerun after a host o
 deadwood_rocks.py, exact_exclusions.py and regenerate_biome.py.
 """
 
+import importlib
 import math
 import sys
 from pathlib import Path
@@ -19,6 +20,10 @@ import unreal
 
 sys.path.insert(0, str(Path(unreal.Paths.project_dir()) / "../scripts/pcg"))
 import biome_variants
+
+# The editor keeps imported modules between runs: without a reload, a variant appended since the last run of any builder
+# would get no shell here while deadwood_rocks.py (which reloads) places it (#110 review).
+biome_variants = importlib.reload(biome_variants)
 
 G = unreal
 mel = unreal.MaterialEditingLibrary

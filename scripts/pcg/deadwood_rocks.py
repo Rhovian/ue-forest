@@ -175,9 +175,14 @@ def entry(template, mesh, group, transform, weight=1, children=None, collision=T
 SHELL_EXTENTS = 0.001  # a moss shell's child bounds: it sits on its host's own point and must prune no sibling
 
 
+def shell_mesh(mesh):
+    """The host's moss shell (moss_shells.py), or None."""
+    return unreal.load_asset(f"/Game/ForestBiome/MossShells/SM_{mesh.get_name()}_MossShell")
+
+
 def shell_layout(mesh):
-    """The moss shell layout for a host (moss_shells.py), or [] if it has none: one point at the host's own transform."""
-    shell = unreal.load_asset(f"/Game/ForestBiome/MossShells/SM_{mesh.get_name()}_MossShell")
+    """The moss shell layout for a host, or [] if it has none: one point at the host's own transform."""
+    shell = shell_mesh(mesh)
     return [("PCG_Shell_" + mesh.get_name(), [(0, 0, 0)], (1, 1), [(shell, 1)], False, False)] if shell else []
 
 
@@ -298,10 +303,16 @@ def main():
         # a large log and one on the short piece, between the seedlings, and ferns and anemone every 90 cm along both
         # sides of the trunk and at its ends.
         hits = surface_hits(mesh)
+        # Seedlings and fungi stand on the moss shell's surface where the log has one (#110 review): sampled on the
+        # bare bark they sat 8-20 cm inside the shell. along_top takes the highest upward hit at each station, so with
+        # the shell's hits added it lands on the shell where there is one and on the bark where there is not (the
+        # short log's small shell alone left its one seedling station empty). Side plants stay on the host's hits.
+        shell = shell_mesh(mesh)
+        tops = hits + surface_hits(shell) if shell else hits
         length = max(getattr(box.max, a) - getattr(box.min, a) for a in "xy")
-        seedling_tops = along_top(hits, max(1, min(5, round(length / 400))))
+        seedling_tops = along_top(tops, max(1, min(5, round(length / 400))))
         fungi_tops = [(x, y, z - min(bases) - 0.25)  # bury the stem base 2.5 mm, not the cap
-                      for x, y, z in along_top(hits, 3)[::2][:2 if length > 400 else 1]]
+                      for x, y, z in along_top(tops, 3)[::2][:2 if length > 400 else 1]]
         sides = along_sides(hits, 90, 15)
         # The moss shell comes first: Core prunes later entries against earlier ones, and its bounds are tiny.
         nurse_children = children("DA_NurseChildren_" + name, template, shell_layout(mesh) + [
