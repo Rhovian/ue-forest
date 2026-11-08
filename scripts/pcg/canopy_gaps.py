@@ -29,7 +29,9 @@ CROWN = 4  # m of crown overhang taken off the trunk distance: the open sky is s
 EDGE_GAP = 6  # m to the nearest trunk for an edge opening: 2 m of open sky after the crown
 EDGE_SIDES = 3  # octants with trees within RING: beside the forest, not out on the sand or sea
 EDGE_MAX = 8  # m: largest edge opening radius (the seaward side has no trunk to bound it)
-VETERAN_CROWN = 12  # m: veteran field beech crown radius at scale ~1.7 (veteran_trees.py); ~40 m across at 1.9
+# m: veteran crown radius at the largest scale: the field beech mesh is 22.9 x 23.4 m across at 1.0 (measured bounds),
+# so 11.7 m x veteran_trees.SCALE[1].
+VETERAN_CROWN = 11.7 * 1.9
 GAPS_KEY, EDGES_KEY = "gaps_m [x, y, ground low, ground high, radius]", "edges_m [x, y, ground low, ground high, radius]"
 OUT = Path(meadow.__file__).with_name("canopy_gaps.json")  # editor-py runs scripts without __file__
 
@@ -40,13 +42,17 @@ def is_exclusion(tags):
 
 
 def with_veterans(trunks, veterans):
-    """Trunks plus each veteran as its trunk and a ring of points at VETERAN_CROWN - CROWN: the gap test subtracts
-    CROWN from the nearest trunk, so ground under a veteran's broad crown never counts as open sky."""
-    ring = VETERAN_CROWN - CROWN
+    """Trunks plus each veteran as its trunk and filled rings of points out to VETERAN_CROWN - CROWN, CROWN apart: the
+    gap test subtracts CROWN from the nearest trunk, so no ground under a veteran's crown counts as open sky."""
     points = list(trunks)
+    rings = math.ceil((VETERAN_CROWN - CROWN) / CROWN)
     for x, y, z in veterans:
         points.append((x, y, z))
-        points += [(x + ring * math.cos(a * math.pi / 12), y + ring * math.sin(a * math.pi / 12), z) for a in range(24)]
+        for k in range(1, rings + 1):
+            radius = (VETERAN_CROWN - CROWN) * k / rings
+            count = math.ceil(2 * math.pi * radius / CROWN)
+            points += [(x + radius * math.cos(2 * math.pi * i / count), y + radius * math.sin(2 * math.pi * i / count), z)
+                       for i in range(count)]
     return points
 
 

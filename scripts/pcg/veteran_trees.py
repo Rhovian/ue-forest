@@ -26,7 +26,7 @@ PRIORITY = -10  # before the Trees group (0): the beech are pruned around the ve
 # The field tree is 23 m tall with a moderate trunk at 1.0 (and the generator's default 0.8-1.2 read as an ordinary
 # beech); veterans are the island's biggest trees, trunks clearly thicker than the 1.1-1.9 forest beech (#79).
 SCALE = (1.5, 1.9)
-# Pruning uses the asset's bounds: at full size (~40 m across at 1.9) each veteran cleared ~0.2 ha of beech, a sunlit
+# Pruning uses the asset's bounds: at full size (the mesh is ~23 m across at 1.0, ~44 m at 1.9) each veteran cleared ~0.2 ha of beech, a sunlit
 # hole in the interior view. Shrunk, the neighbours stand at the inner crown and the outer crown interleaves with them.
 PRUNE_EXTENT = 0.3
 
