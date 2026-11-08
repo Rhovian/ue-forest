@@ -118,8 +118,8 @@ IVY_VARIANTS = [
 # (wispy and straw-headed meadow grasses, tall pale ground stalks, single-stem meadow flowers) was deleted.
 # Low connector between fern colonies (#100): soft green tufts and small leafy rosettes, ankle high.
 GROUNDCOVER_VARIANTS = [
-    ("/Game/PN_FoliageCollection/Meshes/grassMesh/lowGrass_01_01_SM", 3),
-    ("/Game/PN_FoliageCollection/Meshes/grassMesh/lowGrass_01_02_SM", 3),
+    ("/Game/PN_FoliageCollection/Meshes/grassMesh/lowGrass_01_01_SM", 4),
+    ("/Game/PN_FoliageCollection/Meshes/grassMesh/lowGrass_01_02_SM", 4),
     ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_01_01", 1),
     ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_01_02", 1),
     ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_01_03", 1),
