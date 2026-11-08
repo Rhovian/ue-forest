@@ -15,13 +15,14 @@ from water_exclusions import KEEPOUT_TAG
 
 class TwoTierExclusionTests(unittest.TestCase):
     def test_ground_plants_reach_the_narrow_water_exclusion_only(self):
-        for name in ("PCG_PlantsAboveShore", "PCG_UnderstoryDamp", "PCG_UnderstoryBankNear", "PCG_FernsDrift2",
-                     "PCG_HerbsDrift0", "PCG_BalsamDrift1"):
+        for name in ("PCG_PlantsAboveShore", "PCG_UnderstoryDamp", "PCG_UnderstoryBankNear", "PCG_HerbsDrift0",
+                     "PCG_BalsamDrift1", "PCG_FoxgloveDrift2"):
             self.assertEqual(exact_exclusions.exclusion_tags(name), ["PCG_BiomeExclusion"], name)
 
     def test_every_other_group_also_keeps_out_of_the_wider_keepout(self):
+        # Fern drifts too: their runs stand behind the low bank flowers (#105).
         for name in ("PCG_TreesAboveShore", "PCG_DeadwoodAboveShore", "PCG_RockBase_wdbncbl_tier_2",
-                     "PCG_SaplingsCanopyGaps", "PCG_MeadowGround"):
+                     "PCG_SaplingsCanopyGaps", "PCG_MeadowGround", "PCG_FernsDrift2"):
             self.assertIn(KEEPOUT_TAG, exact_exclusions.exclusion_tags(name), name)
 
     def test_reruns_install_only_missing_tags(self):

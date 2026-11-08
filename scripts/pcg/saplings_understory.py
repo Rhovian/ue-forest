@@ -26,7 +26,7 @@ from trees_above_shore import shore_height, z_range
 # drift of plants as ground-projected children, so plants read as masses with moss between. (count, length cm, width cm)
 # per kind; the anchor density is divided by count, so the plant total stays about the same.
 DRIFTS = {"Ferns": (16, 550, 260), "Herbs": (80, 320, 200), "Balsam": (40, 280, 180), "Shrubs": (5, 450, 350),
-          "GapShrubs": (9, 400, 350)}  # Shrubs, GapShrubs: clearing_02 masses
+          "GapShrubs": (9, 400, 350), "Foxglove": (7, 260, 180)}  # Shrubs, GapShrubs: clearing_02 masses
 # Child scale per drift kind: gap hazel overlaps into one broad waist-to-head mass (clearing_02, #81 review).
 DRIFT_SCALE = {"GapShrubs": (1.1, 1.5)}
 # Steepest slope (deg) a kind grows on; ferns and ivy clothe the coastal and stream bank faces (edge_in, #71). The
@@ -62,6 +62,8 @@ def drift_points(count, length, width, shape):
 
 
 GAP_ONLY = {"GapShrubs"}  # kinds placed only in the canopy gaps
+# Kinds of open, light places (#105): the canopy gaps and the stream and lake banks (BANKS shares), not the closed floor.
+OPENINGS = {"Foxglove"}
 
 # x the Saplings density inside canopy gaps (canopy_gaps.json), with no spatial noise: regeneration is densest under
 # the opening (clearing_01), while noise thins the island-wide saplings to about 1/ha. Saplings are skinned: measure.
@@ -79,7 +81,9 @@ def column(low, high):
 # Bank colonies (#71 item 5): extra drifts that fall off with distance from a water spline, in steps of
 # (band, inner cm, outer cm, {kind: x the kind's base density}). The river spline is its centreline, so the near band
 # covers the half width (3.75 m) and the first metre or so of bank. Flowers fall off fastest (stream_bank_01).
-BANKS = [("Near", 0, 500, {"Ferns": 2, "Herbs": 24, "Balsam": 12}), ("Far", 500, 1000, {"Ferns": 1, "Herbs": 4, "Balsam": 2})]
+# Foxglove's ~1 m violet spikes stand above the bank fern runs, where anemone and balsam are buried (#105).
+BANKS = [("Near", 0, 500, {"Ferns": 2, "Herbs": 24, "Balsam": 12, "Foxglove": 8}),
+         ("Far", 500, 1000, {"Ferns": 1, "Herbs": 4, "Balsam": 2, "Foxglove": 2})]
 
 
 def canopy_filter():
@@ -232,7 +236,9 @@ def main():
         # A yellow accent beside the white anemone (#82): fewer, smaller colonies.
         ("Balsam", variants.BALSAM_VARIANTS, 6000),
         # Hazel masses in every canopy gap (0.7 ha): ~2 drifts in a 5 m gap, ~6 in a 9 m one, merging; see GAP_ONLY.
-        ("GapShrubs", variants.GAP_SHRUB_VARIANTS, 2000)]
+        ("GapShrubs", variants.GAP_SHRUB_VARIANTS, 2000),
+        # Violet spikes in drifts in the canopy gaps and on the banks (#98 qualified, #105); see OPENINGS.
+        ("Foxglove", variants.FOXGLOVE_VARIANTS, 3000)]
     paths = list({path for _, rows, _ in kinds for path, _ in rows})
     # Unique within a kind; a mesh may serve two kinds, as their drift and gap entries carry their own AssetTypes.
     if any(len({p for p, _ in rows}) != len(rows) or not rows or any(w <= 0 for _, w in rows) for _, rows, _ in kinds):
@@ -284,7 +290,11 @@ def main():
                                                                   [(meshes[p], w) for p, w in rows], True)])
                        for k in range(SHAPES)]
         # Dry ground gets the full colony density; damp ground adds half again (stream_bank_01).
-        spread = [("Canopy", 1, canopy_filter(), True)] if kind in GAP_ONLY else [("Gaps", 1, plain, damp is not None)] + (
+        if kind in OPENINGS:
+            spread = [("Canopy", 1, canopy_filter(), True)] + [
+                ("Bank" + band, shares[kind], graph, True) for band, graph, shares in banks if kind in shares]
+        else:
+            spread = [("Canopy", 1, canopy_filter(), True)] if kind in GAP_ONLY else [("Gaps", 1, plain, damp is not None)] + (
             [("Damp", 0.5, damp, True)] if damp else []) + (
             [("Canopy", CANOPY, canopy_filter(), True)] if args.group == "saplings" else []) + (
             [("Bank" + band, shares[kind], graph, True) for band, graph, shares in banks if kind in shares]) + (
