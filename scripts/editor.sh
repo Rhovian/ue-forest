@@ -47,7 +47,7 @@ case ${1:-} in
     # (PackageAutoSaver reads this file on its own), and the prompt blocks MCP and editor-py until clicked. Move it
     # aside, not away: the autosave packages and their mapping stay for a manual restore.
     restore="$(dirname "$UPROJECT")/Saved/Autosaves/PackageRestoreData.json"
-    [[ -f "$restore" ]] && mv "$restore" "$restore.$(date +%Y%m%dT%H%M%S)"
+    [[ -f "$restore" ]] && mv -f "$restore" "$(mktemp "$restore.XXXXXX")"  # mktemp: a name no earlier backup has
     open -n -a "$UE_ROOT/Engine/Binaries/Mac/UnrealEditor.app" --args "$UPROJECT" \
       -ModelContextProtocolStartServer -ModelContextProtocolPort=$PORT "$@"
     wait_for 900 "MCP on port $PORT" mcp_up
@@ -58,20 +58,25 @@ case ${1:-} in
     ;;
   close)
     running || exit 0
+    # A running editor-py (a deferred regenerate keeps working through editor callbacks, not the queue) could dirty
+    # packages after the save below; close only when the lead has nothing else in flight.
+    if pgrep -f "scripts/editor-py" >/dev/null; then
+      echo "an editor-py request is still running; close after it finishes" >&2; exit 1
+    fi
     # Save first, so quitting never stops on Unreal's unsaved-changes dialog: a modal blocks MCP and editor-py, and
-    # the lead closes the editor unattended. A failed or unfinished save stops here, with the editor still open:
-    # use kill only when losing its unsaved work is acceptable.
-    save='if not unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True): raise SystemExit("not saved")'
-    echo "$save" | EDITOR_PY_TIMEOUT=300 "$(dirname "$0")/editor-py" - ||
+    # the lead closes the editor unattended. The same request closes the queue (init_unreal.py), so nothing queued
+    # after it can write before the quit. A failed or unfinished save stops here, with the editor still open: use kill
+    # only when losing its unsaved work is acceptable.
+    printf '%s\n' \
+      'if not unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True): raise SystemExit("not saved")' \
+      'import os; open(os.path.join(unreal.Paths.project_saved_dir(), "EditorPy", "closing"), "w").close()' |
+      EDITOR_PY_TIMEOUT=300 "$(dirname "$0")/editor-py" - ||
       { echo "could not save dirty packages; editor left open (editor.sh kill discards them)" >&2; exit 1; }
-    # A dialog that still holds the editor (or a quit request it cannot answer) is force-quit below, after a second save.
+    # Everything is saved and the queue is closed, so a dialog that still holds the editor (or a quit request it
+    # cannot answer) is force-quit below without losing work.
     osascript -e 'quit app "UnrealEditor"' || true
     if ! wait_for 120 "the editor to quit" eval '! running'; then
-      # Something may have dirtied a package after the first save (a queued script, a running regenerate). editor-py
-      # still runs under the quit dialog, so save again and force-quit only if that save succeeds too.
-      echo "$save" | EDITOR_PY_TIMEOUT=120 "$(dirname "$0")/editor-py" - ||
-        { echo "the editor did not quit and could not save again; left open (editor.sh kill discards)" >&2; exit 1; }
-      echo "force-quitting: a dialog still holds the editor after a second save" >&2
+      echo "force-quitting: a dialog still holds the editor after the save" >&2
       pkill -9 -f "UnrealEditor.*$UPROJECT" || true
       wait_for 30 "the editor to exit" eval '! running'
     fi
