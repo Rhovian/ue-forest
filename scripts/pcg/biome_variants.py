@@ -21,6 +21,13 @@ SLAB_VARIANTS = [
     ("Mossy_Forest_Boulder_wfstcdnaw/Medium/wfstcdnaw_tier_2/StaticMeshes/wfstcdnaw_tier_2", 0.15),
     ("Mossy_Forest_Boulder_wfstchwaw/Medium/wfstchwaw_tier_2/StaticMeshes/wfstchwaw_tier_2", 0.15),
 ]
+# Moss cushions (#71, interior_01; moss_mounds.py): mossy boulders, flattened, sunk and coated all over.
+MOUND_VARIANTS = [
+    ("Mossy_Forest_Boulder_wc1kebr/Medium/wc1kebr_tier_2/StaticMeshes/wc1kebr_tier_2", 1),
+    ("Mossy_Forest_Boulder_wdbncbl/Medium/wdbncbl_tier_2/StaticMeshes/wdbncbl_tier_2", 1),
+    ("Mossy_Forest_Boulder_wfstcdnaw/Medium/wfstcdnaw_tier_2/StaticMeshes/wfstcdnaw_tier_2", 1),
+    ("Mossy_Forest_Boulder_wfstchwaw/Medium/wfstchwaw_tier_2/StaticMeshes/wfstchwaw_tier_2", 1),
+]
 FUNGI_VARIANTS = [
     ("Bolete_Mushrooms_pdvcB/Medium/pdvcB_tier_2/StaticMeshes/pdvcB_LOD0_TIER2_000", 1),
 ]

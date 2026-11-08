@@ -118,11 +118,12 @@ def base_ring(hits, spacing, margin, depth=2):
     return points
 
 
-def build_points_graph(graph, points, edge, scale=(1, 1), ground=False):
+def build_points_graph(graph, points, edge, scale=(1, 1), ground=False, flatten=None, sink=2):
     """Copy local `points` onto every parent point, then upright each with a random yaw and scale.
 
-    `ground` drops each point onto the landscape at its own XY (sunk 2 cm), for plants round a base: the parent's
-    local z = 0 is only the ground at its pivot, and an upright rock's frame ignores the slope (#54 review)."""
+    `ground` drops each point onto the landscape at its own XY (sunk `sink` cm), for plants round a base: the parent's
+    local z = 0 is only the ground at its pivot, and an upright rock's frame ignores the slope (#54 review).
+    `flatten` (low, high) scales height by that range on top of `scale`: low cushions from round meshes."""
     inp, out = graph.get_input_node(), graph.get_output_node()
     for node in list(graph.get_editor_property("nodes")):
         if node not in (inp, out):
@@ -150,9 +151,10 @@ def build_points_graph(graph, points, edge, scale=(1, 1), ground=False):
     upright, settings = graph.add_node_of_type(unreal.PCGTransformPointsSettings)
     settings.set_editor_property("absolute_rotation", True)
     settings.set_editor_property("rotation_max", unreal.Rotator(pitch=0, yaw=360, roll=0))
-    settings.set_editor_property("uniform_scale", True)
-    settings.set_editor_property("scale_min", unreal.Vector(scale[0], scale[0], scale[0]))
-    settings.set_editor_property("scale_max", unreal.Vector(scale[1], scale[1], scale[1]))
+    low, high = flatten or (1, 1)
+    settings.set_editor_property("uniform_scale", flatten is None)
+    settings.set_editor_property("scale_min", unreal.Vector(scale[0], scale[0], scale[0] * low))
+    settings.set_editor_property("scale_max", unreal.Vector(scale[1], scale[1], scale[1] * high))
     edge(graph, copy, "Out", upright, "In")
     last = upright
     if ground:
@@ -164,11 +166,11 @@ def build_points_graph(graph, points, edge, scale=(1, 1), ground=False):
         settings.set_editor_property("projection_params", params)
         edge(graph, upright, "Out", project, "In")
         edge(graph, landscape, "Out", project, "Projection Target")
-        sink, settings = graph.add_node_of_type(unreal.PCGTransformPointsSettings)
+        lower, settings = graph.add_node_of_type(unreal.PCGTransformPointsSettings)
         settings.set_editor_property("absolute_offset", True)
-        settings.set_editor_property("offset_min", unreal.Vector(0, 0, -2))
-        settings.set_editor_property("offset_max", unreal.Vector(0, 0, -2))
-        edge(graph, project, "Out", sink, "In")
-        last = sink
+        settings.set_editor_property("offset_min", unreal.Vector(0, 0, -sink))
+        settings.set_editor_property("offset_max", unreal.Vector(0, 0, -sink))
+        edge(graph, project, "Out", lower, "In")
+        last = lower
     edge(graph, last, "Out", out, "Out")
     return graph

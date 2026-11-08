@@ -173,16 +173,17 @@ def entry(template, mesh, group, transform, weight=1, children=None, collision=T
 
 
 def children(name, template, layouts):
-    """One ChildAssets list from (graph name, points, scale, palette, on the ground) layouts.
+    """One ChildAssets list from (graph name, points, scale, palette, on the ground[, build_points_graph options])
+    layouts.
 
     Entries sharing a layout's graph are weighted alternatives at each of its points. Core's
     BiomeCore_ChildTransformLoop walks the list entry by entry and drops points whose bounds overlap points an earlier
     entry placed, so child bounds shrink to 5%: otherwise layouts prune each other (#32 part 2: seedlings after fungi
     on the same top line kept about 1%)."""
     entries = []
-    for graph_name, points, scale, rows, ground in layouts:
+    for graph_name, points, scale, rows, ground, *options in layouts:
         graph = copy_asset(ROOT + "PCG_TreesAboveShore", graph_name)
-        build_points_graph(graph, points, edge, scale, ground)
+        build_points_graph(graph, points, edge, scale, ground, **(options[0] if options else {}))
         save(graph)
         for child, w in rows:
             value = entry(template, child, None, graph, w, collision=False, aligned=True)
