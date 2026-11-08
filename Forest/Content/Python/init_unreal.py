@@ -10,8 +10,13 @@ import unreal
 
 _ROOT = os.path.join(unreal.Paths.project_saved_dir(), "EditorPy")
 _IN, _OUT = os.path.join(_ROOT, "in"), os.path.join(_ROOT, "out")
+# scripts/editor.sh close writes this in the same request that saves; the queue then runs nothing more, so no queued
+# script can dirty a package between that save and the quit (or force-quit). A new editor starts with the queue open.
+_CLOSING = os.path.join(_ROOT, "closing")
 os.makedirs(_IN, exist_ok=True)
 os.makedirs(_OUT, exist_ok=True)
+if os.path.exists(_CLOSING):
+    os.remove(_CLOSING)
 _elapsed = 0.0
 
 
@@ -45,6 +50,8 @@ def _tick(delta):
         return
     _elapsed = 0.0
     for name in sorted(os.listdir(_IN)):
+        if os.path.exists(_CLOSING):
+            return
         if name.endswith(".py"):
             _run(name)
 
