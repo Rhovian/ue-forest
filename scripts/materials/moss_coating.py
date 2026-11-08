@@ -39,7 +39,7 @@ SCALARS = {  # shared by every coated surface; distances in cm, UVs in metres
     "PatchTile": 0.5,  # breakup texture repeats every 2 m
     "PatchStrength": 0.6,
     "EdgeWidth": 0.15,
-    "MossTile": 1.0,  # moss texture repeats every metre
+    "MossTile": 0.25,  # moss texture repeats every 4 m, as on the floor (MI_ForestFloor MossTile 400): one moss (#103)
 }
 STATIC = "static"
 TREE = "tree"
