@@ -107,6 +107,12 @@ class PreCommitTests(unittest.TestCase):
         self.stage(path, POINTER)
         self.check(path, 0)
 
+    def test_megascans_pack_name(self):
+        for path in ("Forest/Content/EuropeanBeech/Foliage/FT_Beech.uasset",
+                     "Forest/Content/MSPresets/MS_Foliage_Material/MPC_GlobalFoliageActor.uasset"):
+            self.stage(path, POINTER)
+            self.check(path, 0)
+
     def test_modified_name(self):
         path = "Forest/Content/Tree.uasset"
         self.stage(path, POINTER)
