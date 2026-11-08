@@ -195,9 +195,20 @@ def coat_inputs(g, mode):
         "B": g.node(X.MaterialExpressionConstant, 10, r=0.0)})
     side_local = g.wire(X.MaterialExpressionTransform, 8, {"": side_world},
                         transform_source_type=unreal.MaterialVectorCoordTransformSource.TRANSFORMSOURCE_WORLD,
-                        transform_type=unreal.MaterialVectorCoordTransform.TRANSFORM_LOCAL)
-    side = g.wire(X.MaterialExpressionDotProduct, 7, {"A": g.mask(normal, 8, "rg"), "B": g.mask(side_local, 7, "rg")})
-    return g.mask(normal, 7, "b"), g.mask(rest, 7, "b"), uv, seed, side
+                        transform_type=unreal.MaterialVectorCoordTransform.TRANSFORM_INSTANCE)  # LOCAL is the primitive's
+    side_dir = g.wire(X.MaterialExpressionNormalize, 7, {"": g.mask(side_local, 8, "rg")})  # undo the instance scale
+    # PreSkinnedNormal comes back mirrored in Y against the instance frame (measured on #106: a +X side landed on +X,
+    # a +Y side on -Y), so flip its Y before comparing.
+    rest_xy = g.wire(X.MaterialExpressionMultiply, 8, {"A": g.mask(normal, 9, "rg"),
+                                                       "B": g.node(X.MaterialExpressionConstant2Vector, 9, r=1.0, g=-1.0)})
+    side = g.wire(X.MaterialExpressionDotProduct, 7, {"A": rest_xy, "B": side_dir})
+    # Rest height times the tree's own z scale, so the climb is in physical cm on every tree size (#106 review).
+    scale_z = g.wire(X.MaterialExpressionLength, 8, {"": g.wire(X.MaterialExpressionTransform, 9, {
+        "": g.node(X.MaterialExpressionConstant3Vector, 10, constant=unreal.LinearColor(0, 0, 1, 0))},
+        transform_source_type=unreal.MaterialVectorCoordTransformSource.TRANSFORMSOURCE_INSTANCE,
+        transform_type=unreal.MaterialVectorCoordTransform.TRANSFORM_WORLD)})
+    height = g.wire(X.MaterialExpressionMultiply, 7, {"A": g.mask(rest, 8, "b"), "B": scale_z})
+    return g.mask(normal, 7, "b"), height, uv, seed, side
 
 
 def coated_master(source_path, name, function, mode):
