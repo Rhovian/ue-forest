@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Editor lifecycle for the lead. See AGENTS.md "Code changes".
 #   editor.sh open [editor args...]  launch with MCP on 8000; returns once MCP listens and L_vilm is fully loaded
-#   editor.sh close                  quit (Unreal prompts for unsaved assets); returns once 8000 is free
+#   editor.sh close                  save dirty packages, quit; force-quit if a dialog still holds it; returns once 8000 is free
 #   editor.sh kill                   force-quit a hung editor (unsaved work is lost); returns once 8000 is free
 #   editor.sh build                  full build; the editor must be closed
 #   editor.sh hot                    hot reload build; .cpp function bodies only, editor open
@@ -53,8 +53,16 @@ case ${1:-} in
     ;;
   close)
     running || exit 0
+    # Save first, so quitting never stops on Unreal's unsaved-changes dialog: a modal blocks MCP and editor-py, and
+    # the lead closes the editor unattended. If the save cannot run (editor already stuck), quit anyway.
+    echo 'print("saved", unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True))' \
+      | EDITOR_PY_TIMEOUT=300 "$(dirname "$0")/editor-py" - || echo "could not save before quitting" >&2
     osascript -e 'quit app "UnrealEditor"'
-    wait_for 120 "the editor to quit (unsaved-changes dialog?)" eval '! running'
+    if ! wait_for 120 "the editor to quit" eval '! running'; then
+      echo "force-quitting: a dialog still holds the editor after the save" >&2
+      pkill -9 -f "UnrealEditor.*$UPROJECT" || true
+      wait_for 30 "the editor to exit" eval '! running'
+    fi
     wait_for 60 "port $PORT to free" eval '! port_busy'
     ;;
   kill)
