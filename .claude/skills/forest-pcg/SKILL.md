@@ -48,7 +48,8 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
 - Groups without `GeneratorAllowOverlap` are pruned against every earlier group's bounds, and beech crowns are wide:
   island-wide saplings keep ~5% of their points, and saplings in canopy gaps kept none until overlap was allowed.
 - A non-overlapping group at a priority below the Trees group (0) prunes the beech around its points, but its own
-  skinned instances did not spawn (a veteran-beech trial left canopy holes with no tree in them). Groups among the
+  skinned instances did not spawn (a veteran-beech trial left canopy holes with no tree in them); static meshes do
+  spawn there (veteran_trees.py: 81 field beech, each in its own opening). Groups among the
   trees keep overlap on and a priority above 0, as ShoreTrees does.
 - Distance's `SphereBounds` shape uses the bounds' half-diagonal as the radius and is signed (inside is negative), so
   a [0, x] density filter keeps only a ring outside it. Distance is 3D: for "within r of these points" on terrain use
