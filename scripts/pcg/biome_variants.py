@@ -114,6 +114,44 @@ IVY_VARIANTS = [
     ("/Game/Fab/Megascans/Plants/English_Ivy_xfcnebhqx/Medium/xfcnebhqx_tier_2/StaticMeshes/SM_xfcnebhqx_VarA", 1),
 ]
 
+# Project Nature Foliage Collection (#98), qualified in the interior and on the stream bank. The rest of the pack
+# (wispy and straw-headed meadow grasses, tall pale ground stalks, single-stem meadow flowers) was deleted.
+# Low connector between fern colonies (#100): soft green tufts and small leafy rosettes, ankle high.
+GROUNDCOVER_VARIANTS = [
+    ("/Game/PN_FoliageCollection/Meshes/grassMesh/lowGrass_01_01_SM", 3),
+    ("/Game/PN_FoliageCollection/Meshes/grassMesh/lowGrass_01_02_SM", 3),
+    ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_01_01", 1),
+    ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_01_02", 1),
+    ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_01_03", 1),
+    ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_01_04", 1),
+    ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_01_05", 1),
+    ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_02_01", 1),
+    ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_02_02", 1),
+    ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_02_03", 1),
+    ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_02_04", 1),
+    ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_02_05", 1),
+    ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_03_01", 1),
+    ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_03_02", 1),
+    ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_03_03", 1),
+    ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_03_04", 1),
+    ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_03_05", 1),
+    ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_03_06", 1),
+    ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_04_01", 1),
+    ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_04_02", 1),
+    ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_04_03", 1),
+    ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_04_04", 1),
+]
+# Foxglove spikes (~1 m, pink-violet): a violet accent readable at eye height on banks and in gaps (#105).
+FOXGLOVE_VARIANTS = [
+    ("/Game/PN_FoliageCollection/Meshes/flowerMesh/flower_10_01", 1),
+    ("/Game/PN_FoliageCollection/Meshes/flowerMesh/flower_10_02", 1),
+    ("/Game/PN_FoliageCollection/Meshes/flowerMesh/flower_10_03", 1),
+    ("/Game/PN_FoliageCollection/Meshes/flowerMesh/flower_10_04", 1),
+    ("/Game/PN_FoliageCollection/Meshes/flowerMesh/flower_10_05", 1),
+    ("/Game/PN_FoliageCollection/Meshes/flowerMesh/flower_10_06", 1),
+    ("/Game/PN_FoliageCollection/Meshes/flowerMesh/flower_10_07", 1),
+]
+
 # UE MaterialInstance.cpp:SetMaterialUsage automatically adds required shader usage bits
 # when these static plants first spawn (Nanite/InstancedStaticMeshes/Voxels). Save only these MIs.
 PLANT_USAGE_MATERIALS = {
