@@ -58,20 +58,20 @@ case ${1:-} in
     ;;
   close)
     running || exit 0
-    # A running editor-py (a deferred regenerate keeps working through editor callbacks, not the queue) could dirty
-    # packages after the save below; close only when the lead has nothing else in flight.
-    if pgrep -f "scripts/editor-py" >/dev/null; then
-      echo "an editor-py request is still running; close after it finishes" >&2; exit 1
-    fi
     # Save first, so quitting never stops on Unreal's unsaved-changes dialog: a modal blocks MCP and editor-py, and
     # the lead closes the editor unattended. The same request closes the queue (init_unreal.py), so nothing queued
-    # after it can write before the quit. A failed or unfinished save stops here, with the editor still open: use kill
-    # only when losing its unsaved work is acceptable.
-    printf '%s\n' \
+    # after it can write before the quit. It refuses, leaving the editor open, when a regeneration is still running
+    # (it writes through its own callbacks, not the queue; regenerate_biome.ACTIVE) or when it runs after this
+    # shell stopped waiting for it, so a late request cannot close the queue with no quit to follow. A failed save
+    # also stops here: use kill only when losing unsaved work is acceptable.
+    deadline=$(($(date +%s) + 240))  # before the 300 s editor-py timeout, leaving the save a minute
+    printf '%s\n' 'import builtins, os, time' \
+      "if time.time() > $deadline: raise SystemExit('close request ran after its caller gave up')" \
+      'if getattr(builtins, "_forest_biome_regeneration", None): raise SystemExit("a regeneration is still running")' \
       'if not unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True): raise SystemExit("not saved")' \
-      'import os; open(os.path.join(unreal.Paths.project_saved_dir(), "EditorPy", "closing"), "w").close()' |
+      'open(os.path.join(unreal.Paths.project_saved_dir(), "EditorPy", "closing"), "w").close()' |
       EDITOR_PY_TIMEOUT=300 "$(dirname "$0")/editor-py" - ||
-      { echo "could not save dirty packages; editor left open (editor.sh kill discards them)" >&2; exit 1; }
+      { echo "could not save and close the queue; editor left open (editor.sh kill discards unsaved work)" >&2; exit 1; }
     # Everything is saved and the queue is closed, so a dialog that still holds the editor (or a quit request it
     # cannot answer) is force-quit below without losing work.
     osascript -e 'quit app "UnrealEditor"' || true
