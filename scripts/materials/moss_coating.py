@@ -36,7 +36,7 @@ MASTERS = {  # stock master -> (coated copy, how it finds up)
     "/Game/Fab/Materials/Standard/M_MS_Base_Fuzz": ("M_MS_Base_Fuzz_Moss", STATIC),
     "/ProceduralVegetationEditor/SampleAssets/Materials/MasterMaterials/MA_Foliage_Trees": ("M_Foliage_Trees_Moss", TREE),
 }
-LOG = {"SlopeLow": -0.1, "SlopeHigh": 0.4}  # whole top and upper sides (nurse_log_01)
+LOG = {"SlopeLow": -0.5, "SlopeHigh": 0.1}  # top and sides down past the middle: no pale side stripe (nurse_log_01, #71)
 COATED = {  # instances that get the coating, with their overrides; one line per variant
     f"{FAB}/3D/Large_Fallen_Tree_wd1mbcvbw/Medium/wd1mbcvbw_tier_2/Materials/MI_wd1mbcvbw": LOG,
     f"{FAB}/3D/Large_Fallen_Tree_wgrubc1s/Medium/wgrubc1s_tier_2/Materials/MI_wgrubc1s": LOG,
