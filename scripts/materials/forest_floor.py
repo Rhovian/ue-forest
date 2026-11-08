@@ -10,10 +10,15 @@ Landscape actor in the open level (streaming proxies inherit it).
 """
 
 import importlib
+import json
 import sys
+from pathlib import Path
 
 import matgraph
 import unreal
+
+sys.path.insert(0, str(Path(unreal.Paths.project_dir()) / "../scripts/pcg"))
+import biome_variants
 
 importlib.reload(matgraph)  # the editor keeps imported modules between runs
 mel = matgraph.mel
@@ -54,12 +59,59 @@ SCALARS = {  # world units are cm; sea level is Z 0
     "PatchStrength": 0.6,  # moss-patch texture adds edge detail inside the noise's mossy areas
     "DetailScale": 2.7,  # each layer is also sampled this many times larger, blended by slow noise (anti-tiling)
     "MacroBrightness": 0.15,  # +/- brightness variation across the ground
+    "GrassRunLow": 0.3,  # groundcover noise: none below GrassRunLow, full above GrassRunHigh
+    "GrassRunHigh": 0.55,
+    # cm inland, horizontally, over which groundcover fades in above the (noisy) shore line: starting it at the sand
+    # edge drew a crisp green line along the beach (transition_ground; operator on #38: no distinct line).
+    "GrassShoreWidth": 500.0,
 }
 MOSS_TINT = matgraph.MOSS_TINT
 MOSS_NOISE_CM = 2000.0  # feature size of the noise that places moss
 MACRO_NOISE_CM = 1200.0  # feature size of the noise that hides texture repetition
 SHORE_NOISE_CM = 350.0  # feature size of the shore line's tongues and islands
 LITTER_NOISE_CM = 120.0  # feature size of the litter patches on sand
+# Groundcover (#100): ankle-high tufts and rosettes (biome_variants.GROUNDCOVER_VARIANTS, #98) as Landscape Grass, which
+# spawns only around the camera. As PCG children the density that reads as a continuous layer (~15/m2 in the #98
+# trial) would be tens of millions of instances island-wide; PCG at 500 anchors/ha x 15 gave under 1/m2 and none
+# showed in the interior view.
+GRASS = f"{FOLDER}/DA_ForestGroundcover"  # a LandscapeGrassType; DA_ per the naming hook
+# GrassVariety density ("per 10 m2") summed over the variants, where the weight is 1. Measured in the interior view:
+# 120 and 250 read as a few scattered tufts; 1000 matches the #98 trial that read as one continuous layer.
+GRASS_DENSITY = 1000.0
+# cm beyond which groundcover is not spawned. No fade: StartCullDistance only feeds PerInstanceFadeAmount, which the
+# Project Nature materials do not read (#108 review), so plants stop at this distance.
+GRASS_CULL = 4000
+GRASS_SCALE = (0.9, 1.6)
+GRASS_NOISE_CM = 900.0  # feature size of the runs and openings
+# No groundcover in water or on the footpath: groundcover_mask.py's 1 m grid over the island's bounds (forest_foot.json).
+GRASS_MASK = f"{FOLDER}/T_GroundcoverMask"
+ISLAND = json.loads((Path(unreal.Paths.project_dir()) / "../scripts/pcg/forest_foot.json").read_text())["island_m"]
+
+
+def grass_type():
+    """DA_ForestGroundcover (a LandscapeGrassType) with one variety per GROUNDCOVER_VARIANTS row, sharing GRASS_DENSITY by weight."""
+    variants = importlib.reload(biome_variants).GROUNDCOVER_VARIANTS
+    grass = unreal.load_asset(GRASS) or unreal.AssetToolsHelpers.get_asset_tools().create_asset(
+        GRASS.rsplit("/", 1)[1], FOLDER, unreal.LandscapeGrassType, None)
+    total = sum(weight for _, weight in variants)
+    varieties = []
+    for path, weight in variants:
+        variety = unreal.GrassVariety()
+        mesh = unreal.load_asset(path)
+        if mesh is None:
+            raise SystemExit(f"missing groundcover mesh {path}")
+        variety.set_editor_property("grass_mesh", mesh)
+        variety.set_editor_property("grass_density", unreal.PerPlatformFloat(default=GRASS_DENSITY * weight / total))
+        variety.set_editor_property("start_cull_distance", unreal.PerPlatformInt(default=GRASS_CULL))
+        variety.set_editor_property("end_cull_distance", unreal.PerPlatformInt(default=GRASS_CULL))
+        variety.set_editor_property("scale_x", unreal.FloatInterval(*GRASS_SCALE))
+        variety.set_editor_property("scaling", unreal.GrassScaling.UNIFORM)
+        variety.set_editor_property("random_rotation", True)
+        variety.set_editor_property("align_to_surface", True)
+        varieties.append(variety)
+    grass.set_editor_property("grass_varieties", varieties)
+    unreal.EditorAssetLibrary.save_loaded_asset(grass, False)
+    return grass
 
 
 def build():
@@ -255,6 +307,29 @@ def build():
     )
     littered_rough = g.wire(lerp, 2, {"A": sand_rough, "B": g.mask(sets["Leaves"]["ORM"], 3, "g"), "Alpha": litter})
     rough = g.wire(lerp, 1, {"A": floor_rough, "B": littered_rough, "Alpha": sand_mask})
+
+    # Groundcover where the floor is forest (not sand), not on steep faces, in runs with openings between them.
+    runs = g.wire(unreal.MaterialExpressionSmoothStep, 3, {"Min": p["GrassRunLow"], "Max": p["GrassRunHigh"],
+                                                          "Value": g.noise(4, GRASS_NOISE_CM)})
+    x_min, x_max, y_min, y_max = (v * 100 for v in ISLAND)
+    mask_uv = g.wire(unreal.MaterialExpressionDivide, 3, {
+        "A": g.wire(unreal.MaterialExpressionSubtract, 4, {"A": xy, "B": g.node(
+            unreal.MaterialExpressionConstant2Vector, 5, r=x_min, g=y_min)}),
+        "B": g.node(unreal.MaterialExpressionConstant2Vector, 4, r=x_max - x_min, g=y_max - y_min)})
+    allowed = g.mask(g.sample(GRASS_MASK, mask_uv, 2), 2, "r")
+    grass_rise = g.wire(unreal.MaterialExpressionMultiply, 3, {"A": p["GrassShoreWidth"], "B": tangent})
+    inland = g.wire(unreal.MaterialExpressionSmoothStep, 2, {
+        "Min": p["ShoreHeight"], "Max": g.wire(unreal.MaterialExpressionAdd, 3, {"A": p["ShoreHeight"], "B": grass_rise}),
+        "Value": shore_z})
+    weight = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": g.wire(unreal.MaterialExpressionMultiply, 2, {
+        "A": inland, "B": gentle}), "B": g.wire(unreal.MaterialExpressionMultiply, 2, {"A": runs, "B": allowed})})
+    output = g.node(unreal.MaterialExpressionLandscapeGrassOutput, 0)
+    grass_input = unreal.GrassInput()
+    grass_input.set_editor_property("name", "Groundcover")
+    grass_input.set_editor_property("grass_type", grass_type())
+    output.set_editor_property("grass_types", [grass_input])
+    if not mel.connect_material_expressions(weight, "", output, "Groundcover"):
+        raise SystemExit("could not connect the grass weight")
 
     mel.connect_material_property(color, "", unreal.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(normal, "", unreal.MaterialProperty.MP_NORMAL)
