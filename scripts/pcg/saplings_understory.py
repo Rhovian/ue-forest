@@ -34,8 +34,8 @@ DRIFT_SCALE = {"GapShrubs": (1.1, 1.5)}
 SLOPE = {"Ferns": 65, "Ivy": 70}
 # Steep faces (edge_in's unbroken fern band on the coastal bluff, stream banks): an extra Steep patch, x the kind's
 # base density, only on slopes between STEEP and the kind's SLOPE limit.
-STEEP = 40
-STEEP_SHARE = {"Ferns": 3}
+STEEP = 30
+STEEP_SHARE = {"Ferns": 5}
 SHAPES = 4  # drift outlines per kind; each variant's weight is split across them, so neighbouring drifts differ
 
 
