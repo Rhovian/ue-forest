@@ -8,6 +8,10 @@ LOG_VARIANTS = [
 ]
 # Fallen logs lying in the meadow stretches (#38): only the short piece, whose footprint the meadow ground filter covers;
 # the long trunks need deadwood_rocks.py's reach-aware water keepout and 8-degree support limit.
+# Logs placed across the lake shoreline (shore_logs.py, #114): long trunks that read from the bank views.
+SHORE_LOG_VARIANTS = [
+    ("Large_Fallen_Tree_wd1mbcvbw/Medium/wd1mbcvbw_tier_2/StaticMeshes/wd1mbcvbw_tier_2", 1),
+]
 MEADOW_LOG_VARIANTS = [
     ("Nordic_Forest_Tree_Fallen_Medium_xicmfco/Medium/xicmfco_tier_2/StaticMeshes/xicmfco_tier_2", 1),
 ]
