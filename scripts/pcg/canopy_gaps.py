@@ -29,6 +29,7 @@ CROWN = 4  # m of crown overhang taken off the trunk distance: the open sky is s
 EDGE_GAP = 6  # m to the nearest trunk for an edge opening: 2 m of open sky after the crown
 EDGE_SIDES = 3  # octants with trees within RING: beside the forest, not out on the sand or sea
 EDGE_MAX = 8  # m: largest edge opening radius (the seaward side has no trunk to bound it)
+VETERAN_CROWN = 12  # m: veteran field beech crown radius at scale ~1.7 (veteran_trees.py); ~40 m across at 1.9
 GAPS_KEY, EDGES_KEY = "gaps_m [x, y, ground low, ground high, radius]", "edges_m [x, y, ground low, ground high, radius]"
 OUT = Path(meadow.__file__).with_name("canopy_gaps.json")  # editor-py runs scripts without __file__
 
@@ -36,6 +37,17 @@ OUT = Path(meadow.__file__).with_name("canopy_gaps.json")  # editor-py runs scri
 def is_exclusion(tags):
     """Gaps keep clear of footpath and water exclusions, including the wider water keepout."""
     return "PCG_BiomeExclusion" in tags or KEEPOUT_TAG in tags
+
+
+def with_veterans(trunks, veterans):
+    """Trunks plus each veteran as its trunk and a ring of points at VETERAN_CROWN - CROWN: the gap test subtracts
+    CROWN from the nearest trunk, so ground under a veteran's broad crown never counts as open sky."""
+    ring = VETERAN_CROWN - CROWN
+    points = list(trunks)
+    for x, y, z in veterans:
+        points.append((x, y, z))
+        points += [(x + ring * math.cos(a * math.pi / 12), y + ring * math.sin(a * math.pi / 12), z) for a in range(24)]
+    return points
 
 
 def gaps(trunks, exclusions, edge=False):
@@ -107,6 +119,11 @@ def main():
               for p in unreal.ForestPCGLibrary.get_generated_point_locations(component, "GEN:Trees")]
     if not trunks:
         raise RuntimeError("No generated Trees points: load all cells and regenerate the biome first")
+    veterans = [(p.x / 100, p.y / 100, p.z / 100) for actor in unreal.EditorLevelLibrary.get_all_level_actors()
+                for component in actor.get_components_by_class(unreal.PCGComponent)
+                for p in unreal.ForestPCGLibrary.get_generated_point_locations(component, "GEN:Veterans")]
+    trees = len(trunks)
+    trunks = with_veterans(trunks, veterans)  # canopy from both tree roles (#96 review)
     exclusions = []
     for actor in unreal.EditorLevelLibrary.get_all_level_actors():
         if is_exclusion([str(t) for t in actor.tags]):
@@ -122,8 +139,8 @@ def main():
     low, top = meadow.shore_height() / 100, meadow.TOP / 100
     edges = [(x, y, *ground_range(world, x, y, radius), radius) for x, y, _, radius in gaps(trunks, exclusions, edge=True)
              if low <= ground_range(world, x, y, 0)[0] <= top]
-    OUT.write_text(json.dumps({"trees": len(trunks), GAPS_KEY: found, EDGES_KEY: edges}, indent=0) + "\n")
-    print(f"{len(found)} canopy gaps from {len(trunks)} trees -> {OUT.name}; "
+    OUT.write_text(json.dumps({"trees": trees, "veterans": len(veterans), GAPS_KEY: found, EDGES_KEY: edges}, indent=0) + "\n")
+    print(f"{len(found)} canopy gaps from {trees} trees and {len(veterans)} veterans -> {OUT.name}; "
           f"{sum(math.pi * r * r for *_, r in found) / 10000:.1f} ha open; {len(edges)} edge openings, "
           f"{sum(math.pi * r * r for *_, r in edges) / 10000:.1f} ha")
 

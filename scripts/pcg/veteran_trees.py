@@ -19,6 +19,10 @@ from deadwood_rocks import ROOT, asset_list, entry, generator, get, load, load_f
 
 PER_HA = 2  # candidates/ha island-wide
 PRIORITY = -10  # before the Trees group (0): the beech are pruned around the veteran
+# Core differences point sets by priority before the forest-floor filter, so a candidate the filter later rejects
+# (sand, water, path) has already pruned beech within its pruning bounds (#96 review). Both groups use the same filter,
+# so only beech within PRUNE_EXTENT x half the crown (~6 m) of that boundary are at risk: at PER_HA, about a dozen
+# candidates fall in that strip along the whole coast. Accepted for the veteran crowns; do not raise PER_HA blindly.
 # The field tree is 23 m tall with a moderate trunk at 1.0 (and the generator's default 0.8-1.2 read as an ordinary
 # beech); veterans are the island's biggest trees, trunks clearly thicker than the 1.1-1.9 forest beech (#79).
 SCALE = (1.5, 1.9)

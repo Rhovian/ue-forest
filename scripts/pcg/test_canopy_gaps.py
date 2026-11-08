@@ -61,6 +61,12 @@ class CanopyGapTests(unittest.TestCase):
         for x, y, _, _ in canopy_gaps.gaps(forest(), [(0, 0)], edge=True):
             self.assertFalse(2000 <= x <= 2120 and 2000 <= y <= 2120, (x, y))
 
+    def test_a_veteran_closes_the_opening_under_its_crown(self):
+        # A veteran field beech standing in a regular-tree-free hole shades it: no gap there (#96 review).
+        trees = forest(hole=(2060, 2060, 14))
+        self.assertTrue(canopy_gaps.gaps(trees, [(0, 0)]))
+        self.assertEqual(canopy_gaps.gaps(canopy_gaps.with_veterans(trees, [(2060, 2060, 10.0)]), [(0, 0)]), [])
+
     def test_envelope_encloses_every_sampled_height(self):
         # canopy_filter's column spans this range; it must hold every traced ground height in any order.
         for heights in ([12.04, 8.06, 9.5], [8.0], [-1.23, 3.751, 0.0]):
