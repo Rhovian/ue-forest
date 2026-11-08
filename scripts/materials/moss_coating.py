@@ -37,7 +37,7 @@ MASTERS = {  # stock master -> (coated copy, how it finds up)
     "/ProceduralVegetationEditor/SampleAssets/Materials/MasterMaterials/MA_Foliage_Trees": ("M_Foliage_Trees_Moss", TREE),
 }
 LOG = {"SlopeLow": -0.5, "SlopeHigh": 0.1}  # top and sides down past the middle: no pale side stripe (nurse_log_01, #71)
-# Moss cushions (pcg/moss_mounds.py copies these from the boulders' materials first): moss over every face, thick.
+# Moss cushions (pcg/moss_mounds.py copies the boulders' materials into FOLDER first): moss over every face, thick.
 MOUND = {"MossAmount": 2.0, "SlopeLow": -1.0, "SlopeHigh": -0.6}
 COATED = {  # instances that get the coating, with their overrides; one line per variant
     f"{FAB}/3D/Large_Fallen_Tree_wd1mbcvbw/Medium/wd1mbcvbw_tier_2/Materials/MI_wd1mbcvbw": LOG,
@@ -46,11 +46,11 @@ COATED = {  # instances that get the coating, with their overrides; one line per
     f"{FAB}/3D/Old_Tree_Stump_wd0qcaobw/Medium/wd0qcaobw_tier_2/Materials/MI_wd0qcaobw": LOG,
     f"{FAB}/3D/Limestone_Slab_ubxbadpda/Medium/ubxbadpda_tier_2/Materials/MI_ubxbadpda": {},  # top face (rock_assembly_01)
     "/Game/Megaplant_Library/Tree_European_Beech/Materials/MI_European_Beech_Bark_01": {},
-    "/Game/ForestBiome/Moss/MI_wc1kebr_Mound": MOUND,
-    "/Game/ForestBiome/Moss/MI_wdbncbl_Mound": MOUND,
-    "/Game/ForestBiome/Moss/MI_wfstcdnaw_Mound": MOUND,
-    "/Game/ForestBiome/Moss/MI_wfstchwaw_Mound": MOUND,
 }
+# Every mound material pcg/moss_mounds.py has copied (one per MOUND_VARIANTS mesh) gets MOUND: adding a variant there
+# needs no line here.
+COATED |= {path.split(".")[0]: MOUND for path in unreal.EditorAssetLibrary.list_assets(FOLDER, False)
+           if path.rsplit("/", 1)[1].split(".")[0].startswith("MI_") and path.split(".")[0].endswith("_Mound")}
 ATTRIBUTES = [  # MakeMaterialAttributes pins passed straight through on the tree master
     "Metallic", "Specular", "Anisotropy", "EmissiveColor", "Opacity", "OpacityMask", "Tangent",
     "WorldPositionOffset", "SubsurfaceColor", "ClearCoat", "ClearCoatRoughness", "AmbientOcclusion", "Refraction",
