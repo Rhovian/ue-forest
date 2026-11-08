@@ -15,13 +15,16 @@ import importlib
 
 import biome_variants
 import unreal
-from deadwood_rocks import ROOT, asset_list, entry, generator, load, load_forest_actors, put, save
+from deadwood_rocks import ROOT, asset_list, entry, generator, get, load, load_forest_actors, put, save
 
 PER_HA = 2  # candidates/ha island-wide
 PRIORITY = -10  # before the Trees group (0): the beech are pruned around the veteran
 # The field tree is 23 m tall with a moderate trunk at 1.0 (and the generator's default 0.8-1.2 read as an ordinary
 # beech); veterans are the island's biggest trees, trunks clearly thicker than the 1.1-1.9 forest beech (#79).
 SCALE = (1.5, 1.9)
+# Pruning uses the asset's bounds: at full size (~40 m across at 1.9) each veteran cleared ~0.2 ha of beech, a sunlit
+# hole in the interior view. Shrunk, the neighbours stand at the inner crown and the outer crown interleaves with them.
+PRUNE_EXTENT = 0.3
 
 
 def main():
@@ -49,6 +52,9 @@ def main():
     for mesh, weight in meshes:
         value = entry(template, mesh, group, filter_graph, weight)
         put(value, AssetType="Veteran_" + mesh.get_name())
+        options = get(value, "AssetOptions")
+        put(options, ExtentsMultiplier=unreal.Vector(PRUNE_EXTENT, PRUNE_EXTENT, 1.0))
+        put(value, AssetOptions=options)
         entries.append(value)
     assets = asset_list("DA_Forest_VeteranAssets", entries)
     for actor in biomes:
