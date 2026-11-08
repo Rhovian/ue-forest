@@ -172,25 +172,47 @@ def entry(template, mesh, group, transform, weight=1, children=None, collision=T
     return value
 
 
+SHELL_EXTENTS = 0.001  # a moss shell's child bounds: it sits on its host's own point and must prune no sibling
+
+
+def shell_mesh(mesh):
+    """The host's moss shell (moss_shells.py), or None."""
+    return unreal.load_asset(f"/Game/ForestBiome/MossShells/SM_{mesh.get_name()}_MossShell")
+
+
+def shell_layout(mesh):
+    """The moss shell layout for a host, or [] if it has none: one point at the host's own transform."""
+    shell = shell_mesh(mesh)
+    return [("PCG_Shell_" + mesh.get_name(), [(0, 0, 0)], (1, 1), [(shell, 1)], False, False)] if shell else []
+
+
 def children(name, template, layouts):
-    """One ChildAssets list from (graph name, points, scale, palette, on the ground) layouts.
+    """One ChildAssets list from (graph name, points, scale, palette, on the ground[, upright]) layouts.
 
     Entries sharing a layout's graph are weighted alternatives at each of its points. Core's
     BiomeCore_ChildTransformLoop walks the list entry by entry and drops points whose bounds overlap points an earlier
     entry placed, so child bounds shrink to 5%: otherwise layouts prune each other (#32 part 2: seedlings after fungi
     on the same top line kept about 1%)."""
     entries = []
-    for graph_name, points, scale, rows, ground in layouts:
+    for graph_name, points, scale, rows, ground, *rest in layouts:
+        upright = rest[0] if rest else True
         graph = copy_asset(ROOT + "PCG_TreesAboveShore", graph_name)
-        build_points_graph(graph, points, edge, scale, ground)
+        build_points_graph(graph, points, edge, scale, ground, upright)
         save(graph)
+        extents = 0.05 if upright else SHELL_EXTENTS
         for child, w in rows:
             value = entry(template, child, None, graph, w, collision=False, aligned=True)
             options = get(value, "AssetOptions")
-            put(options, ExtentsMultiplier=unreal.Vector(0.05, 0.05, 0.05))
+            put(options, ExtentsMultiplier=unreal.Vector(extents, extents, extents))
             put(value, AssetOptions=options)
             entries.append(value)
     return asset_list(name, entries)
+
+
+def shell_children(template, mesh):
+    """A ChildAssets list holding only the host's moss shell, or None if it has none."""
+    layout = shell_layout(mesh)
+    return children("DA_ShellChildren_" + mesh.get_name(), template, layout) if layout else None
 
 
 def asset_list(name, entries):
@@ -258,7 +280,7 @@ def main():
         save(mesh)
     plain = filter_graph("PCG_DeadwoodAboveShore")
     deadwood = generator("Deadwood", STUMPS_PER_HA, 20, 10)
-    entries = [entry(template, mesh, deadwood, plain, weight) for mesh, weight in stumps]
+    entries = [entry(template, mesh, deadwood, plain, weight, shell_children(template, mesh)) for mesh, weight in stumps]
     densities = set()
     for index, (mesh, weight) in enumerate(logs):
         name, box = mesh.get_name(), mesh.get_bounding_box()
@@ -281,12 +303,19 @@ def main():
         # a large log and one on the short piece, between the seedlings, and ferns and anemone every 90 cm along both
         # sides of the trunk and at its ends.
         hits = surface_hits(mesh)
+        # Seedlings and fungi stand on the moss shell's surface where the log has one (#110 review): sampled on the
+        # bare bark they sat 8-20 cm inside the shell. along_top takes the highest upward hit at each station, so with
+        # the shell's hits added it lands on the shell where there is one and on the bark where there is not (the
+        # short log's small shell alone left its one seedling station empty). Side plants stay on the host's hits.
+        shell = shell_mesh(mesh)
+        tops = hits + surface_hits(shell) if shell else hits
         length = max(getattr(box.max, a) - getattr(box.min, a) for a in "xy")
-        seedling_tops = along_top(hits, max(1, min(5, round(length / 400))))
+        seedling_tops = along_top(tops, max(1, min(5, round(length / 400))))
         fungi_tops = [(x, y, z - min(bases) - 0.25)  # bury the stem base 2.5 mm, not the cap
-                      for x, y, z in along_top(hits, 3)[::2][:2 if length > 400 else 1]]
+                      for x, y, z in along_top(tops, 3)[::2][:2 if length > 400 else 1]]
         sides = along_sides(hits, 90, 15)
-        nurse_children = children("DA_NurseChildren_" + name, template, [
+        # The moss shell comes first: Core prunes later entries against earlier ones, and its bounds are tiny.
+        nurse_children = children("DA_NurseChildren_" + name, template, shell_layout(mesh) + [
             ("PCG_Fungi_" + name, fungi_tops, (0.9, 1.3), fungi, False),
             ("PCG_Seedlings_" + name, seedling_tops, (1.0, 1.5), seedlings, False),
             ("PCG_LogBase_" + name, sides, (0.7, 1.1), base_plants, True)])
@@ -294,7 +323,7 @@ def main():
         # Only the short piece has plain logs; long ones get no plain filter graph (no unused assets).
         plain_logs = [] if length > 400 else [
             entry(template, mesh, group, filter_graph("PCG_Log_" + name, reach=reach if long else 0, slope=slope), 2,
-                  aligned=True)]
+                  shell_children(template, mesh), aligned=True)]
         entries += plain_logs + [
             entry(template, mesh, group, nurse, 1, nurse_children, aligned=True)]
         print(f"Log variant {name}: share {weight / sum(w for _, w in logs):.1%}, slope {slope} deg, reach {reach:.0f} cm,"
@@ -303,8 +332,8 @@ def main():
     rock_entries = []
     for mesh, weight in slabs:
         # rock_assembly_01: ferns and flowers packed round the base with no bare ring.
-        layouts = [("PCG_RockBase_" + mesh.get_name(), base_ring(surface_hits(mesh), 45, 5), (0.7, 1.1), base_plants,
-                    True)]
+        layouts = shell_layout(mesh) + [("PCG_RockBase_" + mesh.get_name(), base_ring(surface_hits(mesh), 45, 5),
+                                         (0.7, 1.1), base_plants, True)]
         rock_entries.append(entry(template, mesh, rocks, plain, weight,
                                   children("DA_RockChildren_" + mesh.get_name(), template, layouts)))
     groups = [asset_list("DA_Forest_DeadwoodAssets", entries), asset_list("DA_Forest_RocksAssets", rock_entries)]
