@@ -37,6 +37,9 @@ SLOPE = {"Ferns": 65, "Ivy": 70}
 STEEP = 30
 STEEP_SHARE = {"Ferns": 5}
 SHAPES = 4  # drift outlines per kind; each variant's weight is split across them, so neighbouring drifts differ
+# Colony noise floor per kind (default 0.3, see `colonies` in main): a lower floor keeps more of the noise field, so
+# drifts touch into connected runs instead of separate patches (#101: "still just patches in the interior").
+COLONY_LOW = {"Ferns": 0.15}
 
 
 def drift_points(count, length, width, shape):
@@ -288,6 +291,8 @@ def main():
             [("Steep", STEEP_SHARE[kind], plain, True)] if damp and kind in STEEP_SHARE else [])
         for patch, share, transform, overlap in spread:
             doubles, bools = colonies if damp is not None else (None, None)
+            if doubles and kind in COLONY_LOW:
+                doubles = {**doubles, "SpatialDensityLow": COLONY_LOW[kind]}
             if patch == "Canopy":
                 doubles, bools = {"SpatialDensityLow": 1.0}, {"EnableSpatialNoise": False}
             elif patch.startswith("Bank"):  # the colony noise still breaks the bank into runs, but keeps more of it
