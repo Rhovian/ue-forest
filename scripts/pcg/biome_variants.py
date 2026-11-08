@@ -63,6 +63,10 @@ FERN_VARIANTS = [
     ("/Game/Fab/Megascans/Plants/Lady_Fern_wdvlditia/Medium/wdvlditia_tier_2/StaticMeshes/SM_wdvlditia_VarH", 0.15),
     ("/Game/Fab/Megascans/Plants/Lady_Fern_wdvlditia/Medium/wdvlditia_tier_2/StaticMeshes/SM_wdvlditia_VarI", 0.15),
 ]
+# Veteran beech (#80, interior_01's massive old trunks): the Megascans open-grown field tree, a static Nanite mesh.
+VETERAN_VARIANTS = [
+    ("/Game/EuropeanBeech/Geometry/SimpleWind/SM_EuropeanBeech_Field_01", 1),
+]
 # Lone large beech standing on the sand (#38, edge_in_05, beach_01); the Trees group's own copies of these meshes.
 SHORE_TREE_VARIANTS = [
     ("/Game/Megaplant_Library/Tree_European_Beech/Tree_European_Beech_01/Tree_European_Beech_01_A", 1),
