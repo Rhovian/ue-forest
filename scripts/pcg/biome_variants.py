@@ -224,6 +224,23 @@ CONTACT_LITTER_VARIANTS = [
     *[(f"{ED}DeadLeaves/SM_DeadLeaves_{i:02}", 1) for i in (1, 12, 13, 14)],
     *[(f"{EDA}DryBranches/SM_DryBranches_0{i}", 0.3) for i in range(1, 9)],
 ]
+# Beach stones (#122, beach_01/02: limestone stones clustered at the waterline, sparse on dry sand).
+WATERLINE_STONE_VARIANTS = [  # 10-26 cm stones, scaled up
+    (f"{EDA}NordicBeachRock/SM_NordicBeachRock_01", 3),
+    *[(f"{EDA}SmallStonesPack/SM_SmallStonesPack_{i:02}", 0.5) for i in range(1, 15)],
+]
+WATERLINE_GROUND_VARIANTS = [  # 3 m pebble and rocky-ground scans, at about their own size
+    *[(f"{EDA}BeachSandWithPebbles/SM_BeachSandWithPebbles_0{i}", 1) for i in range(1, 3)],
+    *[(f"{EDA}NordicBeachRockyGround/SM_NordicBeachRockyGround_0{i}", 1) for i in range(1, 3)],
+]
+WATERLINE_BOULDER_VARIANTS = [
+    (f"{EDA}NordicBeachRocks/SM_NordicBeachRocks_01", 1),
+    *[(f"{EDA}NordicBoulder/SM_NordicBoulder_0{i}", 0.5) for i in range(1, 3)],
+]
+DRY_SAND_STONE_VARIANTS = [
+    (f"{EDA}NordicBeachRock/SM_NordicBeachRock_01", 1),
+    *[(f"{EDA}SmallStonesPack/SM_SmallStonesPack_{i:02}", 0.2) for i in range(1, 15)],
+]
 # Root mats and mossy embankment pieces straddling the sand edge in patches (#117 review, transition_ground_01: roots
 # across the sand, islands of moss on it, no straight line).
 SHORE_SCAN_VARIANTS = [
