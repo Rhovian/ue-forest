@@ -84,6 +84,10 @@ def column(low, high):
 # Foxglove's ~1 m violet spikes stand above the bank fern runs, where anemone and balsam are buried (#105).
 BANKS = [("Near", 0, 500, {"Ferns": 2, "Herbs": 24, "Balsam": 12, "Foxglove": 8}),
          ("Far", 500, 1000, {"Ferns": 1, "Herbs": 4, "Balsam": 2, "Foxglove": 2})]
+# Each fern colony kind (biome_variants.FERN_COLONY_SHARES, #142) grows as the ferns do.
+for _kind in biome_variants.FERN_COLONY_SHARES:
+    for _settings in (DRIFTS, SLOPE, STEEP_SHARE, COLONY_LOW) + tuple(shares for *_, shares in BANKS):
+        _settings.setdefault(_kind, _settings["Ferns"])
 
 
 def canopy_filter():
@@ -231,7 +235,11 @@ def main():
     # Sparse whole-area candidates, not the research's much higher within-colony densities.
     kinds = [("Saplings", variants.SAPLING_VARIANTS, 300)] if args.group == "saplings" else [
         # Candidates/ha inside colonies: research trial ferns 0.5-2/m2, herb clumps 2-8/m2 (#32).
-        ("Shrubs", variants.SHRUB_VARIANTS, 150), ("Ferns", variants.FERN_VARIANTS, 24000),
+        ("Shrubs", variants.SHRUB_VARIANTS, 150),
+        # Fern colonies (#142): each kind its own drifts, splitting the ferns' 24,000/ha between them.
+        *[(kind, rows, 24000 * variants.FERN_COLONY_SHARES[kind]) for kind, rows in (
+            ("Ferns", variants.FERN_VARIANTS), ("SwordFerns", variants.SWORD_FERN_VARIANTS),
+            ("DeerFerns", variants.DEER_FERN_VARIANTS), ("BeechFerns", variants.BEECH_FERN_VARIANTS))],
         ("Herbs", variants.HERB_VARIANTS, 20000), ("Ivy", variants.IVY_VARIANTS, 500),
         # A yellow accent beside the white anemone (#82): fewer, smaller colonies.
         ("Balsam", variants.BALSAM_VARIANTS, 6000),
