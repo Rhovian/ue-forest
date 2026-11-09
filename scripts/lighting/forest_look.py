@@ -7,8 +7,9 @@ shade stays readable, and from the forest edge the sea and the dark foreground b
 height fog starting 15 m out separates the far trunks (interior_01); the mist itself lies in drifting patches over
 low ground, not a blanket (high_point_01): local fog volumes on part of the ground below 7 m, i.e. the lake basin,
 the lower stream and the coast. Beech bark is mid-grey, not near-white (interior_01 Ignore).
-Saves only the volume's, the fog's, the sky light's and the sun's actor packages, the mist actors and the bark instance: the sun's time-of-day
-rotation and other unsaved level edits are left alone.
+Saves only the volume's, the fog's, the sky light's and the sun's actor packages, the mist actors and the bark instance;
+other unsaved level edits are left alone. The sun's saved rotation is whatever Forest.Time last set: AForestSun
+re-applies its own solar time on construction (ForestSun.cpp OnConstruction), so the saved value does not stick.
 """
 
 import json
@@ -45,8 +46,10 @@ SKY_INTENSITY = 0.6  # the sky light's fill in the shade (was 1.0): deeper shade
 # Sun patches and shafts (#133 review: darker shade alone gave no distinct sunlit focus): a brighter sun (was 10 lux),
 # five times its default scattering into the volumetric fog, and a denser volumetric fog near the camera than the
 # thinned height fog alone gives. Trials: Forest/Saved/Reviews/126/trial_s/.
-SUN = {"intensity": 16.0, "volumetric_scattering_intensity": 5.0}  # DirectionalLightComponent property -> value
-FOG_VOLUMETRIC_EXTINCTION = 3.5
+# Forward scattering (anisotropy 0.6) keeps the shafts; isotropic fog (0.0) lost them, and 5 / 3.5 washed the far trunks
+# white wherever a view faced the sun (#133 review round 2; trials: Forest/Saved/Reviews/126/trial_w/).
+SUN = {"intensity": 16.0, "volumetric_scattering_intensity": 4.5}  # DirectionalLightComponent property -> value
+FOG_VOLUMETRIC = {"volumetric_fog_extinction_scale": 2.5, "volumetric_fog_scattering_distribution": 0.6}
 MIST = "Mist"  # label prefix and outliner folder of the patches
 MIST_BELOW = 700  # cm above the sea: low ground (lake surface 5.9 m)
 MIST_CELL = 4000  # cm grid over the island's bounds (ISLAND)
@@ -91,7 +94,8 @@ skies = [a for a in actors if isinstance(a, unreal.SkyLight)]
 if len(skies) != 1:
     raise RuntimeError(f"expected one SkyLight on L_vilm, found {len(skies)}")
 skies[0].light_component.set_editor_property("intensity", SKY_INTENSITY)
-component.set_editor_property("volumetric_fog_extinction_scale", FOG_VOLUMETRIC_EXTINCTION)
+for name, value in FOG_VOLUMETRIC.items():
+    component.set_editor_property(name, value)
 suns = [a for a in actors if isinstance(a, unreal.DirectionalLight)]
 if len(suns) != 1:
     raise RuntimeError(f"expected one DirectionalLight on L_vilm, found {len(suns)}")
@@ -156,4 +160,4 @@ if not unreal.EditorLoadingAndSavingUtils.save_packages(packages, False):
     raise RuntimeError(f"could not save {LABEL}, the height fog, the sky light, the sun or the mist patches")
 if not unreal.EditorAssetLibrary.save_loaded_asset(bark, False):
     raise RuntimeError(f"could not save {BARK}")
-print(f"{LABEL}: {SETTINGS}; fog: {FOG}; sky {SKY_INTENSITY}; sun {SUN}; volumetric extinction {FOG_VOLUMETRIC_EXTINCTION}; {len(mist)} mist patches; bark tint {BARK_TINT}")
+print(f"{LABEL}: {SETTINGS}; fog: {FOG}; sky {SKY_INTENSITY}; sun {SUN}; volumetric fog {FOG_VOLUMETRIC}; {len(mist)} mist patches; bark tint {BARK_TINT}")
