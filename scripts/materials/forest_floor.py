@@ -118,6 +118,7 @@ GRASS_MASK = f"{FOLDER}/T_GroundcoverMask"
 # The ground scans are slabs of forest soil with hard edges: on or by the sand they read as cut-out tiles (operator,
 # 2026-11-09). scan_mask.py's distance from the sand, on the same grid, keeps them 6-12 m inland.
 SCAN_MASK = f"{FOLDER}/T_ScanSandMask"
+LOG_MASK = f"{FOLDER}/T_LogMask"  # log_mask.py: the tall cover thinned on and beside fallen logs (#117)
 ISLAND = json.loads((Path(unreal.Paths.project_dir()) / "../scripts/pcg/forest_foot.json").read_text())["island_m"]
 
 
@@ -350,12 +351,15 @@ def build():
             unreal.MaterialExpressionConstant2Vector, 5, r=x_min, g=y_min)}),
         "B": g.node(unreal.MaterialExpressionConstant2Vector, 4, r=x_max - x_min, g=y_max - y_min)})
     allowed = g.mask(g.sample(GRASS_MASK, mask_uv, 2), 2, "r")
+    # Fewer tall plants on and beside the fallen logs, so they read (log_mask.py).
+    on_logs = g.mask(g.sample(LOG_MASK, mask_uv, 2), 2, "r")
     grass_rise = g.wire(unreal.MaterialExpressionMultiply, 3, {"A": p["GrassShoreWidth"], "B": tangent})
     inland = g.wire(unreal.MaterialExpressionSmoothStep, 2, {
         "Min": p["ShoreHeight"], "Max": g.wire(unreal.MaterialExpressionAdd, 3, {"A": p["ShoreHeight"], "B": grass_rise}),
         "Value": shore_z})
     weight = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": g.wire(unreal.MaterialExpressionMultiply, 2, {
-        "A": inland, "B": gentle}), "B": g.wire(unreal.MaterialExpressionMultiply, 2, {"A": runs, "B": allowed})})
+        "A": inland, "B": gentle}), "B": g.wire(unreal.MaterialExpressionMultiply, 2, {"A": g.wire(
+            unreal.MaterialExpressionMultiply, 3, {"A": runs, "B": allowed}), "B": on_logs})})
     one = g.node(unreal.MaterialExpressionConstant, 4, r=1.0)
     # Not on the meadow stretches' low ground (meadow.py: within a MEADOWS circle, below TOP): their grass and heather
     # stay as they are; the undergrowth, debris and scans are the forest floor's.
@@ -380,7 +384,7 @@ def build():
     patches = g.wire(unreal.MaterialExpressionSmoothStep, 3, {"Min": p["GrassRunHigh"], "Max": one,
                                                              "Value": g.noise(4, SCAN_NOISE_CM)})
     scan_inland = g.mask(g.sample(SCAN_MASK, mask_uv, 2), 2, "r")
-    where = {"gaps": gaps, "patches": g.wire(unreal.MaterialExpressionMultiply, 2, {"A": patches, "B": scan_inland})}
+    where = {"gaps": g.wire(unreal.MaterialExpressionMultiply, 2, {"A": gaps, "B": on_logs}), "patches": g.wire(unreal.MaterialExpressionMultiply, 2, {"A": patches, "B": scan_inland})}
     # Its own patches: the material's litter patches (LITTER_NOISE_CM) are finer than the 2 m landscape vertices the grass
     # weight is sampled at, so they gave almost no instances.
     # On the sand above the waterline (L_vilm's beach lies 0-20 cm above the sea, so no height ramp toward the water

@@ -14,8 +14,8 @@ LOG_VARIANTS = [
 SHORE_LOG_VARIANTS = [
     ("Large_Fallen_Tree_wd1mbcvbw/Medium/wd1mbcvbw_tier_2/StaticMeshes/wd1mbcvbw_tier_2", 1),
 ]
-MEADOW_LOG_VARIANTS = [
-    ("Nordic_Forest_Tree_Fallen_Medium_xicmfco/Medium/xicmfco_tier_2/StaticMeshes/xicmfco_tier_2", 1),
+MEADOW_LOG_VARIANTS = [  # the 6 m round trunk: the flattened Nordic piece showed as flat ovals (operator, 2026-11-09)
+    ("Large_Fallen_Tree_wgrubc1s/Medium/wgrubc1s_tier_2/StaticMeshes/wgrubc1s_tier_2", 1),
 ]
 STUMP_VARIANTS = [
     ("Old_Tree_Stump_wd0qcaobw/Medium/wd0qcaobw_tier_2/StaticMeshes/wd0qcaobw_tier_2", 1),
