@@ -1,4 +1,4 @@
-"""Exposure, grade, mist and bark tone for the forest read (#35) on L_vilm.
+"""Exposure, grade, sky fill, mist and bark tone for the forest read (#35, #126) on L_vilm.
 
     scripts/editor-py scripts/lighting/forest_look.py
 
@@ -7,7 +7,7 @@ shade stays readable, and from the forest edge the sea and the dark foreground b
 height fog starting 15 m out separates the far trunks (interior_01); the mist itself lies in drifting patches over
 low ground, not a blanket (high_point_01): local fog volumes on part of the ground below 7 m, i.e. the lake basin,
 the lower stream and the coast. Beech bark is mid-grey, not near-white (interior_01 Ignore).
-Saves only the volume's and the fog's actor packages, the mist actors and the bark instance: the sun's time-of-day
+Saves only the volume's, the fog's and the sky light's actor packages, the mist actors and the bark instance: the sun's time-of-day
 rotation and other unsaved level edits are left alone.
 """
 
@@ -21,6 +21,11 @@ import unreal
 LABEL = "PP_ForestLook"
 SETTINGS = {  # PostProcessSettings property -> value; each one is overridden on the volume
     "auto_exposure_bias": -1.0,
+    # Shade stays shade (#126, Electric Dreams' dark pockets with bright sun patches): under the canopy auto exposure
+    # adapted down to about EV100 -3.2 and lifted the floor to mid-grey; it now stops at -2.3, while bright beach and
+    # sea views adapt above it as before. EV100 values (r.DefaultFeature.AutoExposure.ExtendDefaultLuminanceRange is 1).
+    "auto_exposure_min_brightness": -2.3,
+    "auto_exposure_max_brightness": 20.0,
     # Grade toward interior_01's cool, rich greens: a slightly cooler white balance, more green saturation, a faint
     # blue lift in the shadows. Sea and shade on the edge stay readable (edge_out_01). In the default White Balance
     # mode the temperature names the light being corrected for, so a value below 6500 K cools the image
@@ -30,11 +35,13 @@ SETTINGS = {  # PostProcessSettings property -> value; each one is overridden on
     "color_gain_shadows": unreal.Vector4(0.96, 1.0, 1.04, 1.0),
 }
 FOG = {  # ExponentialHeightFogComponent property -> value
-    "fog_density": 0.02,
+    # Half the density and a dark green inscatter (#126): at 0.02 with a pale grey-green the far trunks washed to white.
+    "fog_density": 0.01,
     "fog_height_falloff": 0.2,
     "start_distance": 1500.0,  # cm
-    "fog_inscattering_luminance": unreal.LinearColor(0.35, 0.45, 0.5, 1),  # cool grey-green mist
+    "fog_inscattering_luminance": unreal.LinearColor(0.12, 0.18, 0.14, 1),
 }
+SKY_INTENSITY = 0.6  # the sky light's fill in the shade (was 1.0): deeper shade against the sun patches (#126)
 MIST = "Mist"  # label prefix and outliner folder of the patches
 MIST_BELOW = 700  # cm above the sea: low ground (lake surface 5.9 m)
 MIST_CELL = 4000  # cm grid over the island's bounds (ISLAND)
@@ -75,6 +82,10 @@ if len(fogs) != 1:
 component = fogs[0].get_component_by_class(unreal.ExponentialHeightFogComponent)
 for name, value in FOG.items():
     component.set_editor_property(name, value)
+skies = [a for a in actors if isinstance(a, unreal.SkyLight)]
+if len(skies) != 1:
+    raise RuntimeError(f"expected one SkyLight on L_vilm, found {len(skies)}")
+skies[0].light_component.set_editor_property("intensity", SKY_INTENSITY)
 
 def ground(x, y):
     """Landscape height at (x, y), ignoring anything else the ray meets; None off the landscape."""
@@ -129,9 +140,9 @@ for actor in old.values():
 bark = unreal.load_asset(BARK)
 # SetMaterialInstanceVectorParameterValue already updates the instance (MaterialEditingLibrary.cpp).
 unreal.MaterialEditingLibrary.set_material_instance_vector_parameter_value(bark, "BaseColor Tint", BARK_TINT)
-packages += [volume.get_package(), fogs[0].get_package()] + [patch.get_package() for patch in mist]
+packages += [volume.get_package(), fogs[0].get_package(), skies[0].get_package()] + [patch.get_package() for patch in mist]
 if not unreal.EditorLoadingAndSavingUtils.save_packages(packages, False):
-    raise RuntimeError(f"could not save {LABEL}, the height fog or the mist patches")
+    raise RuntimeError(f"could not save {LABEL}, the height fog, the sky light or the mist patches")
 if not unreal.EditorAssetLibrary.save_loaded_asset(bark, False):
     raise RuntimeError(f"could not save {BARK}")
-print(f"{LABEL}: {SETTINGS}; fog: {FOG}; {len(mist)} mist patches; bark tint {BARK_TINT}")
+print(f"{LABEL}: {SETTINGS}; fog: {FOG}; sky {SKY_INTENSITY}; {len(mist)} mist patches; bark tint {BARK_TINT}")
