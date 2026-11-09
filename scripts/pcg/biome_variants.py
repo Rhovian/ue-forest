@@ -71,6 +71,12 @@ FERN_VARIANTS = [
 VETERAN_VARIANTS = [
     ("/Game/EuropeanBeech/Geometry/SimpleWind/SM_EuropeanBeech_Field_01", 1),
 ]
+# Hornbeam among the beech (#125; operator, 2026-11-08): Electric Dreams' Megascans European hornbeam, static Nanite
+# forest trees. Forest_09 (6 m) is a sapling-sized tree and stays out.
+HORNBEAM_VARIANTS = [
+    *[(f"/Game/Megascans/3D_Plants/EuropeanHornbeam/Geometry/SimpleWind/SM_EuropeanHornbeam_Forest_{i:02}", 1)
+      for i in (1, 2, 3, 4, 5, 6, 7, 8, 10)],
+]
 # Lone large beech standing on the sand (#38, edge_in_05, beach_01); the Trees group's own copies of these meshes.
 SHORE_TREE_VARIANTS = [
     ("/Game/Megaplant_Library/Tree_European_Beech/Tree_European_Beech_01/Tree_European_Beech_01_A", 1),
