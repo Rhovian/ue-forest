@@ -88,7 +88,7 @@ GRASS_SCALE = (0.9, 1.6)
 # Further Landscape Grass layers (#117; operator, 2026-11-08: less grass, denser plant life, with scans, stones, sticks
 # and litter, after the Electric Dreams floor). Input name -> (asset, biome_variants list, density per 10 m2, cull cm,
 # scale range, where): "gaps" fills where the groundcover runs are not, in colonies; "all" is the whole forest floor;
-# "patches" is a sparse noise of its own, kept back from the sand (SCAN_INLAND_CM); "sand" is the litter patches on the upper sand;
+# "patches" is a sparse noise of its own, kept back from the sand (SCAN_MASK); "sand" is the litter patches on the upper sand;
 # "waterline" is clusters on the sand at the water's edge and "dry sand" the sand above it, everywhere.
 GRASS_LAYERS = {
     "Undergrowth": (f"{FOLDER}/DA_ForestUndergrowth", "UNDERGROWTH_VARIANTS", 60.0, 6000, (0.8, 1.3), "gaps"),
@@ -104,9 +104,6 @@ GRASS_LAYERS = {
 }
 UNDERGROWTH_NOISE_CM = 1500.0  # feature size of the undergrowth colonies
 SCAN_NOISE_CM = 700.0  # feature size of the scan patches
-# cm inland of the sand edge over which the scans fade in. The ground scans are slabs of forest soil with hard edges:
-# on or by the sand they read as cut-out tiles (operator, 2026-11-09).
-SCAN_INLAND_CM = (600.0, 1200.0)
 # z: fade in from under the water, full at the edge, out up the sand. L_vilm's beach lies only 0-20 cm above the sea:
 # a band to 50 cm covered all of it (#122 trial).
 WATERLINE_CM = (-30.0, -5.0, 3.0, 12.0)
@@ -117,6 +114,9 @@ MEADOW_BLEND_CM = 1000.0  # the further layers fade out over this inside each me
 GRASS_NOISE_CM = 900.0  # feature size of the runs and openings
 # No groundcover in water or on the footpath: groundcover_mask.py's 1 m grid over the island's bounds (forest_foot.json).
 GRASS_MASK = f"{FOLDER}/T_GroundcoverMask"
+# The ground scans are slabs of forest soil with hard edges: on or by the sand they read as cut-out tiles (operator,
+# 2026-11-09). scan_mask.py's distance from the sand, on the same grid, keeps them 6-12 m inland.
+SCAN_MASK = f"{FOLDER}/T_ScanSandMask"
 ISLAND = json.loads((Path(unreal.Paths.project_dir()) / "../scripts/pcg/forest_foot.json").read_text())["island_m"]
 
 
@@ -378,10 +378,7 @@ def build():
         "A": g.wire(unreal.MaterialExpressionSubtract, 3, {"A": one, "B": runs}), "B": colonies})
     patches = g.wire(unreal.MaterialExpressionSmoothStep, 3, {"Min": p["GrassRunHigh"], "Max": one,
                                                              "Value": g.noise(4, SCAN_NOISE_CM)})
-    scan_low, scan_high = (g.wire(unreal.MaterialExpressionAdd, 3, {"A": p["ShoreHeight"], "B": g.wire(
-        unreal.MaterialExpressionMultiply, 4, {"A": g.node(unreal.MaterialExpressionConstant, 5, r=v), "B": tangent})})
-        for v in SCAN_INLAND_CM)
-    scan_inland = g.wire(unreal.MaterialExpressionSmoothStep, 2, {"Min": scan_low, "Max": scan_high, "Value": shore_z})
+    scan_inland = g.mask(g.sample(SCAN_MASK, mask_uv, 2), 2, "r")
     where = {"gaps": gaps, "patches": g.wire(unreal.MaterialExpressionMultiply, 2, {"A": patches, "B": scan_inland})}
     # Its own patches: the material's litter patches (LITTER_NOISE_CM) are finer than the 2 m landscape vertices the grass
     # weight is sampled at, so they gave almost no instances.

@@ -61,24 +61,19 @@ def write_png(path, pixels, width, height):
                 + chunk(b"IDAT", zlib.compress(rows, 9)) + chunk(b"IEND", b""))
 
 
-def main():
-    x0, y0, width, height = bounds()
-    pixels = bytearray(b"\xff" * (width * height))
-    outlines = polygons()
-    for outline in outlines:
-        fill(pixels, width, height, [((p.x - x0) / CELL, (p.y - y0) / CELL) for p in outline])
-    pixels = dilate(pixels, width, height)
+def import_texture(pixels, width, height, name):
+    """Import the 8-bit mask as FOLDER/name: linear, clamped, no mips, saved."""
     folder = tempfile.mkdtemp()
-    png = os.path.join(folder, NAME + ".png")
+    png = os.path.join(folder, name + ".png")
     write_png(png, pixels, width, height)
     task = unreal.AssetImportTask()
-    for key, value in {"filename": png, "destination_path": FOLDER, "destination_name": NAME, "replace_existing": True,
+    for key, value in {"filename": png, "destination_path": FOLDER, "destination_name": name, "replace_existing": True,
                        "automated": True, "save": False}.items():
         task.set_editor_property(key, value)
     unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([task])
     os.remove(png)
     os.rmdir(folder)
-    texture = unreal.load_asset(f"{FOLDER}/{NAME}")
+    texture = unreal.load_asset(f"{FOLDER}/{name}")
     if texture is None:
         raise SystemExit("mask import failed")
     texture.set_editor_property("srgb", False)
@@ -87,8 +82,19 @@ def main():
     texture.set_editor_property("address_y", unreal.TextureAddress.TA_CLAMP)
     texture.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)  # mips blur white in
     unreal.EditorAssetLibrary.save_loaded_asset(texture, False)
+
+
+def main():
+    x0, y0, width, height = bounds()
+    pixels = bytearray(b"\xff" * (width * height))
+    outlines = polygons()
+    for outline in outlines:
+        fill(pixels, width, height, [((p.x - x0) / CELL, (p.y - y0) / CELL) for p in outline])
+    pixels = dilate(pixels, width, height)
+    import_texture(pixels, width, height, NAME)
     blocked = width * height - sum(1 for v in pixels if v)
     print(f"{NAME}: {width}x{height} px at {CELL} cm, {len(outlines)} exclusions, {blocked * CELL * CELL / 1e8:.1f} ha masked")
 
 
-main()
+if __name__ == "__main__":
+    main()
