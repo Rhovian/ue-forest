@@ -19,7 +19,7 @@ POSES = [
     ("high_point", 600, -150, 60, -20, -115),
     ("high_point_eye", 606, -580, 1.6, 0, 136),  # the harness high point; operator on #30: both views are useful
     ("nurse_log", 461.4, -475.2, 1.6, -15, 144),  # 4.5 m off a 17 m Large_Fallen_Tree; logs regenerate, so re-aim when one moves
-    ("rock_assembly", 461, -804, 1.6, -20, -145),
+    ("rock_assembly", 456.7, -814.7, 1.6, -20, 90),  # 5.5 m off a limestone slab's ivy corner; the old aim framed a ground scan after #130
     ("meadow_fringe", -785, 717, 1.6, -5, 150),  # the north-west meadow stretch (#38), judged against edge_in_04
     ("meadow_aerial", -720, 620, 40, -25, 131),  # the same stretch from 40 m: meadow vs forest and coast
 ]
