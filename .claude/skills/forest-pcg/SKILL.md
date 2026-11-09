@@ -36,6 +36,12 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   It ignores PCG exclusions, so its weight is masked by T_GroundcoverMask (groundcover_mask.py, baked from the
   water and footpath splines); rebake it when those splines change. GrassVariety density reads far sparser than its
   "per 10 m2" label: measure in the view.
+- Landscape Grass weight is sampled per landscape vertex (2 m in L_vilm): a mask with features finer than that (the
+  floor material's 1.2 m litter patches, a shore band a few cm high) spawns almost nothing. Give a grass layer its own
+  noise of 6 m or more (forest_floor.py, #117).
+- After forest_floor.py, newly used meshes build Nanite data and compile shaders for minutes; the grass shows nothing
+  until they finish (watch the log go quiet), and the first frame-time run after it measured a GPU idling at 0.3 ms
+  (rerun it). Grass also fills in over seconds after each camera move: scripts/review/capture waits GRASS_SETTLE.
 
 ## Counts do not scale smoothly
 

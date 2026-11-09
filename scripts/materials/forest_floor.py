@@ -5,7 +5,9 @@
 Rebuilds /Game/ForestBiome/M_ForestFloor from scratch (no painted layers) and keeps MI_ForestFloor as its
 tuning instance: sand below the shore height, darker and glossier at the waterline; mossy floor on low,
 flat (damp) ground, broken up by the moss-patch mask; dry leaf litter everywhere else. Thresholds are
-material parameters, so instance overrides survive a rebuild. --assign sets the instance on every
+material parameters, so instance overrides survive a rebuild. Its Landscape Grass output carries the groundcover and
+the further GRASS_LAYERS (#117): Electric Dreams undergrowth, debris and ground scans on the forest floor (not the
+meadow stretches), and blown litter on the sand. --assign sets the instance on every
 Landscape actor in the open level (streaming proxies inherit it).
 """
 
@@ -19,6 +21,7 @@ import unreal
 
 sys.path.insert(0, str(Path(unreal.Paths.project_dir()) / "../scripts/pcg"))
 import biome_variants
+from meadow import MEADOWS, TOP
 
 importlib.reload(matgraph)  # the editor keeps imported modules between runs
 mel = matgraph.mel
@@ -82,29 +85,44 @@ GRASS_DENSITY = 1000.0
 # Project Nature materials do not read (#108 review), so plants stop at this distance.
 GRASS_CULL = 4000
 GRASS_SCALE = (0.9, 1.6)
+# Further Landscape Grass layers (#117; operator, 2026-11-08: less grass, denser plant life, with scans, stones, sticks
+# and litter, after the Electric Dreams floor). Input name -> (asset, biome_variants list, density per 10 m2, cull cm,
+# scale range, where): "gaps" fills where the groundcover runs are not, in colonies; "all" is the whole forest floor;
+# "patches" is a sparse noise of its own; "sand" is the litter patches on the upper sand.
+GRASS_LAYERS = {
+    "Undergrowth": (f"{FOLDER}/DA_ForestUndergrowth", "UNDERGROWTH_VARIANTS", 60.0, 6000, (0.8, 1.3), "gaps"),
+    "Debris": (f"{FOLDER}/DA_ForestDebris", "DEBRIS_VARIANTS", 150.0, 2500, (1.0, 2.5), "all"),
+    "Scans": (f"{FOLDER}/DA_ForestScans", "SCAN_VARIANTS", 25.0, 6000, (0.8, 1.3), "patches"),
+    "SandLitter": (f"{FOLDER}/DA_SandLitter", "SAND_LITTER_VARIANTS", 150.0, 3000, (1.0, 2.0), "sand"),
+}
+UNDERGROWTH_NOISE_CM = 1500.0  # feature size of the undergrowth colonies
+SCAN_NOISE_CM = 700.0  # feature size of the scan patches
+SAND_LITTER_ABOVE_CM = 30.0  # cm above the sea over which sand litter fades in
+SAND_LITTER_NOISE_CM = 600.0  # feature size of the litter patches on the upper sand
+MEADOW_BLEND_CM = 1000.0  # the further layers fade out over this inside each meadow stretch's edge (meadow.MEADOWS)
 GRASS_NOISE_CM = 900.0  # feature size of the runs and openings
 # No groundcover in water or on the footpath: groundcover_mask.py's 1 m grid over the island's bounds (forest_foot.json).
 GRASS_MASK = f"{FOLDER}/T_GroundcoverMask"
 ISLAND = json.loads((Path(unreal.Paths.project_dir()) / "../scripts/pcg/forest_foot.json").read_text())["island_m"]
 
 
-def grass_type():
-    """DA_ForestGroundcover (a LandscapeGrassType) with one variety per GROUNDCOVER_VARIANTS row, sharing GRASS_DENSITY by weight."""
-    variants = importlib.reload(biome_variants).GROUNDCOVER_VARIANTS
-    grass = unreal.load_asset(GRASS) or unreal.AssetToolsHelpers.get_asset_tools().create_asset(
-        GRASS.rsplit("/", 1)[1], FOLDER, unreal.LandscapeGrassType, None)
-    total = sum(weight for _, weight in variants)
+def grass_type(path=GRASS, variants="GROUNDCOVER_VARIANTS", density=GRASS_DENSITY, cull=GRASS_CULL, scale=GRASS_SCALE):
+    """A LandscapeGrassType at path with one variety per row of the named biome_variants list, sharing density by weight."""
+    rows = getattr(importlib.reload(biome_variants), variants)
+    grass = unreal.load_asset(path) or unreal.AssetToolsHelpers.get_asset_tools().create_asset(
+        path.rsplit("/", 1)[1], FOLDER, unreal.LandscapeGrassType, None)
+    total = sum(weight for _, weight in rows)
     varieties = []
-    for path, weight in variants:
+    for mesh_path, weight in rows:
         variety = unreal.GrassVariety()
-        mesh = unreal.load_asset(path)
+        mesh = unreal.load_asset(mesh_path)
         if mesh is None:
-            raise SystemExit(f"missing groundcover mesh {path}")
+            raise SystemExit(f"missing {variants} mesh {mesh_path}")
         variety.set_editor_property("grass_mesh", mesh)
-        variety.set_editor_property("grass_density", unreal.PerPlatformFloat(default=GRASS_DENSITY * weight / total))
-        variety.set_editor_property("start_cull_distance", unreal.PerPlatformInt(default=GRASS_CULL))
-        variety.set_editor_property("end_cull_distance", unreal.PerPlatformInt(default=GRASS_CULL))
-        variety.set_editor_property("scale_x", unreal.FloatInterval(*GRASS_SCALE))
+        variety.set_editor_property("grass_density", unreal.PerPlatformFloat(default=density * weight / total))
+        variety.set_editor_property("start_cull_distance", unreal.PerPlatformInt(default=cull))
+        variety.set_editor_property("end_cull_distance", unreal.PerPlatformInt(default=cull))
+        variety.set_editor_property("scale_x", unreal.FloatInterval(*scale))
         variety.set_editor_property("scaling", unreal.GrassScaling.UNIFORM)
         variety.set_editor_property("random_rotation", True)
         variety.set_editor_property("align_to_surface", True)
@@ -323,13 +341,60 @@ def build():
         "Value": shore_z})
     weight = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": g.wire(unreal.MaterialExpressionMultiply, 2, {
         "A": inland, "B": gentle}), "B": g.wire(unreal.MaterialExpressionMultiply, 2, {"A": runs, "B": allowed})})
+    one = g.node(unreal.MaterialExpressionConstant, 4, r=1.0)
+    # Not on the meadow stretches' low ground (meadow.py: within a MEADOWS circle, below TOP): their grass and heather
+    # stay as they are; the undergrowth, debris and scans are the forest floor's.
+    low = g.wire(unreal.MaterialExpressionSmoothStep, 3, {"Min": g.node(unreal.MaterialExpressionConstant, 4, r=TOP + 100),
+                                                         "Max": g.node(unreal.MaterialExpressionConstant, 4, r=TOP), "Value": z})
+    meadow = None
+    for x, y, radius in MEADOWS:
+        distance = g.wire(unreal.MaterialExpressionDistance, 3, {"A": xy, "B": g.node(
+            unreal.MaterialExpressionConstant2Vector, 4, r=x * 100, g=y * 100)})
+        inside = g.wire(unreal.MaterialExpressionSmoothStep, 3, {
+            "Min": g.node(unreal.MaterialExpressionConstant, 4, r=radius * 100),
+            "Max": g.node(unreal.MaterialExpressionConstant, 4, r=radius * 100 - MEADOW_BLEND_CM), "Value": distance})
+        meadow = inside if meadow is None else g.wire(unreal.MaterialExpressionMax, 3, {"A": meadow, "B": inside})
+    forest_only = g.wire(unreal.MaterialExpressionSubtract, 2, {"A": one, "B": g.wire(
+        unreal.MaterialExpressionMultiply, 3, {"A": meadow, "B": low})})
+    floor = g.wire(unreal.MaterialExpressionMultiply, 2, {"A": g.wire(unreal.MaterialExpressionMultiply, 2, {
+        "A": inland, "B": gentle}), "B": g.wire(unreal.MaterialExpressionMultiply, 2, {"A": allowed, "B": forest_only})})
+    colonies = g.wire(unreal.MaterialExpressionSmoothStep, 3, {"Min": p["GrassRunLow"], "Max": p["GrassRunHigh"],
+                                                              "Value": g.noise(4, UNDERGROWTH_NOISE_CM)})
+    gaps = g.wire(unreal.MaterialExpressionMultiply, 2, {  # where groundcover runs are not, in colonies
+        "A": g.wire(unreal.MaterialExpressionSubtract, 3, {"A": one, "B": runs}), "B": colonies})
+    patches = g.wire(unreal.MaterialExpressionSmoothStep, 3, {"Min": p["GrassRunHigh"], "Max": one,
+                                                             "Value": g.noise(4, SCAN_NOISE_CM)})
+    where = {"gaps": gaps, "patches": patches}
+    # Its own patches: the material's litter patches (LITTER_NOISE_CM) are finer than the 2 m landscape vertices the grass
+    # weight is sampled at, so they gave almost no instances.
+    # On the sand above the waterline (L_vilm's beach lies 0-20 cm above the sea, so no height ramp toward the water
+    # holds), in patches; not a band (operator, #71). The floor material's own litter band (LitterWidth) is too narrow
+    # to hold a 2 m vertex. Not masked by T_GroundcoverMask: the shore path is bare of plants, not of blown leaves.
+    sand_reach = g.wire(unreal.MaterialExpressionSmoothStep, 3, {"Min": g.node(unreal.MaterialExpressionConstant, 4, r=0.0),
+                                                                "Max": g.node(unreal.MaterialExpressionConstant, 4, r=SAND_LITTER_ABOVE_CM),
+                                                                "Value": z})
+    sand_patches = g.wire(unreal.MaterialExpressionSmoothStep, 3, {"Min": p["GrassRunLow"], "Max": p["GrassRunHigh"],
+                                                                  "Value": g.noise(4, SAND_LITTER_NOISE_CM)})
+    sand_litter = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": g.wire(unreal.MaterialExpressionMultiply, 2, {
+        "A": sand_reach, "B": sand_mask}), "B": sand_patches})
+    weights = {"Groundcover": (weight, grass_type())}
+    for name, (asset, variants, density, cull, scale, kind) in GRASS_LAYERS.items():
+        if kind == "sand":
+            layer = sand_litter
+        else:
+            layer = floor if kind == "all" else g.wire(unreal.MaterialExpressionMultiply, 1, {"A": floor, "B": where[kind]})
+        weights[name] = (layer, grass_type(asset, variants, density, cull, scale))
     output = g.node(unreal.MaterialExpressionLandscapeGrassOutput, 0)
-    grass_input = unreal.GrassInput()
-    grass_input.set_editor_property("name", "Groundcover")
-    grass_input.set_editor_property("grass_type", grass_type())
-    output.set_editor_property("grass_types", [grass_input])
-    if not mel.connect_material_expressions(weight, "", output, "Groundcover"):
-        raise SystemExit("could not connect the grass weight")
+    inputs = []
+    for name, (_, grass) in weights.items():
+        grass_input = unreal.GrassInput()
+        grass_input.set_editor_property("name", name)
+        grass_input.set_editor_property("grass_type", grass)
+        inputs.append(grass_input)
+    output.set_editor_property("grass_types", inputs)
+    for name, (layer, _) in weights.items():
+        if not mel.connect_material_expressions(layer, "", output, name):
+            raise SystemExit(f"could not connect the {name} weight")
 
     mel.connect_material_property(color, "", unreal.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(normal, "", unreal.MaterialProperty.MP_NORMAL)
