@@ -7,9 +7,8 @@ same ground as above it, but keep some of its green). Two grayscale textures on 
 cells, same UVs) hold the signed distance to the water's edge, positive in the water, SCALE cm per step around 128:
 T_WaterBedMask for every water body, T_LakeMask for the lake alone (its stones and shallow plants; the stream gets the
 bed only). A distance interpolates smoothly between cells, so the bed's edge lands where it should, not in 2 m steps.
-The edge is the water exclusion outline (ForestExclusion_<water>, water_exclusions.py) less its margin: the lake's
-is pushed out by MARGINS["Lake"], the stream's drawn inside its banks. Rerun after water_exclusions.py, then
-forest_floor.py.
+The edge is the water exclusion outline (ForestExclusion_<water>, water_exclusions.py) less MARGINS. Rerun after
+water_exclusions.py, then forest_floor.py.
 """
 
 import math
@@ -22,7 +21,10 @@ sys.path.insert(0, str(Path(unreal.Paths.project_dir()) / "../scripts/materials"
 from groundcover_mask import CELL, bounds, import_texture
 
 PREFIX = "ForestExclusion_"
-MARGINS = {"Lake": 60.0, "Stream": -100.0}  # cm the outline lies outside the water edge (water_exclusions.py defaults)
+# cm the outline lies outside the visible water's edge, at water_exclusions.py's defaults (rerun both if those change):
+# the lake's is pushed out by --lake-margin; the stream's corridor is narrowed to the visible water by its negative
+# --river-margin, so it already is the edge (#149 review).
+MARGINS = {"Lake": 60.0, "Stream": 0.0}
 LAKES = ("Lake",)
 SCALE = 8.0  # cm per step: 128 +- 127 steps covers +-10 m of the edge
 REACH = 1200.0  # cm around each outline that is measured; beyond it a cell is "far" (0 outside, 255 inside)
