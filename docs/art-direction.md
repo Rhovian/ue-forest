@@ -2,6 +2,15 @@
 
 Reference images for what the Forest Biome, the sand shore and the transition between them should look like. The lead compares its `CaptureViewport` review views to these.
 
+## Current direction (operator, 2026-11-08)
+
+The concept art below is out of reach with the assets we have, so the build improvises from what is installed. The references set the mood (an old, deep, shaded forest floor full of life); they are not a checklist, and nothing in this doc overrides the operator's current instructions. When the operator's word and this doc disagree, the operator wins and this doc is updated to match.
+
+- **Electric Dreams is a reference too.** The free Electric Dreams sample environment (Fab, `ElectricDreamsSample_5.8`) is both an asset source and a look reference: its dark shade with sun patches, its mixed floor and its plant density are targets (captures of its hero cameras: `Forest/Saved/Reviews/ed-reference/`, local).
+- **Use its plants.** Every Electric Dreams plant is available, tropical ones included, mixed with the plants we already have. Hornbeam and elderberry join the beech.
+- **Floor: less grass, denser plant life,** mixed with ground scans, stones, sticks and branches, surface roots and leaf litter. Bare earth, roots and rock are welcome; not every surface has to be green.
+- **The terrain stays as it is** for now; dress it, don't reshape it.
+
 ## Rules for agents
 
 - **A reference shows intent, not a spec.** Take only what each image's notes say to take. Image models make up plants, props and terrain that no free Fab asset can deliver.
@@ -12,7 +21,7 @@ Reference images for what the Forest Biome, the sand shore and the transition be
 
 ## Target look
 
-Old-growth European beech forest in high summer, deep and enclosed, with **green on every surface**: moss on the floor, roots, logs, rocks and the lower trunks, ivy climbing the bark, fern colonies under the trees. It feels enchanted from **light and atmosphere, not props**: low mist in hollows, sun shafts through gaps with pollen and dust motes glowing in them, dew on the moss, soft green bounce light, backlit translucent leaves, slightly heightened saturation, and accents of blue and violet: drifting light wisps and scattered bluebells and violet woodland flowers (operator, 2026-11-06). No glowing plants or creatures. The forest ends at a narrow pale sand beach through a ragged band of thinner trees, with bleached fallen trunks lying on the sand.
+Old-growth European beech forest in high summer, deep and enclosed, green and full of life (not green on every surface: bare earth, roots and rock are fine, operator 2026-11-08), with moss on roots, logs, rocks and the lower trunks, ivy climbing the bark, fern colonies under the trees. It feels enchanted from **light and atmosphere, not props**: low mist in hollows, sun shafts through gaps with pollen and dust motes glowing in them, dew on the moss, soft green bounce light, backlit translucent leaves, slightly heightened saturation, and accents of blue and violet: drifting light wisps and scattered bluebells and violet woodland flowers (operator, 2026-11-06). No glowing plants or creatures. The forest ends at a narrow pale sand beach through a ragged band of thinner trees, with bleached fallen trunks lying on the sand.
 
 Decided (operator, 2026-11-06): magic level **2, Enchanted**; the sand biome is the **beach strip only** (no dunes or heath).
 
@@ -46,7 +55,7 @@ Why each is excluded, so the list can change when a reason does:
 
 | Excluded | Reason |
 |---|---|
-| conifers, birch, palms | #9 ruling: beech is the only tree species this build |
+| conifers, birch, palm trees | beech is the main tree, with hornbeam and elderberry (operator, 2026-11-08, superseding the #9 beech-only ruling); Electric Dreams understory plants, small palms included, are allowed on the floor |
 | hanging moss | #9 puts it in a later layer; no free asset verified (`forest-lushness.md` §6) |
 | sand dunes | ruling 2026-11-06: beach strip only |
 | glowing plants, glowing mushrooms, fairies | ruling 2026-11-06: Enchanted, not Fantasy |
