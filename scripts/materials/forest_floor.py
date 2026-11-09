@@ -93,6 +93,7 @@ GRASS_SCALE = (0.9, 1.6)
 GRASS_LAYERS = {
     "Undergrowth": (f"{FOLDER}/DA_ForestUndergrowth", "UNDERGROWTH_VARIANTS", 60.0, 6000, (0.8, 1.3), "gaps"),
     "Debris": (f"{FOLDER}/DA_ForestDebris", "DEBRIS_VARIANTS", 150.0, 2500, (1.0, 2.5), "all"),
+    "Leaves": (f"{FOLDER}/DA_ForestLeaves", "LEAF_LITTER_VARIANTS", 25.0, 2500, (0.4, 0.8), "all"),
     "Scans": (f"{FOLDER}/DA_ForestScans", "SCAN_VARIANTS", 25.0, 6000, (0.8, 1.3), "patches"),
     "SandLitter": (f"{FOLDER}/DA_SandLitter", "SAND_LITTER_VARIANTS", 150.0, 3000, (1.0, 2.0), "sand"),
     # #122: stones clustered at the waterline, a few big rocks among them, sparse stones on the dry sand.

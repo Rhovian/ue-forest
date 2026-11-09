@@ -61,7 +61,10 @@ TUFT_LIFT = 30.0  # cm: a shell surface this far above a host point carries that
 TUFT_SCALE = (0.2, 0.45)  # of the 10-17 cm source clumps: 2-7.5 cm
 TUFT_SINK = 1.0  # cm into the surface
 # Host (biome_variants vendor path) -> faces within this many degrees of up get a shell. Slabs: their top only.
-SHELLS = {path: 60.0 for path, _ in biome_variants.LOG_VARIANTS + biome_variants.STUMP_VARIANTS}
+# Vendor paths only: a full /Game path (the Electric Dreams MossyTree) is a mossy scan already. The meadow's short log
+# keeps its shell though it left the forest's logs.
+SHELLS = {path: 60.0 for path, _ in biome_variants.LOG_VARIANTS + biome_variants.MEADOW_LOG_VARIANTS
+          + biome_variants.STUMP_VARIANTS if not path.startswith("/Game/")}
 SHELLS[biome_variants.SLAB_VARIANTS[0][0]] = 35.0  # the limestone slab; the boulders are mossy scans already
 # Hosts that get tufts but no shell, as SM_<host>_MossShell all the same (deadwood_rocks.py places it, and
 # flare_moss.py on the trees): full /Game path -> (faces within this many degrees of up, only below this many cm or
