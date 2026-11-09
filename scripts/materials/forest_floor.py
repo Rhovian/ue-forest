@@ -38,8 +38,8 @@ PATCHES = f"{FAB}/Decals/Tileable_Moss_Patches_sfdnqii/Medium/sfdnqii_tier_2/Tex
 SCALARS = {  # world units are cm; sea level is Z 0
     "ShoreHeight": 150.0,  # sand below, forest floor above
     "ShoreBlend": 50.0,  # cm across, horizontally, of each sand/floor edge (through the slope, like ShoreWidth)
-    "ShoreWidth": 300.0,  # cm across which sand and forest floor interleave (transition_ground_01: 2-4 m; #39)
-    "ShorePatchShare": 0.4,  # share of that width from the moss-patch texture: ragged edges, sand pockets in moss
+    "ShoreWidth": 450.0,  # cm across which sand and forest floor interleave (transition_ground_01: 2-4 m; #39; #117 review)
+    "ShorePatchShare": 0.6,  # share of that width from the moss-patch texture: ragged edges, sand pockets in moss
     "SlopeMin": 0.05,  # the slope assumed on flat ground, so the interleave still has a width there
     "SlopeMax": 2.0,
     "LitterWidth": 400.0,  # cm out onto the sand that beech litter mixes in
@@ -88,15 +88,17 @@ GRASS_SCALE = (0.9, 1.6)
 # Further Landscape Grass layers (#117; operator, 2026-11-08: less grass, denser plant life, with scans, stones, sticks
 # and litter, after the Electric Dreams floor). Input name -> (asset, biome_variants list, density per 10 m2, cull cm,
 # scale range, where): "gaps" fills where the groundcover runs are not, in colonies; "all" is the whole forest floor;
-# "patches" is a sparse noise of its own; "sand" is the litter patches on the upper sand.
+# "patches" is a sparse noise of its own; "sand" is the litter patches on the upper sand; "shore" is patches straddling the sand edge.
 GRASS_LAYERS = {
     "Undergrowth": (f"{FOLDER}/DA_ForestUndergrowth", "UNDERGROWTH_VARIANTS", 60.0, 6000, (0.8, 1.3), "gaps"),
     "Debris": (f"{FOLDER}/DA_ForestDebris", "DEBRIS_VARIANTS", 150.0, 2500, (1.0, 2.5), "all"),
     "Scans": (f"{FOLDER}/DA_ForestScans", "SCAN_VARIANTS", 25.0, 6000, (0.8, 1.3), "patches"),
     "SandLitter": (f"{FOLDER}/DA_SandLitter", "SAND_LITTER_VARIANTS", 150.0, 3000, (1.0, 2.0), "sand"),
+    "ShoreScans": (f"{FOLDER}/DA_ShoreScans", "SHORE_SCAN_VARIANTS", 40.0, 5000, (0.9, 1.4), "shore"),
 }
 UNDERGROWTH_NOISE_CM = 1500.0  # feature size of the undergrowth colonies
 SCAN_NOISE_CM = 700.0  # feature size of the scan patches
+SHORE_SCAN_BAND_CM = (20.0, 80.0, 250.0, 400.0)  # z: fade in above the beach, full across the edge, out up the bank
 SAND_LITTER_ABOVE_CM = 30.0  # cm above the sea over which sand litter fades in
 SAND_LITTER_NOISE_CM = 600.0  # feature size of the litter patches on the upper sand
 MEADOW_BLEND_CM = 1000.0  # the further layers fade out over this inside each meadow stretch's edge (meadow.MEADOWS)
@@ -377,10 +379,16 @@ def build():
                                                                   "Value": g.noise(4, SAND_LITTER_NOISE_CM)})
     sand_litter = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": g.wire(unreal.MaterialExpressionMultiply, 2, {
         "A": sand_reach, "B": sand_mask}), "B": sand_patches})
+    low_edge, full_low, full_high, high_edge = (g.node(unreal.MaterialExpressionConstant, 4, r=v) for v in SHORE_SCAN_BAND_CM)
+    shore_band = g.wire(unreal.MaterialExpressionMultiply, 2, {
+        "A": g.wire(unreal.MaterialExpressionSmoothStep, 3, {"Min": low_edge, "Max": full_low, "Value": z}),
+        "B": g.wire(unreal.MaterialExpressionSmoothStep, 3, {"Min": high_edge, "Max": full_high, "Value": z})})
+    shore_scans = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": g.wire(unreal.MaterialExpressionMultiply, 2, {
+        "A": shore_band, "B": patches}), "B": allowed})
     weights = {"Groundcover": (weight, grass_type())}
     for name, (asset, variants, density, cull, scale, kind) in GRASS_LAYERS.items():
-        if kind == "sand":
-            layer = sand_litter
+        if kind in ("sand", "shore"):
+            layer = sand_litter if kind == "sand" else shore_scans
         else:
             layer = floor if kind == "all" else g.wire(unreal.MaterialExpressionMultiply, 1, {"A": floor, "B": where[kind]})
         weights[name] = (layer, grass_type(asset, variants, density, cull, scale))

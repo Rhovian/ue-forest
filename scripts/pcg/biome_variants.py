@@ -181,11 +181,27 @@ DEBRIS_VARIANTS = [
     (f"{EDA}OakBranch/SM_OakBranch_01", 1),
     *[(f"{ED}DeadLeaves/SM_DeadLeaves_{i:02}", 2) for i in (1, 12, 13, 14)],
 ]
-# Beech litter blown out onto the upper sand, in the floor material's litter patches (transition_ground_01), not a band.
+# Litter blown out onto the sand above the waterline, in forest_floor.py's own SandLitter patches (transition_ground_01),
+# not a band.
 SAND_LITTER_VARIANTS = [
     *[(f"{EDA}WoodenSticksAndTwigs/SM_WoodenSticksAndTwigs_{i:02}", 1) for i in range(1, 11)],
     *[(f"{EDA}DryBranches/SM_DryBranches_0{i}", 1) for i in range(1, 9)],
     *[(f"{ED}DeadLeaves/SM_DeadLeaves_{i:02}", 1.5) for i in (1, 12, 13, 14)],
+]
+# Leaf litter piled where logs and slabs meet the ground (#117, nurse_log_01, rock_assembly_01): deadwood_rocks.py
+# places these as children along each log's sides and round each slab's base.
+CONTACT_LITTER_VARIANTS = [
+    *[(f"{ED}DeadLeaves/SM_DeadLeaves_{i:02}", 1) for i in (1, 12, 13, 14)],
+    *[(f"{EDA}DryBranches/SM_DryBranches_0{i}", 0.3) for i in range(1, 9)],
+]
+# Root mats and mossy embankment pieces straddling the sand edge in patches (#117 review, transition_ground_01: roots
+# across the sand, islands of moss on it, no straight line).
+SHORE_SCAN_VARIANTS = [
+    *[(f"{EDA}MossyForestRoots/SM_MossyForestRoots_0{i}", 1) for i in range(1, 4)],
+    *[(f"{EDA}ForestRoots/SM_ForestRoots_0{i}", 1) for i in range(1, 3)],
+    *[(f"{EDA}GrassyEmbankment/SM_GrassyEmbankment_0{i}", 1) for i in range(1, 3)],
+    *[(f"{EDA}MossyEmbankment/SM_MossyEmbankment_0{i}", 0.5) for i in range(1, 3)],
+    (f"{EDA}ForestGround/SM_ForestGround_01", 1),
 ]
 # Ground scans (root mats, rough terrain, stony path) and fallen branches, in patches.
 SCAN_VARIANTS = [

@@ -227,14 +227,15 @@ def main():
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     palettes = [VARIANTS.LOG_VARIANTS, VARIANTS.STUMP_VARIANTS, VARIANTS.SLAB_VARIANTS, VARIANTS.FUNGI_VARIANTS]
-    plants = [VARIANTS.SEEDLING_VARIANTS, VARIANTS.BASE_PLANT_VARIANTS]  # full /Game paths, shared with the plant groups
+    plants = [VARIANTS.SEEDLING_VARIANTS, VARIANTS.BASE_PLANT_VARIANTS,  # full /Game paths, shared with the plant groups
+              VARIANTS.CONTACT_LITTER_VARIANTS]
     if any(not rows or any(weight <= 0 for _, weight in rows) for rows in palettes + plants):
         raise RuntimeError("Variant lists must be nonempty with positive weights")
     paths = [path for rows in palettes for path, _ in rows]
     if len(paths) != len(set(paths)) or any(len({p for p, _ in rows}) != len(rows) for rows in plants):
         raise RuntimeError("A mesh may appear only once across the variant lists")
     logs, stumps, slabs, fungi = [[(load(VARIANTS.VENDOR + path), weight) for path, weight in rows] for rows in palettes]
-    seedlings, base_plants = [[(load(path), weight) for path, weight in rows] for rows in plants]
+    seedlings, base_plants, litter = [[(load(path), weight) for path, weight in rows] for rows in plants]
     # Fungi alternatives share one layout, so they need one stem-base height to bury by.
     bases = [mesh.get_bounds().origin.z - mesh.get_bounds().box_extent.z for mesh, _ in fungi]
     if max(bases) - min(bases) > 0.1:
@@ -318,7 +319,10 @@ def main():
         nurse_children = children("DA_NurseChildren_" + name, template, shell_layout(mesh) + [
             ("PCG_Fungi_" + name, fungi_tops, (0.9, 1.3), fungi, False),
             ("PCG_Seedlings_" + name, seedling_tops, (1.0, 1.5), seedlings, False),
-            ("PCG_LogBase_" + name, sides, (0.7, 1.1), base_plants, True)])
+            # Plants and litter piles alternate along the sides: litter sharing the plants' points lay hidden under
+            # the ferns (#117 review).
+            ("PCG_LogBase_" + name, sides[0::2], (0.7, 1.1), base_plants, True),
+            ("PCG_LogLitter_" + name, sides[1::2], (1.0, 1.6), litter, True)])
         # Logs over 4 m (the Large Fallen Trees) are all nurse logs; the short piece keeps plain:nurse 2:1.
         # Only the short piece has plain logs; long ones get no plain filter graph (no unused assets).
         plain_logs = [] if length > 400 else [
@@ -332,8 +336,10 @@ def main():
     rock_entries = []
     for mesh, weight in slabs:
         # rock_assembly_01: ferns and flowers packed round the base with no bare ring.
-        layouts = shell_layout(mesh) + [("PCG_RockBase_" + mesh.get_name(), base_ring(surface_hits(mesh), 45, 5),
-                                         (0.7, 1.1), base_plants, True)]
+        ring = base_ring(surface_hits(mesh), 45, 5)
+        layouts = shell_layout(mesh) + [("PCG_RockBase_" + mesh.get_name(), ring[0::2], (0.7, 1.1), base_plants, True),
+                                        # litter trapped against the base, between the plants (#117 review)
+                                        ("PCG_RockLitter_" + mesh.get_name(), ring[1::2], (0.8, 1.3), litter, True)]
         rock_entries.append(entry(template, mesh, rocks, plain, weight,
                                   children("DA_RockChildren_" + mesh.get_name(), template, layouts)))
     groups = [asset_list("DA_Forest_DeadwoodAssets", entries), asset_list("DA_Forest_RocksAssets", rock_entries)]
@@ -343,7 +349,7 @@ def main():
     print(f"Deadwood/Rocks built: {LOGS_PER_HA} logs + {STUMPS_PER_HA} stumps/ha, 30 slabs/ha candidates; {len(logs)} log variants")
     print("Collision: Log/Stump/Slab simple BlockAll; stock materials; assets saved")
     print("Ground groups: priority difference bypassed (canopy bounds); terrain/water filters retained")
-    print("Children: nurse logs carry fungi, seedlings and base plants; rocks carry base plants")
+    print("Children: nurse logs carry fungi, seedlings, base plants and litter; rocks carry base plants and litter")
     print("Regenerate Biome Core, inspect nurse fungi/contact/collision, then save the level")
 
 
