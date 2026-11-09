@@ -134,7 +134,7 @@ SHALLOWS_CM = 400.0  # the lake's shallow plants grow within this of its edge
 BED = ("/Game/Megascans/Surfaces/MossyRockyGround/T_MossyRockyGround_01", 400.0)  # Electric Dreams surface, tile cm
 BED_MOSS = 0.25  # share of the moss floor's colour kept on the bed
 LAKE_NOISE_CM = 800.0  # feature size of the lake's stone and plant patches
-SAND_EDGE_MASK = f"{FOLDER}/T_SandEdgeMask"  # scan_mask.py: the sand within 4 m of the forest edge (#38)
+SAND_EDGE_MASK = f"{FOLDER}/T_SandEdgeMask"  # scan_mask.py: the sand within 6 m of the forest edge (#38)
 SAND_EDGE_NOISE_CM = 500.0  # feature size of their patches
 ISLAND = json.loads((Path(unreal.Paths.project_dir()) / "../scripts/pcg/forest_foot.json").read_text())["island_m"]
 
