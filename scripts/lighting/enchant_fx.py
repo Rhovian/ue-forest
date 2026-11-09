@@ -11,7 +11,8 @@ the wisps stay near knee height (#58 review: centre height alone left ~1 m error
 Reruns update the systems in place by label. Saves only their actor packages.
 Spirits (#137), set in the editor through the same toolset from the HangingParticulates template: SpawnRate 3,
 Lifetime 16-26 s, Color (0.12, 0.25, 3.0), Random Uniform sprite size 12-20 cm, Box Size 3000x3000x120 with Position
-Offset z 90, WindForce Wind Speed 0, Scale 80, Frequency 25, Offset By Time 0, Speed Limit 35 with Clamp Velocity, and
+Offset z 90, WindForce Wind Speed 0, Scale 25, Frequency 8, Offset By Time 0, Speed Limit 15 with Clamp Velocity (a slow drift;
+M_Spirit flies each firefly its own path), and
 ScaleSpriteSize disabled; the sprite renderer uses M_Spirit, unaligned and camera-facing. The mist ribbons' Color is
 (0.30, 0.34, 0.32, 0.06), grey-green like the fog. Mist sprites are ribbons, set in the editor through the Niagara MCP
 toolset (#71 item 8): InitializeParticle Sprite Size Mode Random Non-Uniform, Sprite Size 500x60 to 900x110 cm, Sprite
