@@ -120,7 +120,7 @@ def dirty_allowed(loaded, world):
     return {p.get_name(): p for p in dirty if p.get_name() in allowed or p.get_name().startswith("/Game/ForestBiome/")}
 
 
-MEMORY_LIMIT_GB = 60  # a normal full regenerate peaks at 35-39 GB (measured); the 600,000/ha runaway went far past it
+MEMORY_LIMIT_GB = 60  # a full regenerate peaks at ~45 GB with grass off (#132); the 600,000/ha runaway went far past it
 
 
 def resident_gb():
@@ -193,6 +193,9 @@ class Regeneration:
                 delegate.add_callable(callback)
                 self.bindings.append((delegate, callback))
         self.handle = unreal.register_slate_post_tick_callback(self.tick)
+        # Landscape Grass (forest_floor.py's layers) holds ~11 GB around the camera; off during generation the peak
+        # dropped from 56.7 to 45.1 GB (#132). cleanup() turns it back on.
+        unreal.SystemLibrary.execute_console_command(self.world, "grass.Enable 0")
         for component in list(self.pending):
             # GenerateInternal (PCGComponent.cpp:546) rejects busy components rather than queuing.
             # Native completed/cancelled events queue our single pending request; no sleep/retry polling.
@@ -217,6 +220,7 @@ class Regeneration:
         try:
             self.unbind()
         finally:
+            unreal.SystemLibrary.execute_console_command(self.world, "grass.Enable 1")
             if self.handle is not None:
                 unreal.unregister_slate_post_tick_callback(self.handle)
                 self.handle = None

@@ -217,9 +217,15 @@ def litter_layout(name, hits, litter):
     return [("PCG_LogLitter_" + name, along_sides(hits, LITTER_SPACING, LITTER_MARGIN), (1.0, 1.6), litter, True)]
 
 
+def ivy_layout(mesh):
+    """The tree's baked trunk ivy (trunk_ivy.py, #121) at its own transform, or nothing if it has none."""
+    ivy = unreal.load_asset(f"/Game/ForestBiome/Ivy/SM_{mesh.get_name()}_Ivy")
+    return [("PCG_Ivy_" + mesh.get_name(), [(0, 0, 0)], (1, 1), [(ivy, 1)], False, False)] if ivy else []
+
+
 def shell_children(template, mesh):
-    """A ChildAssets list holding only the host's moss shell, or None if it has none."""
-    layout = shell_layout(mesh)
+    """A ChildAssets list holding the host's moss shell and trunk ivy, or None if it has neither."""
+    layout = shell_layout(mesh) + ivy_layout(mesh)
     return children("DA_ShellChildren_" + mesh.get_name(), template, layout) if layout else None
 
 
@@ -343,7 +349,7 @@ def main():
     for mesh, weight in slabs:
         # rock_assembly_01: ferns and flowers packed round the base with no bare ring.
         hits = surface_hits(mesh)
-        layouts = shell_layout(mesh) + [("PCG_RockBase_" + mesh.get_name(), base_ring(hits, 45, 5), (0.7, 1.1), base_plants, True),
+        layouts = shell_layout(mesh) + ivy_layout(mesh) + [("PCG_RockBase_" + mesh.get_name(), base_ring(hits, 45, 5), (0.7, 1.1), base_plants, True),
                                         # litter trapped against the base on its own ring, inside the plants' (#117 review)
                                         ("PCG_RockLitter_" + mesh.get_name(), base_ring(hits, LITTER_SPACING, LITTER_MARGIN),
                                          (0.8, 1.3), litter, True)]

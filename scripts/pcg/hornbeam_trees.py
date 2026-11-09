@@ -15,7 +15,7 @@ import importlib
 
 import biome_variants
 import unreal
-from deadwood_rocks import ROOT, asset_list, entry, generator, load, load_forest_actors, put, save
+from deadwood_rocks import ROOT, asset_list, entry, generator, load, load_forest_actors, put, save, shell_children
 
 PER_HA = 7  # candidates/ha island-wide: 30 gave 1,303 hornbeams that pruned the beech into a hornbeam forest
 PRIORITY = 40  # after the Trees group (0): among the beech, pruning none
@@ -46,7 +46,8 @@ def main():
     entries = []
     for index, (mesh, weight) in enumerate(meshes):
         # Equal weights share every sampler point (forest-pcg skill): nudge each.
-        value = entry(template, mesh, group, filter_graph, weight * (1 + index * 0.01), None)
+        value = entry(template, mesh, group, filter_graph, weight * (1 + index * 0.01),
+                      shell_children(template, mesh))  # trunk ivy on the IVY_TREES variants (#121)
         put(value, AssetType="Hornbeam_" + mesh.get_name())
         entries.append(value)
     assets = asset_list("DA_Forest_HornbeamAssets", entries)
