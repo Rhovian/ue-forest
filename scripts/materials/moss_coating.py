@@ -27,9 +27,11 @@ SCALARS = {  # shared by every coated surface; distances in cm, UVs in metres
     # side as much lower. Moss below ContactTop is always full, so every root flare joins the floor (interior_01).
     "ClimbLow": 90.0,
     "ClimbHigh": 230.0,
-    "FadeLow": 40.0,
-    "FadeHigh": 140.0,
-    "EdgeRelief": 70.0,
+    # A 40-140 cm fade read as a square-cut sleeve over bare bark (dark_shade stop, operator 2026-11-09, #123):
+    # the moss thins out over 1.2-3 m now, with a more ragged edge.
+    "FadeLow": 120.0,
+    "FadeHigh": 300.0,
+    "EdgeRelief": 120.0,
     "EdgeTile": 0.35,  # ragged edge repeats every ~3 m of bark UV
     "SideHeight": 50.0,
     "SideX": -0.6,
