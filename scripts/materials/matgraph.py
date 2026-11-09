@@ -45,12 +45,19 @@ def sampler_for(tex):
     compression = tex.get_editor_property("compression_settings")
     srgb = tex.get_editor_property("srgb")
     TC, ST = unreal.TextureCompressionSettings, unreal.MaterialSamplerType
+    # Virtual-streamed textures (the Electric Dreams surfaces) need the Virtual sampler types, or the whole material
+    # fails to compile and the landscape falls back to the default checker (#141).
+    virtual = tex.get_editor_property("virtual_texture_streaming")
     if compression == TC.TC_NORMALMAP:
-        return ST.SAMPLERTYPE_NORMAL
+        return ST.SAMPLERTYPE_VIRTUAL_NORMAL if virtual else ST.SAMPLERTYPE_NORMAL
     if compression == TC.TC_MASKS:
-        return ST.SAMPLERTYPE_MASKS
+        return ST.SAMPLERTYPE_VIRTUAL_MASKS if virtual else ST.SAMPLERTYPE_MASKS
     if compression in (TC.TC_GRAYSCALE, TC.TC_ALPHA, TC.TC_DISPLACEMENTMAP):
+        if virtual:
+            return ST.SAMPLERTYPE_VIRTUAL_GRAYSCALE if srgb else ST.SAMPLERTYPE_VIRTUAL_LINEAR_GRAYSCALE
         return ST.SAMPLERTYPE_GRAYSCALE if srgb else ST.SAMPLERTYPE_LINEAR_GRAYSCALE
+    if virtual:
+        return ST.SAMPLERTYPE_VIRTUAL_COLOR if srgb else ST.SAMPLERTYPE_VIRTUAL_LINEAR_COLOR
     return ST.SAMPLERTYPE_COLOR if srgb else ST.SAMPLERTYPE_LINEAR_COLOR
 
 

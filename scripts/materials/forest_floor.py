@@ -89,7 +89,8 @@ GRASS_SCALE = (0.9, 1.6)
 # and litter, after the Electric Dreams floor). Input name -> (asset, biome_variants list, density per 10 m2, cull cm,
 # scale range, where): "gaps" fills where the groundcover runs are not, in colonies; "all" is the whole forest floor;
 # "patches" is a sparse noise of its own, kept back from the sand (SCAN_MASK); "sand" is the litter patches on the upper sand;
-# "waterline" is clusters on the sand at the water's edge and "dry sand" the sand above it, everywhere.
+# "waterline" is clusters on the sand at the water's edge and "dry sand" the sand above it, everywhere; "lake" is
+# patches over the lake bed and "shallows" patches near its edge.
 GRASS_LAYERS = {
     "Undergrowth": (f"{FOLDER}/DA_ForestUndergrowth", "UNDERGROWTH_VARIANTS", 60.0, 6000, (0.8, 1.3), "gaps"),
     "Debris": (f"{FOLDER}/DA_ForestDebris", "DEBRIS_VARIANTS", 150.0, 2500, (1.0, 2.5), "all"),
@@ -102,6 +103,9 @@ GRASS_LAYERS = {
     # 6-9 m rocks: at 0.4 per 10 m2 they walled the beach in (#122 trial).
     "WaterlineBoulders": (f"{FOLDER}/DA_WaterlineBoulders", "WATERLINE_BOULDER_VARIANTS", 0.02, 10000, (0.25, 0.45), "waterline"),
     "DrySandStones": (f"{FOLDER}/DA_DrySandStones", "DRY_SAND_STONE_VARIANTS", 6.0, 3000, (1.5, 3.0), "dry sand"),
+    # #141: stones over the lake bed in patches and plants in its shallows (water_bed_mask.py), not the stream.
+    "LakeStones": (f"{FOLDER}/DA_LakeStones", "LAKE_STONE_VARIANTS", 20.0, 5000, (1.0, 2.5), "lake"),
+    "LakePlants": (f"{FOLDER}/DA_LakePlants", "LAKE_PLANT_VARIANTS", 12.0, 5000, (0.7, 1.2), "shallows"),
 }
 UNDERGROWTH_NOISE_CM = 1500.0  # feature size of the undergrowth colonies
 SCAN_NOISE_CM = 700.0  # feature size of the scan patches
@@ -119,6 +123,14 @@ GRASS_MASK = f"{FOLDER}/T_GroundcoverMask"
 # 2026-11-09). scan_mask.py's distance from the sand, on the same grid, keeps them 6-12 m inland.
 SCAN_MASK = f"{FOLDER}/T_ScanSandMask"
 LOG_MASK = f"{FOLDER}/T_LogMask"  # log_mask.py: the tall cover thinned on and beside fallen logs (#117)
+# The lake and stream bed (water_bed_mask.py, #141): their own ground under the water, with some of the moss's green.
+WATER_BED, LAKE_BED = f"{FOLDER}/T_WaterBedMask", f"{FOLDER}/T_LakeMask"
+BED_SCALE = 8.0  # cm per texture step (water_bed_mask.SCALE)
+BED_EDGE_CM = (-40.0, 80.0)  # the bed fades in from just above the water's edge to under it
+SHALLOWS_CM = 400.0  # the lake's shallow plants grow within this of its edge
+BED = ("/Game/Megascans/Surfaces/MossyRockyGround/T_MossyRockyGround_01", 400.0)  # Electric Dreams surface, tile cm
+BED_MOSS = 0.25  # share of the moss floor's colour kept on the bed
+LAKE_NOISE_CM = 800.0  # feature size of the lake's stone and plant patches
 ISLAND = json.loads((Path(unreal.Paths.project_dir()) / "../scripts/pcg/forest_foot.json").read_text())["island_m"]
 
 
@@ -408,10 +420,29 @@ def build():
         "A": waterline_band, "B": sand_mask}), "B": clusters})
     dry_sand = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": sand_mask, "B": g.wire(
         unreal.MaterialExpressionSmoothStep, 2, {"Min": w_full_high, "Max": w_high, "Value": z})})
+    # Lake and stream bed (water_bed_mask.py): signed cm to the water's edge, positive in the water, SCALE cm per step.
+    smooth = unreal.MaterialExpressionSmoothStep
+    const = lambda v: g.node(unreal.MaterialExpressionConstant, 4, r=v)
+
+    def edge_cm(texture):
+        value = g.mask(g.sample(texture, mask_uv, 3), 3, "r")
+        return g.wire(unreal.MaterialExpressionMultiply, 2, {"A": g.wire(unreal.MaterialExpressionSubtract, 3, {
+            "A": value, "B": const(128 / 255)}), "B": const(255 * BED_SCALE)})
+
+    in_water, in_lake = edge_cm(WATER_BED), edge_cm(LAKE_BED)
+    bed = g.wire(smooth, 2, {"Min": const(BED_EDGE_CM[0]), "Max": const(BED_EDGE_CM[1]), "Value": in_water})
+    lake = g.wire(smooth, 2, {"Min": const(40.0), "Max": const(120.0), "Value": in_lake})
+    shallows = g.wire(unreal.MaterialExpressionMultiply, 2, {"A": lake, "B": g.wire(
+        smooth, 3, {"Min": const(SHALLOWS_CM + 200), "Max": const(SHALLOWS_CM), "Value": in_lake})})
+    lake_patches = g.wire(smooth, 3, {"Min": p["GrassRunLow"], "Max": p["GrassRunHigh"],
+                                      "Value": g.noise(4, LAKE_NOISE_CM)})
+    lake_stones = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": lake, "B": lake_patches})
+    lake_plants = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": shallows, "B": lake_patches})
     weights = {"Groundcover": (weight, grass_type())}
     for name, (asset, variants, density, cull, scale, kind) in GRASS_LAYERS.items():
-        if kind in ("sand", "waterline", "dry sand"):
-            layer = {"sand": sand_litter, "waterline": waterline, "dry sand": dry_sand}[kind]
+        if kind in ("sand", "waterline", "dry sand", "lake", "shallows"):
+            layer = {"sand": sand_litter, "waterline": waterline, "dry sand": dry_sand, "lake": lake_stones,
+                     "shallows": lake_plants}[kind]
         else:
             layer = floor if kind == "all" else g.wire(unreal.MaterialExpressionMultiply, 1, {"A": floor, "B": where[kind]})
         weights[name] = (layer, grass_type(asset, variants, density, cull, scale))
@@ -427,6 +458,13 @@ def build():
         if not mel.connect_material_expressions(layer, "", output, name):
             raise SystemExit(f"could not connect the {name} weight")
 
+    # The bed's own ground under the water, keeping some of the moss's green (#141).
+    bed_uv = g.wire(unreal.MaterialExpressionDivide, 2, {"A": xy, "B": const(BED[1])})
+    bed_color = g.wire(lerp, 1, {"A": g.sample(f"{BED[0]}_BC", bed_uv, 2), "B": sets["Moss"]["B"],
+                                 "Alpha": const(BED_MOSS)})
+    color = g.wire(lerp, 0, {"A": color, "B": bed_color, "Alpha": bed})
+    normal = g.wire(lerp, 0, {"A": normal, "B": g.sample(f"{BED[0]}_N", bed_uv, 2), "Alpha": bed})
+    rough = g.wire(lerp, 0, {"A": rough, "B": g.mask(g.sample(f"{BED[0]}_AoRDp", bed_uv, 2), 1, "g"), "Alpha": bed})
     mel.connect_material_property(color, "", unreal.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(normal, "", unreal.MaterialProperty.MP_NORMAL)
     mel.connect_material_property(g.mask(orm, 0, "r"), "", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)

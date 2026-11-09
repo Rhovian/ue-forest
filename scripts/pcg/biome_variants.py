@@ -258,6 +258,16 @@ WATERLINE_BOULDER_VARIANTS = [
     (f"{EDA}NordicBeachRocks/SM_NordicBeachRocks_01", 1),
     *[(f"{EDA}NordicBoulder/SM_NordicBoulder_0{i}", 0.5) for i in range(1, 3)],
 ]
+# In the lake (#141; operator 2026-11-09: nothing grew or lay in it): stones over its bed in patches, and plants in
+# its shallows. No water plants are installed: Taro (a wetland plant) and Arrowhead Plant's arrow leaves stand in.
+LAKE_STONE_VARIANTS = [
+    *[(f"{EDA}SmallStonesPack/SM_SmallStonesPack_{i:02}", 1) for i in range(1, 15)],
+    *[(f"{EDA}MossyForestRock/SM_MossyForestRock_0{i}", 1.5) for i in range(1, 4)],
+]
+LAKE_PLANT_VARIANTS = [
+    *[(f"{ED}Taro/SM_Taro_{i:02}", 1) for i in range(1, 11)],
+    *[(f"{ED}ArrowheadPlant/SM_ArrowheadPlant_0{i}", 1) for i in range(1, 6)],
+]
 DRY_SAND_STONE_VARIANTS = [
     (f"{EDA}NordicBeachRock/SM_NordicBeachRock_01", 1),
     *[(f"{EDA}SmallStonesPack/SM_SmallStonesPack_{i:02}", 0.2) for i in range(1, 15)],
