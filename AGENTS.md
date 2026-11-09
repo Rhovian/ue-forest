@@ -11,8 +11,9 @@ UE 5.8 C++ project on one Mac, coordinated by Niles. Decisions behind these rule
 
 ## Planning
 
-- The art direction and its rulings live in docs/art-direction.md. The references there are what the operator wants: getting the level near them is the goal, and they govern decision rights. The lead settles every choice they answer itself, including grilling issues, research choices and the doc's open questions, and records each on its issue as "Lead ruling (date): … per `<reference>`".
-- Building against a reference’s “Ignore” list, or against a recorded operator ruling, is a departure. The lead labels the issue `needs-operator`, says what and why, and works on other issues until the operator rules.
+- The operator's current instructions come first. docs/art-direction.md (its "Current direction" section, then the references) sets the mood the level aims for; the references are not a checklist, and a doc line never overrides what the operator has asked for. When they disagree, follow the operator and update the doc to match.
+- The lead settles choices the operator hasn't spoken to, guided by the doc, including grilling issues, research choices and the doc's open questions. It records each on its issue in neutral wording, never quoting the operator, as "Lead ruling (date): …" or "Operator decision (date): …".
+- Going against a recorded operator decision is a departure: the lead labels the issue `needs-operator`, says what and why, and works on other issues until the operator rules. The references' "Ignore" lists are guidance, not decisions.
 - Work that spans several decision areas (for example canopy, ground cover, palette, moss) is split into separate issues before it starts.
 - Assets are limited to free Fab listings (docs/art-direction.md). When a reference needs one that is not installed, the lead opens an issue labelled `operator:asset` naming the listing, the export settings and the target `/Game` path, uses the documented fallback meanwhile, and moves on.
 
