@@ -5,8 +5,8 @@
 
 The rows (DA_Forest_TreesAssets) were set by hand with the four Megaplants beech. This keeps each existing row whose
 mesh is still listed (its wind, options and children) and adds a copy of the first row for each new mesh, so a new
-species shares the beech's generator, scale, filter and AssetType. Weights are nudged apart, as equal weights share
-every sampler point (forest-pcg skill). Then flare_moss.py (moss children for the trees that have shells),
+species shares the beech's generator, scale and filter. Every row gets its own AssetType and the weights are nudged
+apart (forest-pcg skill: rows sharing a type share one point pool; equal weights share every sampler point). Then flare_moss.py (moss children for the trees that have shells),
 shore_trees.py, exact_exclusions.py and regenerate_biome.py --save.
 """
 
@@ -32,7 +32,7 @@ def main():
         if row is None:
             row = template.copy()
             put(row, SkeletalMesh=load(path), Mesh=None, ChildAssets=None)
-        put(row, Weight=weight * (1 + index * 0.01))
+        put(row, AssetType="Tree_" + load(path).get_name(), Weight=weight * (1 + index * 0.01))
         out.append(row)
     trees.set_editor_property("BiomeAssets", out)
     save(trees)
