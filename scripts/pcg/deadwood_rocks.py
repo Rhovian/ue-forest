@@ -95,6 +95,9 @@ def filter_graph(name, reach=0, slope=0):
 
 LOGS_PER_HA = 20  # #32 ruling: more deadwood on the floor (was 12 logs + 6 stumps)
 STUMPS_PER_HA = 8
+# cm between a nurse log's side plants, and their scale: at 90 cm and 0.7-1.1 they hedged the trunk out of sight (#117,
+# operator 2026-11-09); some still grow against it.
+BASE_SPACING, BASE_SCALE = 200, (0.5, 0.85)
 LITTER_SPACING, LITTER_MARGIN = 180, 0  # cm between litter piles along a log or round a slab, and out from its edge
 
 
@@ -248,7 +251,7 @@ def main():
     paths = [path for rows in palettes for path, _ in rows]
     if len(paths) != len(set(paths)) or any(len({p for p, _ in rows}) != len(rows) for rows in plants):
         raise RuntimeError("A mesh may appear only once across the variant lists")
-    logs, stumps, slabs, fungi = [[(load(VARIANTS.VENDOR + path), weight) for path, weight in rows] for rows in palettes]
+    logs, stumps, slabs, fungi = [[(load(VARIANTS.asset_path(path)), weight) for path, weight in rows] for rows in palettes]
     seedlings, base_plants, litter = [[(load(path), weight) for path, weight in rows] for rows in plants]
     # Fungi alternatives share one layout, so they need one stem-base height to bury by.
     bases = [mesh.get_bounds().origin.z - mesh.get_bounds().box_extent.z for mesh, _ in fungi]
@@ -315,7 +318,7 @@ def main():
         # Altitude alone is no dampness proxy; both forms need the same eligible ground.
         nurse = filter_graph("PCG_Nurse_" + name, reach=reach if long else 0, slope=slope)
         # nurse_log_01: about one seedling per 4 m of trunk (4 on the 17 m log), two mushroom clusters on the top of
-        # a large log and one on the short piece, between the seedlings, and ferns and anemone every 90 cm along both
+        # a large log and one on the short piece, between the seedlings, and ferns and anemone every BASE_SPACING along both
         # sides of the trunk and at its ends.
         hits = surface_hits(mesh)
         # Seedlings and fungi stand on the moss shell's surface where the log has one (#110 review): sampled on the
@@ -328,12 +331,12 @@ def main():
         seedling_tops = along_top(tops, max(1, min(5, round(length / 400))))
         fungi_tops = [(x, y, z - min(bases) - 0.25)  # bury the stem base 2.5 mm, not the cap
                       for x, y, z in along_top(tops, 3)[::2][:2 if length > 400 else 1]]
-        sides = along_sides(hits, 90, 15)
+        sides = along_sides(hits, BASE_SPACING, 15)
         # The moss shell comes first: Core prunes later entries against earlier ones, and its bounds are tiny.
         nurse_children = children("DA_NurseChildren_" + name, template, shell_layout(mesh) + [
             ("PCG_Fungi_" + name, fungi_tops, (0.9, 1.3), fungi, False),
             ("PCG_Seedlings_" + name, seedling_tops, (1.0, 1.5), seedlings, False),
-            ("PCG_LogBase_" + name, sides, (0.7, 1.1), base_plants, True)] + litter_layout(name, hits, litter))
+            ("PCG_LogBase_" + name, sides, BASE_SCALE, base_plants, True)] + litter_layout(name, hits, litter))
         # Logs over 4 m (the Large Fallen Trees) are all nurse logs; the short piece keeps plain:nurse 2:1.
         # Only the short piece has plain logs; long ones get no plain filter graph (no unused assets).
         plain_logs = [] if length > 400 else [

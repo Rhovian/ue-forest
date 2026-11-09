@@ -91,7 +91,8 @@ def sand_graph():
 
 def main():
     variants = importlib.reload(biome_variants)
-    logs = [(load(variants.VENDOR + path), weight) for path, weight in variants.LOG_VARIANTS]
+    # The vendor trunks only: the mossy Electric Dreams log (a full /Game path) does not belong on the sand.
+    logs = [(load(variants.asset_path(path)), weight) for path, weight in variants.LOG_VARIANTS if not path.startswith("/Game/")]
     trees = load(ROOT + "DA_Forest_TreesAssets")
     template = trees.get_editor_property("BiomeAssets")[0]
     biomes = [a for a in load_forest_actors() if a.get_class().get_name().startswith("BP_PCGBiomeVolume")

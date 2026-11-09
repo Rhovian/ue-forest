@@ -53,7 +53,6 @@ LOG = {"SlopeLow": -0.5, "SlopeHigh": 0.1}  # top and sides down past the middle
 COATED = {  # instances that get the coating, with their overrides; one line per variant
     f"{FAB}/3D/Large_Fallen_Tree_wd1mbcvbw/Medium/wd1mbcvbw_tier_2/Materials/MI_wd1mbcvbw": LOG,
     f"{FAB}/3D/Large_Fallen_Tree_wgrubc1s/Medium/wgrubc1s_tier_2/Materials/MI_wgrubc1s": LOG,
-    f"{FAB}/3D/Nordic_Forest_Tree_Fallen_Medium_xicmfco/Medium/xicmfco_tier_2/Materials/MI_xicmfco": LOG,
     f"{FAB}/3D/Old_Tree_Stump_wd0qcaobw/Medium/wd0qcaobw_tier_2/Materials/MI_wd0qcaobw": LOG,
     # Top face only (rock_assembly_01: "mostly bare sides"); the default band coated most of its tilted sides, and
     # the moss shell (moss_shells.py) carries the top's thickness (#110 review).

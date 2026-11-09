@@ -1,10 +1,12 @@
 """Append (Megascans-relative mesh path, relative weight) rows to extend each palette."""
 
 VENDOR = "/Game/Fab/Megascans/3D/"
+# Round trunks only (operator, 2026-11-09): the flattened Nordic_Forest_Tree_Fallen_Medium (2.7 m long, 14 cm tall)
+# sank into slopes and showed as flat brown ovals, and logs should read bigger. asset_path() resolves each row.
 LOG_VARIANTS = [
-    ("Nordic_Forest_Tree_Fallen_Medium_xicmfco/Medium/xicmfco_tier_2/StaticMeshes/xicmfco_tier_2", 0.85),
-    ("Large_Fallen_Tree_wd1mbcvbw/Medium/wd1mbcvbw_tier_2/StaticMeshes/wd1mbcvbw_tier_2", 0.15),
-    ("Large_Fallen_Tree_wgrubc1s/Medium/wgrubc1s_tier_2/StaticMeshes/wgrubc1s_tier_2", 0.15),
+    ("Large_Fallen_Tree_wgrubc1s/Medium/wgrubc1s_tier_2/StaticMeshes/wgrubc1s_tier_2", 0.45),  # 6 m
+    ("/Game/Megascans/3D_Assets/MossyTree/SM_MossyTree_01", 0.3),  # 7.8 m, mossy (Electric Dreams)
+    ("Large_Fallen_Tree_wd1mbcvbw/Medium/wd1mbcvbw_tier_2/StaticMeshes/wd1mbcvbw_tier_2", 0.25),  # 17 m
 ]
 # Fallen logs lying in the meadow stretches (#38): only the short piece, whose footprint the meadow ground filter covers;
 # the long trunks need deadwood_rocks.py's reach-aware water keepout and 8-degree support limit.
@@ -12,8 +14,8 @@ LOG_VARIANTS = [
 SHORE_LOG_VARIANTS = [
     ("Large_Fallen_Tree_wd1mbcvbw/Medium/wd1mbcvbw_tier_2/StaticMeshes/wd1mbcvbw_tier_2", 1),
 ]
-MEADOW_LOG_VARIANTS = [
-    ("Nordic_Forest_Tree_Fallen_Medium_xicmfco/Medium/xicmfco_tier_2/StaticMeshes/xicmfco_tier_2", 1),
+MEADOW_LOG_VARIANTS = [  # the 6 m round trunk: the flattened Nordic piece showed as flat ovals (operator, 2026-11-09)
+    ("Large_Fallen_Tree_wgrubc1s/Medium/wgrubc1s_tier_2/StaticMeshes/wgrubc1s_tier_2", 1),
 ]
 STUMP_VARIANTS = [
     ("Old_Tree_Stump_wd0qcaobw/Medium/wd0qcaobw_tier_2/StaticMeshes/wd0qcaobw_tier_2", 1),
@@ -36,7 +38,14 @@ DRIFTWOOD_VARIANTS = [
     ("Coast_African_Debris_Driftwood_S_06_xlkoaaw/Medium/SM_xlkoaaw_tier_2/StaticMeshes/SM_xlkoaaw_tier_2", 1),
     ("Coast_African_Debris_Driftwood_S_07_xlknfje/Medium/SM_xlknfje_tier_2/StaticMeshes/SM_xlknfje_tier_2", 1),
 ]
-SOLID_SCANS = {VENDOR + path for path, _ in LOG_VARIANTS + STUMP_VARIANTS + SLAB_VARIANTS}
+
+
+def asset_path(path):
+    """A palette row's package path: rows are VENDOR-relative unless they start with "/Game/" (#147 review)."""
+    return path if path.startswith("/Game/") else VENDOR + path
+
+
+SOLID_SCANS = {asset_path(path) for path, _ in LOG_VARIANTS + STUMP_VARIANTS + SLAB_VARIANTS}
 
 # Plant palettes use full /Game paths (PVE exports and Megascans Plants share no vendor root).
 SAPLING_VARIANTS = [
@@ -209,19 +218,23 @@ DEBRIS_VARIANTS = [
     *[(f"{EDA}WoodenSticksAndTwigs/SM_WoodenSticksAndTwigs_{i:02}", 1.5) for i in range(1, 11)],
     *[(f"{EDA}DryBranches/SM_DryBranches_0{i}", 1) for i in range(1, 9)],
     (f"{EDA}OakBranch/SM_OakBranch_01", 1),
-    *[(f"{ED}DeadLeaves/SM_DeadLeaves_{i:02}", 2) for i in (1, 12, 13, 14)],
+]
+# Leaf drifts on the forest floor: flat 0.8-1.7 m leaf mats, placed smaller than the debris (forest_floor.py's Leaves
+# layer). At the debris' 1-2.5x they lay as 4 m brown rugs that read as cut-outs on slopes (operator, 2026-11-09).
+LEAF_LITTER_VARIANTS = [
+    *[(f"{ED}DeadLeaves/SM_DeadLeaves_{i:02}", 1) for i in (1, 12, 13, 14)],
 ]
 # Litter blown out onto the sand above the waterline, in forest_floor.py's own SandLitter patches (transition_ground_01),
 # not a band.
 SAND_LITTER_VARIANTS = [
     *[(f"{EDA}WoodenSticksAndTwigs/SM_WoodenSticksAndTwigs_{i:02}", 1) for i in range(1, 11)],
     *[(f"{EDA}DryBranches/SM_DryBranches_0{i}", 1) for i in range(1, 9)],
-    *[(f"{ED}DeadLeaves/SM_DeadLeaves_{i:02}", 1.5) for i in (1, 12, 13, 14)],
+    (f"{ED}DeadLeaves/SM_DeadLeaves_12", 3),  # the 0.8 m mat only: the 1.7 m ones at this scale lay as 3 m rugs
 ]
 # Leaf litter piled where logs and slabs meet the ground (#117, nurse_log_01, rock_assembly_01): deadwood_rocks.py
 # places these as children along each log's sides and round each slab's base.
-CONTACT_LITTER_VARIANTS = [
-    *[(f"{ED}DeadLeaves/SM_DeadLeaves_{i:02}", 1) for i in (1, 12, 13, 14)],
+CONTACT_LITTER_VARIANTS = [  # the 0.8 m leaf mat only: the 1.7 m ones read as flat brown rugs (operator, 2026-11-09)
+    (f"{ED}DeadLeaves/SM_DeadLeaves_12", 4),
     *[(f"{EDA}DryBranches/SM_DryBranches_0{i}", 0.3) for i in range(1, 9)],
 ]
 # Beach stones (#122, beach_01/02: limestone stones clustered at the waterline, sparse on dry sand).
