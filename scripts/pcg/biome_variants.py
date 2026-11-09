@@ -2,7 +2,7 @@
 
 VENDOR = "/Game/Fab/Megascans/3D/"
 # Round trunks only (operator, 2026-11-09): the flattened Nordic_Forest_Tree_Fallen_Medium (2.7 m long, 14 cm tall)
-# sank into slopes and showed as flat brown ovals, and logs should read bigger. A path starting "/Game/" is used as is.
+# sank into slopes and showed as flat brown ovals, and logs should read bigger. asset_path() resolves each row.
 LOG_VARIANTS = [
     ("Large_Fallen_Tree_wgrubc1s/Medium/wgrubc1s_tier_2/StaticMeshes/wgrubc1s_tier_2", 0.45),  # 6 m
     ("/Game/Megascans/3D_Assets/MossyTree/SM_MossyTree_01", 0.3),  # 7.8 m, mossy (Electric Dreams)
@@ -38,7 +38,14 @@ DRIFTWOOD_VARIANTS = [
     ("Coast_African_Debris_Driftwood_S_06_xlkoaaw/Medium/SM_xlkoaaw_tier_2/StaticMeshes/SM_xlkoaaw_tier_2", 1),
     ("Coast_African_Debris_Driftwood_S_07_xlknfje/Medium/SM_xlknfje_tier_2/StaticMeshes/SM_xlknfje_tier_2", 1),
 ]
-SOLID_SCANS = {VENDOR + path for path, _ in LOG_VARIANTS + STUMP_VARIANTS + SLAB_VARIANTS}
+
+
+def asset_path(path):
+    """A palette row's package path: rows are VENDOR-relative unless they start with "/Game/" (#147 review)."""
+    return path if path.startswith("/Game/") else VENDOR + path
+
+
+SOLID_SCANS = {asset_path(path) for path, _ in LOG_VARIANTS + STUMP_VARIANTS + SLAB_VARIANTS}
 
 # Plant palettes use full /Game paths (PVE exports and Megascans Plants share no vendor root).
 SAPLING_VARIANTS = [
