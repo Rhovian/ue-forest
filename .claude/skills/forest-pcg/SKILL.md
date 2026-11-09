@@ -88,6 +88,11 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   local z = 0 is only the ground at its pivot.
 - Created child points need distinct seeds (`build_points_graph` sets `seed = 1 + index`) before Transform Points, or
   every sibling shares yaw, scale and mesh pick.
+- A child at the parent's own point (moss shells, tufts) needs `AssetOptions.OverlapWithChildren` on the parent row,
+  or Core prunes it against its parent: hand-set rows (the Trees group's) lack it and placed none (#116).
+- Children are made before Core prunes the parents by priority, so a child outlives a parent pruned by another
+  group's bounds: beech tuft children at 0.1% bounds stood alone round every veteran (one in eight). Give such a
+  child its parent's bounds (`flare_moss.match_bounds`), so whatever prunes the parent prunes it too.
 
 ## Verification
 

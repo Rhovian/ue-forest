@@ -15,7 +15,7 @@ import importlib
 
 import biome_variants
 import unreal
-from deadwood_rocks import ROOT, asset_list, entry, generator, get, load, load_forest_actors, put, save
+from deadwood_rocks import ROOT, asset_list, entry, generator, get, load, load_forest_actors, put, save, shell_children
 
 PER_HA = 2  # candidates/ha island-wide
 PRIORITY = -10  # before the Trees group (0): the beech are pruned around the veteran
@@ -54,7 +54,7 @@ def main():
     save(group)
     entries = []
     for mesh, weight in meshes:
-        value = entry(template, mesh, group, filter_graph, weight)
+        value = entry(template, mesh, group, filter_graph, weight, shell_children(template, mesh))  # root-flare tufts (#116)
         put(value, AssetType="Veteran_" + mesh.get_name())
         options = get(value, "AssetOptions")
         put(options, ExtentsMultiplier=unreal.Vector(PRUNE_EXTENT, PRUNE_EXTENT, 1.0))
