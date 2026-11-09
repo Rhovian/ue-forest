@@ -9,7 +9,7 @@ The concept art below is out of reach with the assets we have, so the build impr
 - **Electric Dreams is a reference too.** The free Electric Dreams sample environment (Fab, `ElectricDreamsSample_5.8`) is both an asset source and a look reference: its dark shade with sun patches, its mixed floor and its plant density are targets (captures of its hero cameras: `Forest/Saved/Reviews/ed-reference/`, local).
 - **Use its plants.** Every Electric Dreams plant is available, tropical ones included, mixed with the plants we already have. Hornbeam and elderberry join the beech.
 - **Floor: less grass, denser plant life,** mixed with ground scans, stones, sticks and branches, surface roots and leaf litter. Bare earth, roots and rock are welcome; not every surface has to be green.
-- **The terrain stays as it is** for now; dress it, don't reshape it.
+- **The terrain's shape stays as it is** for now; its surface (floor material, ground scans, cover) is open to change.
 
 ## Rules for agents
 
