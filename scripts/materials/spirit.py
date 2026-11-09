@@ -23,8 +23,9 @@ X, MP = unreal, unreal.MaterialProperty
 FLASH = """
 float period = 3.0 + 5.0 * frac(Seed * 7.31);
 float phase = frac(Time / period + Seed * 13.7);
-float flash = exp(-pow((phase - 0.10) / 0.035, 2.0));
-flash += (frac(Seed * 3.17) > 0.6) * exp(-pow((phase - 0.22) / 0.03, 2.0));  // a double flash on some
+float a = (phase - 0.10) / 0.035, b = (phase - 0.22) / 0.03;  // squared by hand: pow() of a negative base is NaN
+float flash = exp(-a * a);
+flash += (frac(Seed * 3.17) > 0.6) * exp(-b * b);  // a double flash on some
 """
 GLOW = FLASH + """
 float2 p = UV - 0.5;
