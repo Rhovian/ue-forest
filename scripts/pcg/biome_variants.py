@@ -72,7 +72,8 @@ VETERAN_VARIANTS = [
     ("/Game/EuropeanBeech/Geometry/SimpleWind/SM_EuropeanBeech_Field_01", 1),
 ]
 # Hornbeam among the beech (#125; operator, 2026-11-08): Electric Dreams' Megascans European hornbeam, static Nanite
-# forest trees. Forest_09 (6 m) is a sapling-sized tree and stays out.
+# forest trees. Forest_09 (6 m) is a sapling-sized tree and stays out; the Field trees are open-grown, wide-crowned
+# (12-16 m across) and stay out of the closed forest (lead ruling on #125).
 HORNBEAM_VARIANTS = [
     *[(f"/Game/Megascans/3D_Plants/EuropeanHornbeam/Geometry/SimpleWind/SM_EuropeanHornbeam_Forest_{i:02}", 1)
       for i in (1, 2, 3, 4, 5, 6, 7, 8, 10)],
