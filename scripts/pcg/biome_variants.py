@@ -64,18 +64,26 @@ GAP_SHRUB_VARIANTS = [
     ("/Game/Megaplant_Library/Tree_Common_Hazel/Tree_Common_Hazel_01/Tree_Common_Hazel_01_C", 1),
     ("/Game/Megaplant_Library/Tree_Common_Hazel/Tree_Common_Hazel_01/Tree_Common_Hazel_01_D", 1),
 ]
+FAB_PLANTS = "/Game/Fab/Megascans/Plants/"
+# Fern colonies, one kind per drift (#142; operator 2026-11-09: the Olympic rainforests layer several ferns, the floor
+# showed one). saplings_understory.py places each list as its own drifts, FERN_COLONY_SHARES of the fern density.
+# Lady fern: lacy, bright, up to 2 m.
 FERN_VARIANTS = [
-    ("/Game/Fab/Megascans/Plants/Beech_Fern_vmkpdbeia/Medium/vmkpdbeia_tier_2/StaticMeshes/SM_vmkpdbeia_VarA", 1),
-    ("/Game/Fab/Megascans/Plants/Lady_Fern_wdvlditia/Medium/wdvlditia_tier_2/StaticMeshes/SM_wdvlditia_VarA", 0.15),
-    ("/Game/Fab/Megascans/Plants/Lady_Fern_wdvlditia/Medium/wdvlditia_tier_2/StaticMeshes/SM_wdvlditia_VarB", 0.15),
-    ("/Game/Fab/Megascans/Plants/Lady_Fern_wdvlditia/Medium/wdvlditia_tier_2/StaticMeshes/SM_wdvlditia_VarC", 0.15),
-    ("/Game/Fab/Megascans/Plants/Lady_Fern_wdvlditia/Medium/wdvlditia_tier_2/StaticMeshes/SM_wdvlditia_VarD", 0.15),
-    ("/Game/Fab/Megascans/Plants/Lady_Fern_wdvlditia/Medium/wdvlditia_tier_2/StaticMeshes/SM_wdvlditia_VarE", 0.15),
-    ("/Game/Fab/Megascans/Plants/Lady_Fern_wdvlditia/Medium/wdvlditia_tier_2/StaticMeshes/SM_wdvlditia_VarF", 0.15),
-    ("/Game/Fab/Megascans/Plants/Lady_Fern_wdvlditia/Medium/wdvlditia_tier_2/StaticMeshes/SM_wdvlditia_VarG", 0.15),
-    ("/Game/Fab/Megascans/Plants/Lady_Fern_wdvlditia/Medium/wdvlditia_tier_2/StaticMeshes/SM_wdvlditia_VarH", 0.15),
-    ("/Game/Fab/Megascans/Plants/Lady_Fern_wdvlditia/Medium/wdvlditia_tier_2/StaticMeshes/SM_wdvlditia_VarI", 0.15),
+    *[(f"{FAB_PLANTS}Lady_Fern_wdvlditia/Medium/wdvlditia_tier_2/StaticMeshes/SM_wdvlditia_Var{v}", 1) for v in "ABCDEFGHI"],
 ]
+# Sword-fern stand-in: Electric Dreams' Fern, long once-divided fronds in fountains.
+SWORD_FERN_VARIANTS = [
+    *[(f"/Game/Megascans/3D_Plants/Fern/SM_Fern_0{i}", 1) for i in range(1, 7)],
+]
+# Deer-fern stand-in: Silver Lady Fern, lower narrow-frond rosettes.
+DEER_FERN_VARIANTS = [
+    *[(f"/Game/Megascans/3D_Plants/SilverLadyFern/SM_SilverLadyFern_0{i}", 1) for i in range(1, 8)],
+]
+# Beech fern: low triangular fronds, an oak-fern stand-in.
+BEECH_FERN_VARIANTS = [
+    *[(f"{FAB_PLANTS}Beech_Fern_vmkpdbeia/Medium/vmkpdbeia_tier_2/StaticMeshes/SM_vmkpdbeia_Var{v}", 1) for v in "ABCDEFGH"],
+]
+FERN_COLONY_SHARES = {"Ferns": 0.35, "SwordFerns": 0.3, "DeerFerns": 0.2, "BeechFerns": 0.15}
 # Veteran beech (#80, interior_01's massive old trunks): the Megascans open-grown field tree, a static Nanite mesh.
 VETERAN_VARIANTS = [
     ("/Game/EuropeanBeech/Geometry/SimpleWind/SM_EuropeanBeech_Field_01", 1),
