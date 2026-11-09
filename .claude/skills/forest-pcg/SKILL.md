@@ -43,6 +43,13 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   until they finish (watch the log go quiet), and the first frame-time run after it measured a GPU idling at 0.3 ms
   (rerun it). Grass also fills in over seconds after each camera move: scripts/review/capture waits GRASS_SETTLE.
 
+- A grass mask that is only a texture (T_LogMask, T_SandEdgeMask, T_WaterBedMask) does not rebuild the grass when it
+  is rebaked: run `grass.FlushCache` (or rebuild the floor material) before judging it (#151).
+- Virtual-streamed textures (the Electric Dreams surfaces) need Virtual sampler types: with plain ones the whole floor
+  material failed to compile and the landscape showed the default checker (matgraph.sampler_for, #149).
+- Height bakes that trace the landscape must ignore each actor in the way (`actors_to_ignore`), not step down past it
+  1 cm at a time: inside the large logs that stalled and ~880 cells came back as "no landscape" (scan_mask.py, #151).
+
 ## Counts do not scale smoothly
 
 - The template's spatial noise thins candidates heavily and nonlinearly: driftwood went from ~400 pieces at 1,800/ha to
