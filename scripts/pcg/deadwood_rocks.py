@@ -251,8 +251,7 @@ def main():
     paths = [path for rows in palettes for path, _ in rows]
     if len(paths) != len(set(paths)) or any(len({p for p, _ in rows}) != len(rows) for rows in plants):
         raise RuntimeError("A mesh may appear only once across the variant lists")
-    logs, stumps, slabs, fungi = [[(load(path if path.startswith("/Game/") else VARIANTS.VENDOR + path), weight)
-                                    for path, weight in rows] for rows in palettes]
+    logs, stumps, slabs, fungi = [[(load(VARIANTS.asset_path(path)), weight) for path, weight in rows] for rows in palettes]
     seedlings, base_plants, litter = [[(load(path), weight) for path, weight in rows] for rows in plants]
     # Fungi alternatives share one layout, so they need one stem-base height to bury by.
     bases = [mesh.get_bounds().origin.z - mesh.get_bounds().box_extent.z for mesh, _ in fungi]

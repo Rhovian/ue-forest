@@ -336,7 +336,7 @@ def material(host):
 
 def main():
     for path, angle in SHELLS.items():
-        host = unreal.load_asset(biome_variants.VENDOR + path)
+        host = unreal.load_asset(biome_variants.asset_path(path))
         shell, vertices, tufts = build(host, angle)
         print(f"{shell.get_name()}: {vertices} vertices, faces within {angle:.0f} deg of up; {tufts} tufts")
     for path, (angle, below) in TUFTS_ONLY.items():

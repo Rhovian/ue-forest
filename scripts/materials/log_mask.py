@@ -1,12 +1,13 @@
-"""Bake /Game/ForestBiome/T_LogMask: where the floor's tall Landscape Grass thins out around fallen logs (#117).
+"""Bake /Game/ForestBiome/T_LogMask: where the floor's tall Landscape Grass thins out around logs and rocks (#117).
 
     scripts/editor-py scripts/materials/log_mask.py
 
 Landscape Grass knows nothing of the PCG logs, so ferns and undergrowth grew straight through them and hid them
-(nurse_log stop, operator 2026-11-09). This reads every placed log (biome_variants.LOG_VARIANTS and the meadow's) from
-the generated instances, rasterises its footprint on T_GroundcoverMask's 2 m grid (same cells, same UVs) and grows it
-by a cell, at ON_LOG rather than black: plants still grow on and against a log, only fewer (operator: a log with
-nothing on it is not the target either). forest_floor.py multiplies it into the groundcover and undergrowth.
+(nurse_log stop, operator 2026-11-09: on and beside logs and rocks). This reads every placed log (biome_variants
+LOG_VARIANTS and the meadow's) and rock slab or boulder (SLAB_VARIANTS) from the generated instances, rasterises its
+footprint on T_GroundcoverMask's 2 m grid (same cells, same UVs) and grows it by a cell, at ON_LOG rather than
+black: plants still grow on and against a log, only fewer (operator: a log with nothing on it is not the target
+either). forest_floor.py multiplies it into the groundcover and undergrowth.
 Rerun after every regenerate that moves logs, then forest_floor.py.
 """
 
@@ -22,11 +23,11 @@ from groundcover_mask import CELL, bounds, import_texture
 from mask_raster import dilate, fill
 
 NAME = "T_LogMask"
-ON_LOG = 0.3  # share of the tall cover kept on and beside a log
+ON_LOG = 0.3  # share of the tall cover kept on and beside a log or rock
 
 
 def log_meshes():
-    rows = biome_variants.LOG_VARIANTS + biome_variants.MEADOW_LOG_VARIANTS
+    rows = biome_variants.LOG_VARIANTS + biome_variants.MEADOW_LOG_VARIANTS + biome_variants.SLAB_VARIANTS
     return {path.rsplit("/", 1)[1] for path, _ in rows}
 
 
@@ -59,7 +60,7 @@ def main():
     kept = round(255 * ON_LOG)
     pixels = bytearray(kept if v == 0 else v for v in pixels)
     import_texture(pixels, width, height, NAME)
-    print(f"{NAME}: {len(logs)} logs, {sum(1 for v in pixels if v == kept) * CELL * CELL / 1e4:.0f} m2 thinned")
+    print(f"{NAME}: {len(logs)} logs and rocks, {sum(1 for v in pixels if v == kept) * CELL * CELL / 1e4:.0f} m2 thinned")
 
 
 if __name__ == "__main__":
