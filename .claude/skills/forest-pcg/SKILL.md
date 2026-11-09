@@ -102,7 +102,8 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
 - Every child layout runs per parent point, and regenerate memory scales with it: a second child (trunk ivy) on a quarter
   of the ~5,700 beech pushed regenerate past the 60 GB guard twice, where the same ivy merged into the trees' existing
   moss shell as an extra section (trunk_ivy.py) peaked at ~56 GB. Add geometry to an existing child's mesh before adding
-  a child to a large group (#121).
+  a child to a large group (#121). Landscape Grass held ~11 GB of that: regenerate_biome.py turns it off while it runs
+  (peak ~49 GB, #132).
 
 ## Verification
 
