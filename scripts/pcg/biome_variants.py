@@ -121,9 +121,11 @@ IVY_VARIANTS = [
 # Project Nature Foliage Collection (#98), qualified in the interior and on the stream bank. The rest of the pack
 # (wispy and straw-headed meadow grasses, tall pale ground stalks, single-stem meadow flowers) was deleted.
 # Low connector between fern colonies (#100): soft green tufts and small leafy rosettes, ankle high.
+ED = "/Game/Megascans/3D_Plants/"  # Electric Dreams sample plants (free on Fab), an art-direction reference (operator, 2026-11-08)
+EDA = "/Game/Megascans/3D_Assets/"
 GROUNDCOVER_VARIANTS = [
-    ("/Game/PN_FoliageCollection/Meshes/grassMesh/lowGrass_01_01_SM", 4),
-    ("/Game/PN_FoliageCollection/Meshes/grassMesh/lowGrass_01_02_SM", 4),
+    ("/Game/PN_FoliageCollection/Meshes/grassMesh/lowGrass_01_01_SM", 1.5),  # less grass, more plants (operator, 2026-11-08)
+    ("/Game/PN_FoliageCollection/Meshes/grassMesh/lowGrass_01_02_SM", 1.5),
     ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_01_01", 1),
     ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_01_02", 1),
     ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_01_03", 1),
@@ -144,6 +146,72 @@ GROUNDCOVER_VARIANTS = [
     ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_04_02", 1),
     ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_04_03", 1),
     ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_04_04", 1),
+    *[(f"{ED}GroundCover/SM_GroundCover_0{i}", 1.5) for i in range(1, 9)],
+    *[(f"{ED}MoneyPlant/SM_MoneyPlant_0{i}", 1) for i in range(1, 7)],
+    *[(f"{ED}PurpleShamrock/SM_PurpleShamrock_0{i}", 1) for i in range(1, 4)],
+    *[(f"{ED}CommonPurslane/SM_CommonPurslane_0{i}", 0.7) for i in range(1, 6)],
+    *[(f"{ED}JungleGinger/SM_JungleGinger_0{i}", 1) for i in (2, 3, 4, 5)],
+    *[(f"{ED}RedLachenalia/SM_RedLachenalia_{i:02}", 0.15) for i in (1, 2, 3, 4, 6, 12, 13, 14)],
+    *[(f"{ED}CanePalm/SM_CanePalm_0{i}", 0.5) for i in range(1, 5)],
+]
+# Knee-to-head plants in colonies between the groundcover runs (operator, 2026-11-08: less grass, denser plant life).
+UNDERGROWTH_VARIANTS = [
+    *[(f"{ED}Taro/SM_Taro_{i:02}", 1) for i in range(1, 11)],
+    *[(f"{ED}JungleGinger/SM_JungleGinger_0{i}", 1) for i in (1, 6, 7, 8, 9)],
+    *[(f"{ED}Crownbeard/SM_Crownbeard_{i:02}", 0.15) for i in range(3, 11)],
+    *[(f"{ED}PinkCordyline/SM_PinkCordyline_0{i}", 0.25) for i in range(1, 9)],
+    *[(f"{ED}ArrowheadPlant/SM_ArrowheadPlant_0{i}", 1) for i in range(1, 6)],
+    *[(f"{ED}Fern/SM_Fern_0{i}", 1.5) for i in range(1, 7)],
+    *[(f"{ED}BroadleafLadyPalm/SM_BroadleafLadyPalm_0{i}", 0.6) for i in range(1, 6)],
+    *[(f"{ED}CatPalm/SM_CatPalm_0{i}", 0.6) for i in range(1, 5)],
+    *[(f"{ED}ZamiaPalm/SM_ZamiaPalm_0{i}", 0.5) for i in range(1, 4)],
+    *[(f"{ED}Elderberry/SM_Elderberry_{i:02}", 1) for i in range(1, 14)],
+    *[(f"{ED}CastorOilPlant/SM_CastorOilPlant_0{i}", 0.4) for i in range(1, 5)],
+    *[(f"{ED}Amaryllis/SM_Amaryllis_0{i}", 0.05) for i in range(1, 5)],
+    *[(f"{ED}VariegatedCroton/SM_VariegatedCroton_0{i}", 0.3) for i in range(1, 6)],
+    *[(f"{ED}DragonTree/SM_DragonTree_0{i}", 0.3) for i in range(1, 6)],
+    *[(f"{ED}EuropeanHornbeam/Geometry/SimpleWind/SM_EuropeanHornbeam_Sapling_0{i}", 0.6) for i in range(1, 9)],
+    *[(f"{ED}EuropeanHornbeam/Geometry/SimpleWind/SM_EuropeanHornbeam_Seedling_0{i}", 0.6) for i in range(1, 6)],
+]
+# Small debris over the whole forest floor: pebbles, twigs, dry branches and leaf-litter mats.
+DEBRIS_VARIANTS = [
+    *[(f"{EDA}SmallStonesPack/SM_SmallStonesPack_{i:02}", 1) for i in range(1, 15)],
+    *[(f"{EDA}WoodenSticksAndTwigs/SM_WoodenSticksAndTwigs_{i:02}", 1.5) for i in range(1, 11)],
+    *[(f"{EDA}DryBranches/SM_DryBranches_0{i}", 1) for i in range(1, 9)],
+    (f"{EDA}OakBranch/SM_OakBranch_01", 1),
+    *[(f"{ED}DeadLeaves/SM_DeadLeaves_{i:02}", 2) for i in (1, 12, 13, 14)],
+]
+# Litter blown out onto the sand above the waterline, in forest_floor.py's own SandLitter patches (transition_ground_01),
+# not a band.
+SAND_LITTER_VARIANTS = [
+    *[(f"{EDA}WoodenSticksAndTwigs/SM_WoodenSticksAndTwigs_{i:02}", 1) for i in range(1, 11)],
+    *[(f"{EDA}DryBranches/SM_DryBranches_0{i}", 1) for i in range(1, 9)],
+    *[(f"{ED}DeadLeaves/SM_DeadLeaves_{i:02}", 1.5) for i in (1, 12, 13, 14)],
+]
+# Leaf litter piled where logs and slabs meet the ground (#117, nurse_log_01, rock_assembly_01): deadwood_rocks.py
+# places these as children along each log's sides and round each slab's base.
+CONTACT_LITTER_VARIANTS = [
+    *[(f"{ED}DeadLeaves/SM_DeadLeaves_{i:02}", 1) for i in (1, 12, 13, 14)],
+    *[(f"{EDA}DryBranches/SM_DryBranches_0{i}", 0.3) for i in range(1, 9)],
+]
+# Root mats and mossy embankment pieces straddling the sand edge in patches (#117 review, transition_ground_01: roots
+# across the sand, islands of moss on it, no straight line).
+SHORE_SCAN_VARIANTS = [
+    *[(f"{EDA}MossyForestRoots/SM_MossyForestRoots_0{i}", 1) for i in range(1, 4)],
+    *[(f"{EDA}ForestRoots/SM_ForestRoots_0{i}", 1) for i in range(1, 3)],
+    *[(f"{EDA}GrassyEmbankment/SM_GrassyEmbankment_0{i}", 1) for i in range(1, 3)],
+    *[(f"{EDA}MossyEmbankment/SM_MossyEmbankment_0{i}", 0.5) for i in range(1, 3)],
+    (f"{EDA}ForestGround/SM_ForestGround_01", 1),
+]
+# Ground scans (root mats, rough terrain, stony path) and fallen branches, in patches.
+SCAN_VARIANTS = [
+    *[(f"{EDA}MossyForestRoots/SM_MossyForestRoots_0{i}", 1) for i in range(1, 4)],
+    *[(f"{EDA}ForestRoots/SM_ForestRoots_0{i}", 1) for i in range(1, 3)],
+    *[(f"{EDA}ForestTerrain/SM_ForestTerrain_0{i}", 1) for i in range(1, 3)],
+    (f"{EDA}ForestGround/SM_ForestGround_01", 1),
+    (f"{EDA}RockyForestPath/SM_RockyForestPath_01", 0.5),
+    *[(f"{EDA}MossyRocks/SM_MossyRocks_0{i}", 0.7) for i in range(1, 3)],
+    *[(f"{EDA}OldTreeBranch/SM_OldTreeBranch_0{i}", 0.4) for i in range(1, 7)],
 ]
 # Foxglove spikes (~1 m, pink-violet): a violet accent readable at eye height on banks and in gaps (#105).
 FOXGLOVE_VARIANTS = [

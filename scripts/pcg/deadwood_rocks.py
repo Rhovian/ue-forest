@@ -95,6 +95,7 @@ def filter_graph(name, reach=0, slope=0):
 
 LOGS_PER_HA = 20  # #32 ruling: more deadwood on the floor (was 12 logs + 6 stumps)
 STUMPS_PER_HA = 8
+LITTER_SPACING, LITTER_MARGIN = 180, 0  # cm between litter piles along a log or round a slab, and out from its edge
 
 
 # The surface sampler covers the whole biome volume before any filter, so a generator's cost is density x volume area,
@@ -209,6 +210,13 @@ def children(name, template, layouts):
     return asset_list(name, entries)
 
 
+def litter_layout(name, hits, litter):
+    """Leaf-litter piles on the ground at a log's contact (#117 review, nurse_log_01): their own stations, every
+    LITTER_SPACING cm along both sides and LITTER_MARGIN cm out, tucked against the trunk under the base plants'
+    row (along_sides, 90 cm at 15 cm), where the ferns hid litter sharing their points."""
+    return [("PCG_LogLitter_" + name, along_sides(hits, LITTER_SPACING, LITTER_MARGIN), (1.0, 1.6), litter, True)]
+
+
 def shell_children(template, mesh):
     """A ChildAssets list holding only the host's moss shell, or None if it has none."""
     layout = shell_layout(mesh)
@@ -227,14 +235,15 @@ def main():
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     palettes = [VARIANTS.LOG_VARIANTS, VARIANTS.STUMP_VARIANTS, VARIANTS.SLAB_VARIANTS, VARIANTS.FUNGI_VARIANTS]
-    plants = [VARIANTS.SEEDLING_VARIANTS, VARIANTS.BASE_PLANT_VARIANTS]  # full /Game paths, shared with the plant groups
+    plants = [VARIANTS.SEEDLING_VARIANTS, VARIANTS.BASE_PLANT_VARIANTS,  # full /Game paths, shared with the plant groups
+              VARIANTS.CONTACT_LITTER_VARIANTS]
     if any(not rows or any(weight <= 0 for _, weight in rows) for rows in palettes + plants):
         raise RuntimeError("Variant lists must be nonempty with positive weights")
     paths = [path for rows in palettes for path, _ in rows]
     if len(paths) != len(set(paths)) or any(len({p for p, _ in rows}) != len(rows) for rows in plants):
         raise RuntimeError("A mesh may appear only once across the variant lists")
     logs, stumps, slabs, fungi = [[(load(VARIANTS.VENDOR + path), weight) for path, weight in rows] for rows in palettes]
-    seedlings, base_plants = [[(load(path), weight) for path, weight in rows] for rows in plants]
+    seedlings, base_plants, litter = [[(load(path), weight) for path, weight in rows] for rows in plants]
     # Fungi alternatives share one layout, so they need one stem-base height to bury by.
     bases = [mesh.get_bounds().origin.z - mesh.get_bounds().box_extent.z for mesh, _ in fungi]
     if max(bases) - min(bases) > 0.1:
@@ -318,12 +327,13 @@ def main():
         nurse_children = children("DA_NurseChildren_" + name, template, shell_layout(mesh) + [
             ("PCG_Fungi_" + name, fungi_tops, (0.9, 1.3), fungi, False),
             ("PCG_Seedlings_" + name, seedling_tops, (1.0, 1.5), seedlings, False),
-            ("PCG_LogBase_" + name, sides, (0.7, 1.1), base_plants, True)])
+            ("PCG_LogBase_" + name, sides, (0.7, 1.1), base_plants, True)] + litter_layout(name, hits, litter))
         # Logs over 4 m (the Large Fallen Trees) are all nurse logs; the short piece keeps plain:nurse 2:1.
         # Only the short piece has plain logs; long ones get no plain filter graph (no unused assets).
         plain_logs = [] if length > 400 else [
             entry(template, mesh, group, filter_graph("PCG_Log_" + name, reach=reach if long else 0, slope=slope), 2,
-                  shell_children(template, mesh), aligned=True)]
+                  children("DA_LogChildren_" + name, template, shell_layout(mesh) + litter_layout(name, hits, litter)),
+                  aligned=True)]
         entries += plain_logs + [
             entry(template, mesh, group, nurse, 1, nurse_children, aligned=True)]
         print(f"Log variant {name}: share {weight / sum(w for _, w in logs):.1%}, slope {slope} deg, reach {reach:.0f} cm,"
@@ -332,8 +342,11 @@ def main():
     rock_entries = []
     for mesh, weight in slabs:
         # rock_assembly_01: ferns and flowers packed round the base with no bare ring.
-        layouts = shell_layout(mesh) + [("PCG_RockBase_" + mesh.get_name(), base_ring(surface_hits(mesh), 45, 5),
-                                         (0.7, 1.1), base_plants, True)]
+        hits = surface_hits(mesh)
+        layouts = shell_layout(mesh) + [("PCG_RockBase_" + mesh.get_name(), base_ring(hits, 45, 5), (0.7, 1.1), base_plants, True),
+                                        # litter trapped against the base on its own ring, inside the plants' (#117 review)
+                                        ("PCG_RockLitter_" + mesh.get_name(), base_ring(hits, LITTER_SPACING, LITTER_MARGIN),
+                                         (0.8, 1.3), litter, True)]
         rock_entries.append(entry(template, mesh, rocks, plain, weight,
                                   children("DA_RockChildren_" + mesh.get_name(), template, layouts)))
     groups = [asset_list("DA_Forest_DeadwoodAssets", entries), asset_list("DA_Forest_RocksAssets", rock_entries)]
@@ -343,7 +356,7 @@ def main():
     print(f"Deadwood/Rocks built: {LOGS_PER_HA} logs + {STUMPS_PER_HA} stumps/ha, 30 slabs/ha candidates; {len(logs)} log variants")
     print("Collision: Log/Stump/Slab simple BlockAll; stock materials; assets saved")
     print("Ground groups: priority difference bypassed (canopy bounds); terrain/water filters retained")
-    print("Children: nurse logs carry fungi, seedlings and base plants; rocks carry base plants")
+    print("Children: nurse logs carry fungi, seedlings, base plants and litter; rocks carry base plants and litter")
     print("Regenerate Biome Core, inspect nurse fungi/contact/collision, then save the level")
 
 

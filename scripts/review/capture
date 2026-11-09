@@ -9,10 +9,14 @@ import json
 import os
 import subprocess
 import sys
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.dirname(HERE)
 FOV = 90
+# s for Landscape Grass to fill in around a new pose: it builds on the editor's tick after the camera moves, so a capture
+# straight after the move showed the old or an empty floor (#117).
+GRASS_SETTLE = 25
 
 if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
     sys.exit(__doc__)
@@ -39,9 +43,10 @@ for name, camera in cameras.items():
     }
     # Twice: particle distance culling reads the last rendered view, which only moves to the pose after the first call
     # has returned and the viewport has drawn (scripts/review/warm.py).
-    for _ in range(2):
+    for settle in (GRASS_SETTLE, 0):
         subprocess.run([os.path.join(SCRIPTS, "editor-py"), os.path.join(HERE, "warm.py"), json.dumps(camera)],
                        check=True, capture_output=True)
+        time.sleep(settle)
     path = os.path.join(out, f"{name}.png")
     pending = path + ".tmp"  # a rejected capture must not replace an earlier one
     reply = subprocess.run([os.path.join(SCRIPTS, "editor-mcp"), "-o", pending, "EditorToolset.EditorAppToolset",
