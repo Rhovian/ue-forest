@@ -258,6 +258,16 @@ WATERLINE_BOULDER_VARIANTS = [
     (f"{EDA}NordicBeachRocks/SM_NordicBeachRocks_01", 1),
     *[(f"{EDA}NordicBoulder/SM_NordicBoulder_0{i}", 0.5) for i in range(1, 3)],
 ]
+# Low plants a little way out onto the sand before the forest edge, in patches (#38; operator 2026-11-09: the edge
+# was abrupt). Purslane mats for creeping beach plants, grass tufts for dune grass, a little beech fern spilling out.
+# The heather (Megaplant, skinned) cannot be Landscape Grass.
+SAND_EDGE_VARIANTS = [
+    *[(f"{ED}CommonPurslane/SM_CommonPurslane_0{i}", 1) for i in range(1, 8)],
+    ("/Game/PN_FoliageCollection/Meshes/grassMesh/lowGrass_01_01_SM", 2),
+    ("/Game/PN_FoliageCollection/Meshes/grassMesh/lowGrass_01_02_SM", 2),
+    (f"{FAB_PLANTS}Beech_Fern_vmkpdbeia/Medium/vmkpdbeia_tier_2/StaticMeshes/SM_vmkpdbeia_VarA", 0.6),
+    (f"{FAB_PLANTS}Beech_Fern_vmkpdbeia/Medium/vmkpdbeia_tier_2/StaticMeshes/SM_vmkpdbeia_VarC", 0.6),
+]
 # In the lake (#141; operator 2026-11-09: nothing grew or lay in it): stones over its bed in patches, and plants in
 # its shallows. No water plants are installed: Taro (a wetland plant) and Arrowhead Plant's arrow leaves stand in.
 LAKE_STONE_VARIANTS = [
