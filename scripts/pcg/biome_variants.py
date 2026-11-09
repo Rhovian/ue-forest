@@ -241,15 +241,6 @@ DRY_SAND_STONE_VARIANTS = [
     (f"{EDA}NordicBeachRock/SM_NordicBeachRock_01", 1),
     *[(f"{EDA}SmallStonesPack/SM_SmallStonesPack_{i:02}", 0.2) for i in range(1, 15)],
 ]
-# Root mats and mossy embankment pieces straddling the sand edge in patches (#117 review, transition_ground_01: roots
-# across the sand, islands of moss on it, no straight line).
-SHORE_SCAN_VARIANTS = [
-    *[(f"{EDA}MossyForestRoots/SM_MossyForestRoots_0{i}", 1) for i in range(1, 4)],
-    *[(f"{EDA}ForestRoots/SM_ForestRoots_0{i}", 1) for i in range(1, 3)],
-    *[(f"{EDA}GrassyEmbankment/SM_GrassyEmbankment_0{i}", 1) for i in range(1, 3)],
-    *[(f"{EDA}MossyEmbankment/SM_MossyEmbankment_0{i}", 0.5) for i in range(1, 3)],
-    (f"{EDA}ForestGround/SM_ForestGround_01", 1),
-]
 # Ground scans (root mats, rough terrain, stony path) and fallen branches, in patches.
 SCAN_VARIANTS = [
     *[(f"{EDA}MossyForestRoots/SM_MossyForestRoots_0{i}", 1) for i in range(1, 4)],
