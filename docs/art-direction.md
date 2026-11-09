@@ -2,9 +2,11 @@
 
 Reference images for what the Forest Biome, the sand shore and the transition between them should look like. The lead compares its `CaptureViewport` review views to these.
 
-## Current direction (operator, 2026-11-08)
+## Current direction (operator, 2026-11-08; goal updated 2026-11-09)
 
 The concept art below is out of reach with the assets we have, so the build improvises from what is installed. The references set the mood (an old, deep, shaded forest floor full of life); they are not a checklist, and nothing in this doc overrides the operator's current instructions. When the operator's word and this doc disagree, the operator wins and this doc is updated to match.
+
+**Goal (operator, 2026-11-09): the Olympic National Park temperate rainforests, the Hoh and Quinault, meet fantasy.** Photos of those forests are references alongside the images below. The forest is close; the biggest gap is that the floor shows essentially one fern type, where those forests layer several kinds of fern and fern-like plants (#142). Whether the trees follow (Sitka spruce, western hemlock, moss-hung bigleaf maple) instead of the beech is open.
 
 - **Electric Dreams is a reference too.** The free Electric Dreams sample environment (Fab, `ElectricDreamsSample_5.8`) is both an asset source and a look reference: its dark shade with sun patches, its mixed floor and its plant density are targets (captures of its hero cameras: `Forest/Saved/Reviews/ed-reference/`, local).
 - **Use its plants.** Every Electric Dreams plant is available, tropical ones included, mixed with the plants we already have. Hornbeam and elderberry join the beech.
