@@ -10,6 +10,8 @@ The concept art below is out of reach with the assets we have, so the build impr
 - **Use its plants.** Every Electric Dreams plant is available, tropical ones included, mixed with the plants we already have. Hornbeam and elderberry join the beech.
 - **Floor: less grass, denser plant life,** mixed with ground scans, stones, sticks and branches, surface roots and leaf litter. Bare earth, roots and rock are welcome; not every surface has to be green.
 - **The terrain's shape stays as it is** for now; its surface (floor material, ground scans, cover) is open to change.
+- **Ground scans stay off and away from the sand** (operator, 2026-11-09): on or by it they read as cut-out tiles.
+- **Wisps are spirit fireflies, mist is mist** (operator, 2026-11-09): the "blue wisps" are small shader-driven points of lapis-lazuli light (blue with some violet) that blink and drift like fireflies, not levitating orbs and not tinted haze. The low mist keeps the fog's own colour. Where the references below say "ribbons of blue mist" or "not orbs", this replaces them.
 
 ## Rules for agents
 

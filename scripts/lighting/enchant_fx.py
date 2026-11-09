@@ -2,14 +2,20 @@
 
     scripts/editor-py scripts/lighting/enchant_fx.py
 
-NS_ForestEnchant (built in the editor; material from scripts/materials/wisp.py) has two emitters over a 30 m box:
-low blue mist wisps at about knee height (clearing_01) and pale dust motes. One system sits on a fixed, seeded share
+NS_ForestEnchant (built in the editor; materials from scripts/materials/wisp.py and spirit.py) has three emitters over a
+30 m box: low mist ribbons at about knee height in the fog's colour (the emitter is still named Wisps), pale dust
+motes, and Spirits, lapis-lazuli fireflies that blink and drift 0.3-1.5 m up (#137). One system sits on a fixed, seeded share
 of the 30 m cells of land above the beach, so the wisps drift in patches; each emitter culls itself beyond 45 m.
 Each system sits on, and tilts with, a plane fitted to the ground over its cell, so the spawn box follows slopes and
 the wisps stay near knee height (#58 review: centre height alone left ~1 m errors on a quarter of the footprint).
 Reruns update the systems in place by label. Saves only their actor packages.
-Wisp sprites are ribbons, set in the editor through the Niagara MCP toolset (#71 item 8): InitializeParticle Sprite
-Size Mode Random Non-Uniform, Sprite Size 500x60 to 900x110 cm, Sprite Rotation -8 to 8 degrees. Round 260-480 cm
+Spirits (#137), set in the editor through the same toolset from the HangingParticulates template: SpawnRate 3,
+Lifetime 16-26 s, Color (0.12, 0.25, 3.0), Random Uniform sprite size 12-20 cm, Box Size 3000x3000x120 with Position
+Offset z 90, WindForce Wind Speed 0, Scale 80, Frequency 25, Offset By Time 0, Speed Limit 35 with Clamp Velocity, and
+ScaleSpriteSize disabled; the sprite renderer uses M_Spirit, unaligned and camera-facing. The mist ribbons' Color is
+(0.30, 0.34, 0.32, 0.06), grey-green like the fog. Mist sprites are ribbons, set in the editor through the Niagara MCP
+toolset (#71 item 8): InitializeParticle Sprite Size Mode Random Non-Uniform, Sprite Size 500x60 to 900x110 cm, Sprite
+Rotation -8 to 8 degrees. Round 260-480 cm
 sprites at any rotation read as blobs of haze, not clearing_01's low threads.
 """
 
