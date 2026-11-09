@@ -88,17 +88,28 @@ GRASS_SCALE = (0.9, 1.6)
 # Further Landscape Grass layers (#117; operator, 2026-11-08: less grass, denser plant life, with scans, stones, sticks
 # and litter, after the Electric Dreams floor). Input name -> (asset, biome_variants list, density per 10 m2, cull cm,
 # scale range, where): "gaps" fills where the groundcover runs are not, in colonies; "all" is the whole forest floor;
-# "patches" is a sparse noise of its own; "sand" is the litter patches on the upper sand; "shore" is patches straddling the sand edge.
+# "patches" is a sparse noise of its own; "sand" is the litter patches on the upper sand; "shore" is patches straddling the sand edge;
+# "waterline" is clusters on the sand at the water's edge and "dry sand" the sand above it, everywhere.
 GRASS_LAYERS = {
     "Undergrowth": (f"{FOLDER}/DA_ForestUndergrowth", "UNDERGROWTH_VARIANTS", 60.0, 6000, (0.8, 1.3), "gaps"),
     "Debris": (f"{FOLDER}/DA_ForestDebris", "DEBRIS_VARIANTS", 150.0, 2500, (1.0, 2.5), "all"),
     "Scans": (f"{FOLDER}/DA_ForestScans", "SCAN_VARIANTS", 25.0, 6000, (0.8, 1.3), "patches"),
     "SandLitter": (f"{FOLDER}/DA_SandLitter", "SAND_LITTER_VARIANTS", 150.0, 3000, (1.0, 2.0), "sand"),
     "ShoreScans": (f"{FOLDER}/DA_ShoreScans", "SHORE_SCAN_VARIANTS", 40.0, 5000, (0.9, 1.4), "shore"),
+    # #122: stones clustered at the waterline, a few big rocks among them, sparse stones on the dry sand.
+    "WaterlineStones": (f"{FOLDER}/DA_WaterlineStones", "WATERLINE_STONE_VARIANTS", 120.0, 4000, (1.5, 3.5), "waterline"),
+    "WaterlineGround": (f"{FOLDER}/DA_WaterlineGround", "WATERLINE_GROUND_VARIANTS", 3.0, 6000, (0.6, 1.0), "waterline"),
+    # 6-9 m rocks: at 0.4 per 10 m2 they walled the beach in (#122 trial).
+    "WaterlineBoulders": (f"{FOLDER}/DA_WaterlineBoulders", "WATERLINE_BOULDER_VARIANTS", 0.02, 10000, (0.25, 0.45), "waterline"),
+    "DrySandStones": (f"{FOLDER}/DA_DrySandStones", "DRY_SAND_STONE_VARIANTS", 6.0, 3000, (1.5, 3.0), "dry sand"),
 }
 UNDERGROWTH_NOISE_CM = 1500.0  # feature size of the undergrowth colonies
 SCAN_NOISE_CM = 700.0  # feature size of the scan patches
 SHORE_SCAN_BAND_CM = (20.0, 80.0, 250.0, 400.0)  # z: fade in above the beach, full across the edge, out up the bank
+# z: fade in from under the water, full at the edge, out up the sand. L_vilm's beach lies only 0-20 cm above the sea:
+# a band to 50 cm covered all of it (#122 trial).
+WATERLINE_CM = (-30.0, -5.0, 3.0, 12.0)
+WATERLINE_NOISE_CM = 900.0  # feature size of the waterline stone clusters
 SAND_LITTER_ABOVE_CM = 30.0  # cm above the sea over which sand litter fades in
 SAND_LITTER_NOISE_CM = 600.0  # feature size of the litter patches on the upper sand
 MEADOW_BLEND_CM = 1000.0  # the further layers fade out over this inside each meadow stretch's edge (meadow.MEADOWS)
@@ -385,10 +396,21 @@ def build():
         "B": g.wire(unreal.MaterialExpressionSmoothStep, 3, {"Min": high_edge, "Max": full_high, "Value": z})})
     shore_scans = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": g.wire(unreal.MaterialExpressionMultiply, 2, {
         "A": shore_band, "B": patches}), "B": allowed})
+    w_low, w_full_low, w_full_high, w_high = (g.node(unreal.MaterialExpressionConstant, 4, r=v) for v in WATERLINE_CM)
+    waterline_band = g.wire(unreal.MaterialExpressionMultiply, 2, {
+        "A": g.wire(unreal.MaterialExpressionSmoothStep, 3, {"Min": w_low, "Max": w_full_low, "Value": z}),
+        "B": g.wire(unreal.MaterialExpressionSmoothStep, 3, {"Min": w_high, "Max": w_full_high, "Value": z})})
+    clusters = g.wire(unreal.MaterialExpressionSmoothStep, 3, {"Min": g.node(unreal.MaterialExpressionConstant, 4, r=0.55),
+                                                              "Max": g.node(unreal.MaterialExpressionConstant, 4, r=0.7),
+                                                              "Value": g.noise(4, WATERLINE_NOISE_CM)})
+    waterline = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": g.wire(unreal.MaterialExpressionMultiply, 2, {
+        "A": waterline_band, "B": sand_mask}), "B": clusters})
+    dry_sand = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": sand_mask, "B": g.wire(
+        unreal.MaterialExpressionSmoothStep, 2, {"Min": w_full_high, "Max": w_high, "Value": z})})
     weights = {"Groundcover": (weight, grass_type())}
     for name, (asset, variants, density, cull, scale, kind) in GRASS_LAYERS.items():
-        if kind in ("sand", "shore"):
-            layer = sand_litter if kind == "sand" else shore_scans
+        if kind in ("sand", "shore", "waterline", "dry sand"):
+            layer = {"sand": sand_litter, "shore": shore_scans, "waterline": waterline, "dry sand": dry_sand}[kind]
         else:
             layer = floor if kind == "all" else g.wire(unreal.MaterialExpressionMultiply, 1, {"A": floor, "B": where[kind]})
         weights[name] = (layer, grass_type(asset, variants, density, cull, scale))
