@@ -9,7 +9,7 @@ of the 30 m cells of land above the beach, so the wisps drift in patches; each e
 Each system sits on, and tilts with, a plane fitted to the ground over its cell, so the spawn box follows slopes and
 the wisps stay near knee height (#58 review: centre height alone left ~1 m errors on a quarter of the footprint).
 Reruns update the systems in place by label. Saves only their actor packages.
-Spirits (#137), set in the editor through the same toolset from the HangingParticulates template: SpawnRate 3, Lifetime
+Spirits (#137), set in the editor through the same toolset from the HangingParticulates template: SpawnRate 1.5, Lifetime
 16-26 s, Color (0.12, 0.25, 3.0), Random Uniform sprite size 12-20 cm, Box Size 3000x3000x120 with Position Offset z 90,
 WindForce Wind Speed 0, Scale 25, Frequency 8, Offset By Time 0, Speed Limit 15 with Clamp Velocity (a slow drift;
 M_Spirit flies each firefly its own path), and ScaleSpriteSize disabled; the sprite renderer uses M_Spirit, unaligned
