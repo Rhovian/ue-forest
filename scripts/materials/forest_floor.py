@@ -90,7 +90,8 @@ GRASS_SCALE = (0.9, 1.6)
 # scale range, where): "gaps" fills where the groundcover runs are not, in colonies; "all" is the whole forest floor;
 # "patches" is a sparse noise of its own, kept back from the sand (SCAN_MASK); "sand" is the litter patches on the upper sand;
 # "waterline" is clusters on the sand at the water's edge and "dry sand" the sand above it, everywhere; "lake" is
-# patches over the lake bed and "shallows" patches near its edge.
+# patches over the lake bed and "shallows" patches near its edge; "sand edge" is patches on the sand near the
+# forest edge (SAND_EDGE_MASK).
 GRASS_LAYERS = {
     "Undergrowth": (f"{FOLDER}/DA_ForestUndergrowth", "UNDERGROWTH_VARIANTS", 60.0, 6000, (0.8, 1.3), "gaps"),
     "Debris": (f"{FOLDER}/DA_ForestDebris", "DEBRIS_VARIANTS", 150.0, 2500, (1.0, 2.5), "all"),
@@ -103,6 +104,8 @@ GRASS_LAYERS = {
     # 6-9 m rocks: at 0.4 per 10 m2 they walled the beach in (#122 trial).
     "WaterlineBoulders": (f"{FOLDER}/DA_WaterlineBoulders", "WATERLINE_BOULDER_VARIANTS", 0.02, 10000, (0.25, 0.45), "waterline"),
     "DrySandStones": (f"{FOLDER}/DA_DrySandStones", "DRY_SAND_STONE_VARIANTS", 6.0, 3000, (1.5, 3.0), "dry sand"),
+    # #38: low plants out onto the sand before the forest edge, in patches, thinning toward the water.
+    "SandEdge": (f"{FOLDER}/DA_SandEdge", "SAND_EDGE_VARIANTS", 120.0, 4000, (0.8, 1.4), "sand edge"),
     # #141: stones over the lake bed in patches and plants in its shallows (water_bed_mask.py), not the stream.
     "LakeStones": (f"{FOLDER}/DA_LakeStones", "LAKE_STONE_VARIANTS", 20.0, 5000, (1.0, 2.5), "lake"),
     "LakePlants": (f"{FOLDER}/DA_LakePlants", "LAKE_PLANT_VARIANTS", 12.0, 5000, (0.7, 1.2), "shallows"),
@@ -131,6 +134,8 @@ SHALLOWS_CM = 400.0  # the lake's shallow plants grow within this of its edge
 BED = ("/Game/Megascans/Surfaces/MossyRockyGround/T_MossyRockyGround_01", 400.0)  # Electric Dreams surface, tile cm
 BED_MOSS = 0.25  # share of the moss floor's colour kept on the bed
 LAKE_NOISE_CM = 800.0  # feature size of the lake's stone and plant patches
+SAND_EDGE_MASK = f"{FOLDER}/T_SandEdgeMask"  # scan_mask.py: the sand within 6 m of the forest edge (#38)
+SAND_EDGE_NOISE_CM = 500.0  # feature size of their patches
 ISLAND = json.loads((Path(unreal.Paths.project_dir()) / "../scripts/pcg/forest_foot.json").read_text())["island_m"]
 
 
@@ -438,11 +443,17 @@ def build():
                                       "Value": g.noise(4, LAKE_NOISE_CM)})
     lake_stones = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": lake, "B": lake_patches})
     lake_plants = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": shallows, "B": lake_patches})
+    # On the sand within a few metres of the forest edge (scan_mask.py's T_SandEdgeMask), in patches (#38).
+    edge_patches = g.wire(smooth, 3, {"Min": p["GrassRunLow"], "Max": p["GrassRunHigh"],
+                                      "Value": g.noise(4, SAND_EDGE_NOISE_CM)})
+    sand_edge = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": g.mask(g.sample(SAND_EDGE_MASK, mask_uv, 2), 2, "r"),
+                                                              "B": g.wire(unreal.MaterialExpressionMultiply, 2, {
+                                                                  "A": edge_patches, "B": allowed})})
     weights = {"Groundcover": (weight, grass_type())}
     for name, (asset, variants, density, cull, scale, kind) in GRASS_LAYERS.items():
-        if kind in ("sand", "waterline", "dry sand", "lake", "shallows"):
+        if kind in ("sand", "waterline", "dry sand", "lake", "shallows", "sand edge"):
             layer = {"sand": sand_litter, "waterline": waterline, "dry sand": dry_sand, "lake": lake_stones,
-                     "shallows": lake_plants}[kind]
+                     "shallows": lake_plants, "sand edge": sand_edge}[kind]
         else:
             layer = floor if kind == "all" else g.wire(unreal.MaterialExpressionMultiply, 1, {"A": floor, "B": where[kind]})
         weights[name] = (layer, grass_type(asset, variants, density, cull, scale))
