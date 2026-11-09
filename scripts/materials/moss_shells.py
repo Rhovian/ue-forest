@@ -9,7 +9,8 @@ rather than sitting on it. The result is SM_<host>_MossShell (Nanite, no collisi
 MI_<host>_MossShell: the host's coated material with moss forced everywhere (moss_coating.py). Moss tufts (#116) are
 baked on as its second section. TUFTS_ONLY hosts (the mossy boulders, the beech root flares) get an
 SM_<host>_MossShell of tufts alone. deadwood_rocks.py places each shell as a child at its host's exact transform, as do
-veteran_trees.py and flare_moss.py for the trees. Rerun after a host or setting changes, then deadwood_rocks.py,
+veteran_trees.py and flare_moss.py for the trees. A rebuild drops the ivy trunk_ivy.py adds to some shells. Rerun after
+a host or setting changes, then trunk_ivy.py, deadwood_rocks.py,
 veteran_trees.py, flare_moss.py, shore_trees.py, exact_exclusions.py and regenerate_biome.py.
 """
 
@@ -330,12 +331,17 @@ def material(host):
     return instance
 
 
-for path, angle in SHELLS.items():
-    host = unreal.load_asset(biome_variants.VENDOR + path)
-    shell, vertices, tufts = build(host, angle)
-    print(f"{shell.get_name()}: {vertices} vertices, faces within {angle:.0f} deg of up; {tufts} tufts")
-for path, (angle, below) in TUFTS_ONLY.items():
-    host = unreal.load_asset(path)
-    shell, _, tufts = build_tufts(host, angle, below)
-    print(f"{shell.get_name()}: tufts only, faces within {angle:.0f} deg of up" + (f" below {below:.0f} cm" if below else "")
-          + f"; {tufts} tufts")
+def main():
+    for path, angle in SHELLS.items():
+        host = unreal.load_asset(biome_variants.VENDOR + path)
+        shell, vertices, tufts = build(host, angle)
+        print(f"{shell.get_name()}: {vertices} vertices, faces within {angle:.0f} deg of up; {tufts} tufts")
+    for path, (angle, below) in TUFTS_ONLY.items():
+        host = unreal.load_asset(path)
+        shell, _, tufts = build_tufts(host, angle, below)
+        print(f"{shell.get_name()}: tufts only, faces within {angle:.0f} deg of up" + (f" below {below:.0f} cm" if below else "")
+              + f"; {tufts} tufts")
+
+
+if __name__ == "__main__":  # trunk_ivy.py imports read() and noise()
+    main()

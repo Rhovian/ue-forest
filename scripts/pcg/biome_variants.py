@@ -121,6 +121,19 @@ HEATHER_VARIANTS = [
     ("/Game/Megaplant_Library/Shrub_Heather/Shrub_Heather_01/Shrub_Heather_01_E", 1),
     ("/Game/Megaplant_Library/Shrub_Heather/Shrub_Heather_01/Shrub_Heather_01_F", 1),
 ]
+# Ivy sheets baked up the lower trunks (trunk_ivy.py, #121, canopy_up_01 "several trunks ivy-covered"): Electric
+# Dreams' English ivy, flat sheets with their leaves toward +Y.
+TRUNK_IVY_VARIANTS = [(f"/Game/Megascans/3D_Plants/EnglishIvy/SM_EnglishIvy_0{i}", 1) for i in range(1, 9)]
+# Trees whose every copy carries trunk ivy: one of the four forest beech (a quarter of the Trees group), the veterans,
+# and two of the hornbeam variants (those with a Trunk slot).
+IVY_TREES = [
+    "/Game/Megaplant_Library/Tree_European_Beech/Tree_European_Beech_01/Tree_European_Beech_01_C",
+    "/Game/EuropeanBeech/Geometry/SimpleWind/SM_EuropeanBeech_Field_01",
+    "/Game/Megascans/3D_Plants/EuropeanHornbeam/Geometry/SimpleWind/SM_EuropeanHornbeam_Forest_04",
+    "/Game/Megascans/3D_Plants/EuropeanHornbeam/Geometry/SimpleWind/SM_EuropeanHornbeam_Forest_07",
+]
+# Slabs with ivy spilling over one corner (trunk_ivy.py, #121, rock_assembly_01).
+IVY_SLABS = [VENDOR + SLAB_VARIANTS[0][0]]
 IVY_VARIANTS = [
     ("/Game/Fab/Megascans/Plants/English_Ivy_xfcnebhqx/Medium/xfcnebhqx_tier_2/StaticMeshes/SM_xfcnebhqx_VarA", 1),
 ]
@@ -160,6 +173,10 @@ GROUNDCOVER_VARIANTS = [
     *[(f"{ED}JungleGinger/SM_JungleGinger_0{i}", 1) for i in (2, 3, 4, 5)],
     *[(f"{ED}RedLachenalia/SM_RedLachenalia_{i:02}", 0.15) for i in (1, 2, 3, 4, 6, 12, 13, 14)],
     *[(f"{ED}CanePalm/SM_CanePalm_0{i}", 0.5) for i in range(1, 5)],
+    # #121: the sample's Nanite beech fern (the leafy variants; 01-03, 06-08 are single fronds) and woodland flowers.
+    *[(f"{ED}BeechFern/SM_BeechFern_{i:02}", 1) for i in (4, 5, 9, 10, 11, 12, 13, 15)],
+    *[(f"{ED}LilyOfTheValley/SM_LilyOfTheValley_0{i}", 0.6) for i in range(1, 5)],
+    *[(f"{ED}YellowArchangel/SM_YellowArchangel_0{i}", 0.5) for i in (4, 8)],
 ]
 # Knee-to-head plants in colonies between the groundcover runs (operator, 2026-11-08: less grass, denser plant life).
 UNDERGROWTH_VARIANTS = [
@@ -179,6 +196,10 @@ UNDERGROWTH_VARIANTS = [
     *[(f"{ED}DragonTree/SM_DragonTree_0{i}", 0.3) for i in range(1, 6)],
     *[(f"{ED}EuropeanHornbeam/Geometry/SimpleWind/SM_EuropeanHornbeam_Sapling_0{i}", 0.6) for i in range(1, 9)],
     *[(f"{ED}EuropeanHornbeam/Geometry/SimpleWind/SM_EuropeanHornbeam_Seedling_0{i}", 0.6) for i in range(1, 6)],
+    # #121: silver lady fern, white windflower, and periwinkle for the blue-violet accent.
+    *[(f"{ED}SilverLadyFern/SM_SilverLadyFern_0{i}", 1) for i in range(1, 4)],
+    *[(f"{ED}WhiteWindflower/SM_WhiteWindflower_0{i}", 0.3) for i in range(1, 8)],
+    *[(f"{ED}Periwinkle/SM_Periwinkle_0{i}", 0.6) for i in range(1, 5)],
 ]
 # Small debris over the whole forest floor: pebbles, twigs, dry branches and leaf-litter mats.
 DEBRIS_VARIANTS = [

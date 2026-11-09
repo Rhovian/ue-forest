@@ -99,6 +99,10 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
 - Children are made before Core prunes the parents by priority, so a child outlives a parent pruned by another
   group's bounds: beech tuft children at 0.1% bounds stood alone round every veteran (one in eight). Give such a
   child its parent's bounds (`flare_moss.match_bounds`), so whatever prunes the parent prunes it too.
+- Every child layout runs per parent point, and regenerate memory scales with it: a second child (trunk ivy) on a quarter
+  of the ~5,700 beech pushed regenerate past the 60 GB guard twice, where the same ivy merged into the trees' existing
+  moss shell as an extra section (trunk_ivy.py) peaked at ~56 GB. Add geometry to an existing child's mesh before adding
+  a child to a large group (#121).
 
 ## Verification
 
