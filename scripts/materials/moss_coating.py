@@ -12,6 +12,9 @@ moss does not swim in the wind.
 import unreal
 from matgraph import (
     ED_SURFACE,
+    FLOOR_DETAIL_SCALE,
+    FLOOR_MACRO_BRIGHTNESS,
+    FLOOR_MACRO_NOISE_CM,
     FLOOR_MOSS,
     FLOOR_MOSS_TINT,
     FLOOR_VARIANT,
@@ -60,7 +63,7 @@ SCALARS = {  # shared by every coated surface; distances in cm, UVs in metres
 GROUND = {
     "GroundBlend": 1.0,  # 0 = off
     "GroundBlendHeight": 30.0,
-    "GroundJitter": 25.0,  # cm the edge wanders up and down
+    "GroundJitter": 25.0,  # cm the edge's top wanders up: the contact itself is always fully the floor
 }
 NOISE_CM = 70.0  # feature size of that wander (a node property, not a parameter)
 RVT_HEIGHT = "/Game/ForestBiome/RVT/T_ForestHeightRVT"
@@ -206,33 +209,45 @@ def build_ground_function():
                     material_type=Kind.WORLD_HEIGHT)
     position = g.node(X.MaterialExpressionWorldPosition, 7)
     above = g.wire(X.MaterialExpressionSubtract, 5, {"A": g.mask(position, 6, "b"), "B": (ground, "WorldHeight")})
-    noise = g.node(X.MaterialExpressionNoise, 6, scale=1.0 / NOISE_CM, levels=2, output_min=-1.0, output_max=1.0)
+    # Noise in 0..1 subtracted, so it only raises the edge: at the contact (above <= 0) the blend stays full (#168 review).
+    noise = g.node(X.MaterialExpressionNoise, 6, scale=1.0 / NOISE_CM, levels=2, output_min=0.0, output_max=1.0)
     noisy = g.wire(X.MaterialExpressionMultiply, 6, {"A": noise, "B": p["GroundJitter"]})
-    height = g.wire(X.MaterialExpressionAdd, 4, {"A": above, "B": noisy})
+    height = g.wire(X.MaterialExpressionSubtract, 4, {"A": above, "B": noisy})
     fade = g.wire(X.MaterialExpressionSmoothStep, 3, {"Min": g.node(X.MaterialExpressionConstant, 4, r=0.0),
                                                       "Max": p["GroundBlendHeight"], "Value": height})
     alpha = g.wire(X.MaterialExpressionMultiply, 2, {"A": g.wire(X.MaterialExpressionOneMinus, 3, {"": fade}),
                                                      "B": p["GroundBlend"]})
-    # The floor at this point: its moss, with the soil patches where the same world-space noise puts them.
+    # The floor at this point, built as forest_floor.py builds it (matgraph FLOOR_*): its moss at two scales blended by
+    # the macro noise and tinted, the soil patches where the same world-space noise puts them, the macro brightness.
+    def world_noise(feature_cm):  # matgraph.Graph.noise's settings, so the patterns line up with the floor's
+        raw = g.node(X.MaterialExpressionNoise, 6, scale=1.0 / feature_cm, levels=3, output_min=0.0, output_max=1.0)
+        return g.wire(X.MaterialExpressionSaturate, 5, {"": raw})
+
+    def const(value):
+        return g.node(X.MaterialExpressionConstant, 6, r=value)
+
     xy = g.mask(position, 6, "rg")
-    moss_uv = g.wire(X.MaterialExpressionDivide, 5, {"A": xy, "B": g.node(X.MaterialExpressionConstant, 6, r=FLOOR_MOSS[1])})
-    soil_uv = g.wire(X.MaterialExpressionDivide, 5, {"A": xy, "B": g.node(X.MaterialExpressionConstant, 6,
-                                                                              r=FLOOR_VARIANT[1])})
+    moss_uv = g.wire(X.MaterialExpressionDivide, 5, {"A": xy, "B": const(FLOOR_MOSS[1])})
+    detail_uv = g.wire(X.MaterialExpressionDivide, 5, {"A": xy, "B": const(FLOOR_MOSS[1] * FLOOR_DETAIL_SCALE)})
+    soil_uv = g.wire(X.MaterialExpressionDivide, 5, {"A": xy, "B": const(FLOOR_VARIANT[1])})
+    macro = world_noise(FLOOR_MACRO_NOISE_CM)
     share, low, high = FLOOR_VARIETY
-    variety = g.node(X.MaterialExpressionNoise, 6, scale=1.0 / FLOOR_VARIANT_NOISE_CM, levels=3, output_min=0.0,
-                     output_max=1.0)  # matgraph.Graph.noise's settings, so the patches line up with the floor's
-    soil = g.wire(X.MaterialExpressionMultiply, 4, {"A": g.node(X.MaterialExpressionConstant, 5, r=share), "B": g.wire(
-        X.MaterialExpressionSmoothStep, 5, {"Min": g.node(X.MaterialExpressionConstant, 6, r=low),
-                                            "Max": g.node(X.MaterialExpressionConstant, 6, r=high),
-                                            "Value": g.wire(X.MaterialExpressionSaturate, 6, {"": variety})})})
+    soil = g.wire(X.MaterialExpressionMultiply, 4, {"A": const(share), "B": g.wire(
+        X.MaterialExpressionSmoothStep, 5, {"Min": const(low), "Max": const(high),
+                                            "Value": world_noise(FLOOR_VARIANT_NOISE_CM)})})
     tint = g.node(X.MaterialExpressionConstant3Vector, 5, constant=unreal.LinearColor(*FLOOR_MOSS_TINT, 1.0))
     floor = {}
     for kind, suffix in ED_SURFACE.items():
-        moss = g.sample(FLOOR_MOSS[0] + suffix, moss_uv, 4)
+        moss = g.wire(X.MaterialExpressionLinearInterpolate, 4, {
+            "A": g.sample(FLOOR_MOSS[0] + suffix, moss_uv, 5), "B": g.sample(FLOOR_MOSS[0] + suffix, detail_uv, 5),
+            "Alpha": macro})
         if kind == "B":
             moss = g.wire(X.MaterialExpressionMultiply, 3, {"A": moss, "B": tint})
         floor[kind] = g.wire(X.MaterialExpressionLinearInterpolate, 2, {
             "A": moss, "B": g.sample(FLOOR_VARIANT[0] + suffix, soil_uv, 4), "Alpha": soil})
+    brightness = g.wire(X.MaterialExpressionLinearInterpolate, 2, {
+        "A": const(1 - FLOOR_MACRO_BRIGHTNESS), "B": const(1 + FLOOR_MACRO_BRIGHTNESS), "Alpha": macro})
+    floor["B"] = g.wire(X.MaterialExpressionMultiply, 2, {"A": floor["B"], "B": brightness})
 
     def blend(a, b):
         return g.wire(X.MaterialExpressionLinearInterpolate, 1, {"A": a, "B": b, "Alpha": alpha})

@@ -61,10 +61,8 @@ SCALARS = {  # world units are cm; sea level is Z 0
     "MossNoiseStrength": 1.6,  # how far large-scale noise pushes moss in and out of the damp zones
     "PatchTile": 800.0,
     "PatchStrength": 0.6,  # moss-patch texture adds edge detail inside the noise's mossy areas
-    # Each layer is also sampled at this many times its tile, blended by slow noise (anti-tiling). Below 1 (#157): at
-    # 2.7 the magnified copy smeared the close ground into blurry oversized fronds; a finer copy adds detail instead.
-    "DetailScale": 0.45,
-    "MacroBrightness": 0.15,  # +/- brightness variation across the ground
+    "DetailScale": matgraph.FLOOR_DETAIL_SCALE,  # #157
+    "MacroBrightness": matgraph.FLOOR_MACRO_BRIGHTNESS,
     # #157: patches of MOSS_VARIANT (moss with soil and stones) through the moss carpet, so it is not one lawn: at most
     # this share, from where the variant noise passes Low to where it passes High.
     **dict(zip(("MossVariety", "MossVarietyLow", "MossVarietyHigh"), matgraph.FLOOR_VARIETY)),
@@ -78,7 +76,7 @@ MOSS_TINT = matgraph.FLOOR_MOSS_TINT
 MOSS_VARIANT = matgraph.FLOOR_VARIANT
 MOSS_VARIANT_NOISE_CM = matgraph.FLOOR_VARIANT_NOISE_CM
 MOSS_NOISE_CM = 2000.0  # feature size of the noise that places moss
-MACRO_NOISE_CM = 1200.0  # feature size of the noise that hides texture repetition
+MACRO_NOISE_CM = matgraph.FLOOR_MACRO_NOISE_CM
 SHORE_NOISE_CM = 350.0  # feature size of the shore line's tongues and islands
 LITTER_NOISE_CM = 120.0  # feature size of the litter patches on sand
 # Groundcover (#100): ankle-high tufts and rosettes (biome_variants.GROUNDCOVER_VARIANTS, #98) as Landscape Grass, which

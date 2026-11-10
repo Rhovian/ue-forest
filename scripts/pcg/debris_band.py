@@ -32,7 +32,9 @@ from saplings_understory import drift_points
 from trees_above_shore import shore_height, z_range
 
 FOLDER = ROOT + "Driftwood"
-BLEACH = {"MossAmount": 0.0, "Saturation": 0.15, "Brightness": 2.4}  # sun-bleached grey; at 1.7 sticks read black in shade
+# Sun-bleached grey (at 1.7 sticks read black in shade), with no moss and no floor blend at its base: the coated logs
+# it derives from take moss_coating.py's ground blend, which turned beach driftwood green at the sand (#168 review).
+BLEACH = {"MossAmount": 0.0, "GroundBlend": 0.0, "Saturation": 0.15, "Brightness": 2.4}
 SAND_FROM = 3  # cm above the sea
 # Candidates/ha, without spatial noise, so counts scale with density: trunks 12 -> 4, 60 -> 21, 800 -> 266 island-wide.
 # At 12/ha (4 trunks) the beach read as bare sand with twigs (operator: "dont see any driftwood on the sand at all").

@@ -18,6 +18,11 @@ FLOOR_MOSS_TINT = (1.35, 1.5, 0.95)  # NordicMoss is brighter than the Fab moss 
 FLOOR_VARIANT = ("/Game/Megascans/Surfaces/MossyRockyGround/T_MossyRockyGround_01", 400.0)  # moss with soil and stones
 FLOOR_VARIANT_NOISE_CM = 1100.0  # feature size of its patches (world-space noise: the same pattern in every material)
 FLOOR_VARIETY = (0.65, 0.58, 0.8)  # at most this share, from where the noise passes the second value to the third
+# Each floor layer is also sampled at this many times its tile, the two blended by slow noise (anti-tiling). Below 1:
+# at 2.7 the magnified copy smeared the close ground into blurry oversized fronds; a finer copy adds detail instead.
+FLOOR_DETAIL_SCALE = 0.45
+FLOOR_MACRO_NOISE_CM = 1200.0  # feature size of that slow noise, which also varies the brightness by
+FLOOR_MACRO_BRIGHTNESS = 0.15  # +/- this share
 
 def fresh_material(path):
     """Load or create the material at path and remove every expression."""
