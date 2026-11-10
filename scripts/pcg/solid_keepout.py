@@ -1,13 +1,15 @@
 # editor-py: fresh-siblings
-"""Keep tree trunks out of the rocks, logs and stumps (#182).
+"""Keep tree trunks and shrub stems out of the rocks, logs and stumps (#182).
 
     scripts/editor-py scripts/pcg/solid_keepout.py [--check]
 
 The solid groups allow overlap (deadwood_rocks.generator: Core's priority difference uses the trees' canopy bounds and
 erased nearly every rock and log under them), so nothing kept a trunk out of a boulder: 413 of 1,357 solids had a stem
-inside them (counting the rocks' own base-ring shrubs). This bakes every placed solid's footprint (its instance transform and mesh box) into each
-tree group's TransformGraph and drops the trees standing inside one or within TRUNK_CM of it, so the trees give way and
-the rocks keep their count. Re-runnable: a rerun replaces the baked footprints.
+inside them, mostly hazel and huckleberry standing on the rocks' own sampler points. This bakes every placed solid's
+footprint (its instance transform and mesh box) into each TransformGraph a tree, sapling or shrub uses, and drops the
+plants standing in one, so they give way and the rocks keep their count. Graphs of the tree groups alone keep trunks
+TRUNK_CM off; graphs shared with ferns and flowers test the pivot only. Child graphs are left alone: the seedlings on
+the nurse logs stand on them by design. Re-runnable: a rerun replaces the baked footprints.
 
 Footprints come from the placed level, so run it after a regenerate, then regenerate again: after exact_exclusions.py,
 and again whenever the solid groups change (deadwood_rocks.py, shore_logs.py, biome_variants' solid palettes).
@@ -30,12 +32,20 @@ SOLIDS = {biome_variants.asset_path(path).rsplit("/", 1)[1] for path, _ in
 
 
 TREE_GROUPS = ("DA_Forest_TreesAssets", "DA_Forest_VeteranAssets", "DA_Forest_HornbeamAssets", "DA_Forest_ShoreTreesAssets")
+PIVOT_CM = 1.0  # a shared plant graph tests the pivot alone (a zero box overlaps nothing)
+
+
+def kind(data, row):
+    """"tree" for the tree groups' rows, "stems" for the Megaplants saplings and shrubs elsewhere, else None."""
+    if data.get_name() in TREE_GROUPS:
+        return "tree"
+    mesh = get(row, "SkeletalMesh") or get(row, "Mesh")
+    return "stems" if mesh and mesh.get_name().startswith(("Tree_", "Shrub_")) else None
 
 
 def targets(actors):
-    """The TransformGraphs the tree groups use. Graphs shared with other plants are refused: the shrubs on the plant
-    graphs include the rocks' own base-ring children, and a footprint test there removed ~40% of the hazel and
-    huckleberry, nearly all within 3 m of a solid."""
+    """{TransformGraph: margin cm} for each top-level graph a tree, sapling or shrub uses: TRUNK_CM where only tree
+    groups use it, PIVOT_CM where ferns and flowers share it (they may stand at a rock's foot)."""
     rows, seen = {}, set()
     for actor in actors:
         if not actor.get_class().get_name().startswith("BP_PCGBiomeVolume"):
@@ -47,13 +57,10 @@ def targets(actors):
             for row in data.get_editor_property("BiomeAssets"):
                 graph = get(row, "TransformGraph")
                 if graph:
-                    rows.setdefault(graph, set()).add(data.get_name() in TREE_GROUPS)
-    found = [graph for graph, trees in rows.items() if True in trees]
-    shared = [graph.get_name() for graph in found if False in rows[graph]]
-    if shared:
-        raise RuntimeError(f"Tree TransformGraphs shared with other plants: {shared}")
+                    rows.setdefault(graph, set()).add(kind(data, row))
+    found = {graph: TRUNK_CM if kinds == {"tree"} else PIVOT_CM for graph, kinds in rows.items() if kinds - {None}}
     if not found:
-        raise RuntimeError("No tree TransformGraphs loaded")
+        raise RuntimeError("No woody TransformGraphs loaded")
     return found
 
 
@@ -145,15 +152,15 @@ def main():
     actors = (unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()
               if args.check else load_forest_actors())
     points = footprints(actors)
-    for graph in sorted(targets(actors), key=lambda graph: graph.get_name()):
+    for graph, margin in sorted(targets(actors).items(), key=lambda item: item[0].get_name()):
         marks = installed(graph)
         if args.check:
-            print(f"{graph.get_name()}: " + ("installed" if marks else "not installed"))
+            print(f"{graph.get_name()}: margin {margin:g} cm, " + ("installed" if marks else "not installed"))
             continue
-        marks = marks or patch(graph, TRUNK_CM)
+        marks = marks or patch(graph, margin)
         marks.get_settings().set_editor_property("points_to_create", points)
         save(graph)
-        print(f"{graph.get_name()}: {len(points)} footprints")
+        print(f"{graph.get_name()}: {len(points)} footprints, margin {margin:g} cm")
     if not args.check:
         print("Regenerate Core and save the level")
 

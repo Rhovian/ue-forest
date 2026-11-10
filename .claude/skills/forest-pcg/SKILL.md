@@ -83,9 +83,9 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   island-wide saplings keep ~5% of their points, and saplings in canopy gaps kept none until overlap was allowed.
 - Overlapping groups are not pruned against anything, so the rocks, logs and stumps stood on tree trunks (#182). Core's
   difference compares whole bounds (canopy against rock), so it cannot express "not on a trunk": `solid_keepout.py`
-  bakes the placed solids' footprints into the tree groups' TransformGraphs instead. Rerun it, then regenerate, after
-  any change to the solid groups. Keep it off the shared plant graphs: the shrubs there include the rocks' own
-  base-ring children, and a footprint test on them removed ~40% of the hazel and huckleberry.
+  bakes the placed solids' footprints into every TransformGraph a tree, sapling or shrub uses instead. Rerun it, then
+  regenerate, after any change to the solid groups. The understory generators share the solids' sampler points (82
+  hazel within 5 cm of a solid's pivot): the keep-out removed ~40% of the hazel and huckleberry, all inside a solid.
 - A non-overlapping group at a priority below the Trees group (0) prunes the beech around its points, but its own
   skinned instances did not spawn (a veteran-beech trial left canopy holes with no tree in them); static meshes do
   spawn there (veteran_trees.py: 81 field beech, each in its own opening). Groups among the
