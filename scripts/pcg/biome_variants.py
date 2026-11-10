@@ -27,8 +27,11 @@ SLAB_VARIANTS = [
     ("Mossy_Forest_Boulder_wfstcdnaw/Medium/wfstcdnaw_tier_2/StaticMeshes/wfstcdnaw_tier_2", 0.15),
     ("Mossy_Forest_Boulder_wfstchwaw/Medium/wfstchwaw_tier_2/StaticMeshes/wfstchwaw_tier_2", 0.15),
 ]
+# Mushrooms in clusters of mixed sizes (#163; operator 2026-11-09: they come in groups of various sizes): every bolete
+# size of the pack (10, 8, 8, 3 and 3 cm caps), all with their stem base at the pivot as the shared layout needs.
 FUNGI_VARIANTS = [
-    ("Bolete_Mushrooms_pdvcB/Medium/pdvcB_tier_2/StaticMeshes/pdvcB_LOD0_TIER2_000", 1),
+    *[(f"Bolete_Mushrooms_pdvcB/Medium/pdvcB_tier_2/StaticMeshes/pdvcB_LOD0_TIER2_{i:03}", w)
+      for i, w in ((0, 1), (1, 1), (2, 1), (3, 1.5), (4, 1.5))],
 ]
 # Small bleached driftwood pieces (0.6-1.3 m) scattered on the beach (#38, debris; no collision).
 DRIFTWOOD_VARIANTS = [
