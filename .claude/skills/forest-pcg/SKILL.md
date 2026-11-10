@@ -36,6 +36,10 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   The first regenerate after a fresh `editor.sh open` sometimes fails with `PCGComponent: Internal Error -
   ObjectInstance is null!` or passes the 60 GB guard, and saves nothing; run it again (seen three times, each
   passed on the retry at 45-48 GB).
+- With the spruce-led canopy, the shore-log keepouts and the meadow (November 2026), a full regenerate peaks at
+  52-58 GB after a fresh start and has passed the 60 GB guard on a second run in the same session. Restart the editor
+  before every regenerate, and add skinned children (heather drifts) sparingly: 250 sand-heather anchors/ha x 18
+  plants passed the guard (#165).
 - Change density or extent, not both, and check the estimate before each change.
 - Continuous ankle-high cover (~10-15 plants/m2) is out of PCG's reach island-wide: 500 anchors/ha x 15 children gave
   under 1/m2 and nothing visible in the interior view, and the density that read lush would be tens of millions of
@@ -56,6 +60,10 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   material failed to compile and the landscape showed the default checker (matgraph.sampler_for, #149).
 - Height bakes that trace the landscape must ignore each actor in the way (`actors_to_ignore`), not step down past it
   1 cm at a time: inside the large logs that stalled and ~880 cells came back as "no landscape" (scan_mask.py, #151).
+
+- A height band alone cannot find "the sand just before the forest": low sand spits by the water lie at the same
+  height as the upper beach, and sand heather in a 35-75 cm band landed on the spits (#165). Use something that knows
+  the forest edge (distance to it, or a mask such as T_SandEdgeMask).
 
 ## Counts do not scale smoothly
 
