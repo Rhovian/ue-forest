@@ -155,15 +155,20 @@ HEATHER_VARIANTS = [
 ]
 # Ivy sheets baked up the lower trunks (trunk_ivy.py, #121, canopy_up_01 "several trunks ivy-covered"): Electric
 # Dreams' English ivy, flat sheets with their leaves toward +Y.
-TRUNK_IVY_VARIANTS = [(f"/Game/Megascans/3D_Plants/EnglishIvy/SM_EnglishIvy_0{i}", 1) for i in range(1, 9)]
+# Over slab corners, where the sheets lie on the faces they cover.
+SLAB_IVY_VARIANTS = [(f"/Game/Megascans/3D_Plants/EnglishIvy/SM_EnglishIvy_0{i}", 1) for i in range(1, 9)]
+# Up tree trunks: only the narrow strands (7-48 cm wide). The 0.6-1.3 m wide sheets stood off a 40-80 cm trunk like
+# fins, a fuzzy column with no trunk visible inside (#156).
+TRUNK_IVY_VARIANTS = [(f"/Game/Megascans/3D_Plants/EnglishIvy/SM_EnglishIvy_0{i}", w) for i, w in ((2, 1), (5, 1), (6, 0.5))]
 # Trees whose every copy carries trunk ivy: two of the four forest beech (half the Trees group; with one, canopy_up
 # showed no ivy-covered trunk, #132 review), the veterans, and two of the hornbeam variants (those with a Trunk slot).
-IVY_TREES = [
-    "/Game/Megaplant_Library/Tree_European_Beech/Tree_European_Beech_01/Tree_European_Beech_01_A",
-    "/Game/Megaplant_Library/Tree_European_Beech/Tree_European_Beech_01/Tree_European_Beech_01_C",
-    "/Game/EuropeanBeech/Geometry/SimpleWind/SM_EuropeanBeech_Field_01",
-    "/Game/Megascans/3D_Plants/EuropeanHornbeam/Geometry/SimpleWind/SM_EuropeanHornbeam_Forest_04",
-    "/Game/Megascans/3D_Plants/EuropeanHornbeam/Geometry/SimpleWind/SM_EuropeanHornbeam_Forest_07",
+IVY_TREES = [  # (tree, coverage): coverage scales the share of trunk the strands cover (#156)
+    ("/Game/Megaplant_Library/Tree_European_Beech/Tree_European_Beech_01/Tree_European_Beech_01_A", 1.6),
+    ("/Game/Megaplant_Library/Tree_European_Beech/Tree_European_Beech_01/Tree_European_Beech_01_C", 1.6),
+    # The veteran's trunk is 1.5-2 m across: full coverage hid it inside a column of ivy (spot3).
+    ("/Game/EuropeanBeech/Geometry/SimpleWind/SM_EuropeanBeech_Field_01", 0.45),
+    ("/Game/Megascans/3D_Plants/EuropeanHornbeam/Geometry/SimpleWind/SM_EuropeanHornbeam_Forest_04", 1.0),
+    ("/Game/Megascans/3D_Plants/EuropeanHornbeam/Geometry/SimpleWind/SM_EuropeanHornbeam_Forest_07", 1.0),
 ]
 # Slabs and boulders with ivy spilling over one corner (trunk_ivy.py, #121, rock_assembly_01): all of them, as the
 # rock_assembly view's own rock is a boulder (#132 review).
