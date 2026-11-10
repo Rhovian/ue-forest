@@ -279,8 +279,8 @@ WATERLINE_BOULDER_VARIANTS = [
 # The heather (Megaplant, skinned) cannot be Landscape Grass.
 SAND_EDGE_VARIANTS = [
     *[(f"{ED}CommonPurslane/SM_CommonPurslane_0{i}", 1) for i in range(1, 8)],
-    ("/Game/PN_FoliageCollection/Meshes/grassMesh/lowGrass_01_01_SM", 2),
-    ("/Game/PN_FoliageCollection/Meshes/grassMesh/lowGrass_01_02_SM", 2),
+    # The meadow's reeds rather than grass blades, which read as stickers on the sand (#165, operator 2026-11-09).
+    *[(f"{FAB_PLANTS}Rough_Meadow_Grass_skFjJ/Medium/skFjJ_tier_2/StaticMeshes/SM_skFjJ_Var{v}", 1) for v in "ABCDE"],
     (f"{FAB_PLANTS}Beech_Fern_vmkpdbeia/Medium/vmkpdbeia_tier_2/StaticMeshes/SM_vmkpdbeia_VarA", 0.6),
     (f"{FAB_PLANTS}Beech_Fern_vmkpdbeia/Medium/vmkpdbeia_tier_2/StaticMeshes/SM_vmkpdbeia_VarC", 0.6),
 ]
