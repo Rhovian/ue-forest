@@ -36,7 +36,7 @@ FOLDER = "/Game/ForestBiome/Ivy"
 IVY_TOP = 700.0
 TRUNK_REACH = 60.0  # cm from the trunk's axis (mesh space) that counts as trunk; branches lie further out
 TRUNK_BAND = 100.0  # cm: the axis is followed up the trunk in bands this tall
-CORNER = 0.45  # a slab's ivy reaches this share of the footprint's diagonal from its corner
+CORNER = 0.25  # a slab's ivy reaches this share of the footprint's diagonal from its corner (0.45 buried a boulder, #166)
 DENSITY = 120.0  # strands per m2 of bark at the base: narrow strands need three times the 40 the wide sheets had (#156)
 SLAB_DENSITY = 160.0  # sheets per m2 on a slab, where only its corner keeps them
 MIN_CANDIDATES = 900  # at least this many candidate sheets per host: the slim Megaplants beech has 2.5 m2 of bark
@@ -185,6 +185,44 @@ def write(host, mesh):
     return asset
 
 
+def unbake(host):
+    """Remove a host's ivy, both its SM_<host>_Ivy and its shell's Ivy section (the last slot, as write appends it);
+    True if there was any."""
+    removed = False
+    old = unreal.load_asset(ivy_path(host))
+    if old is not None:
+        if not unreal.EditorAssetLibrary.delete_asset(old.get_path_name()):
+            raise SystemExit(f"could not delete {old.get_path_name()}")
+        removed = True
+    shell = unreal.load_asset(moss_shells.shell_path(host))
+    if shell is None:
+        return removed
+    slots = [str(s.get_editor_property("material_slot_name")) for s in shell.get_editor_property("static_materials")]
+    if "Ivy" not in slots:
+        return removed
+    if slots[-1] != "Ivy":
+        raise SystemExit(f"{shell.get_name()}: the Ivy slot is not last; cannot drop it without remapping")
+    lod = G.GeometryScriptMeshReadLOD()
+    lod.set_editor_property("lod_type", G.GeometryScriptLODType.SOURCE_MODEL)
+    base, outcome = G.GeometryScript_AssetUtils.copy_mesh_from_static_mesh_v2(
+        shell, G.DynamicMesh(), G.GeometryScriptCopyMeshFromAssetOptions(), lod)
+    if outcome != G.GeometryScriptOutcomePins.SUCCESS:
+        raise SystemExit(f"could not read {shell.get_path_name()}")
+    base, ivy = G.GeometryScript_MeshSelection.select_mesh_elements_by_material_id(
+        base, len(slots) - 1, G.GeometryScriptMeshSelectionType.TRIANGLES)
+    base, _ = G.GeometryScript_MeshEdits.delete_selected_triangles_from_mesh(base, ivy, True)
+    materials = [s.get_editor_property("material_interface") for s in shell.get_editor_property("static_materials")]
+    options = G.GeometryScriptCopyMeshToAssetOptions()
+    options.set_editor_property("replace_materials", True)
+    options.set_editor_property("new_materials", materials[:-1])
+    options.set_editor_property("new_material_slot_names", slots[:-1])
+    _, outcome = G.GeometryScript_AssetUtils.copy_mesh_to_static_mesh(base, shell, options, G.GeometryScriptMeshWriteLOD())
+    if outcome != G.GeometryScriptOutcomePins.SUCCESS:
+        raise SystemExit(f"could not write {shell.get_path_name()}")
+    unreal.EditorAssetLibrary.save_loaded_asset(shell, False)
+    return True
+
+
 def main():
     hosts = [(p, False, c) for p, c in biome_variants.IVY_TREES] + [(p, True, 1.0) for p in biome_variants.IVY_SLABS]
     for path, slab, coverage in hosts:
@@ -196,6 +234,10 @@ def main():
             raise SystemExit(f"{host.get_name()}: no ivy placed; check its bark slot, IVY_TOP and CORNER")
         asset = write(host, mesh)
         print(f"{asset.get_name()}: {count} ivy sheets" + (" over one corner" if slab else f" below {IVY_TOP:.0f} cm"))
+    # Slabs left out of IVY_SLABS lose ivy baked by an earlier run (#166).
+    for path in [biome_variants.VENDOR + p for p, _ in biome_variants.SLAB_VARIANTS]:
+        if path not in biome_variants.IVY_SLABS and unbake(unreal.load_asset(path)):
+            print(f"{path.rsplit('/', 1)[1]}: ivy removed")
 
 
 main()

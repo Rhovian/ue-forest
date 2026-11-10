@@ -10,6 +10,9 @@ COLUMNS = ["FrameTime", "GameThreadTime", "RenderThread", "GPUTime", "GPUSceneIn
            "TextureStreaming/StreamingPool", "RenderTargetPoolSize"]
 
 
+EMPTY_GPU_MS = 1.0  # mean GPU time below which a point rendered nothing
+
+
 def numeric(value):
     try:
         float(value or 0)
@@ -39,6 +42,11 @@ def main(run):
         for name in COLUMNS:
             values = column(rows, name)
             cells.append(f"{statistics.mean(values):.2f} / {statistics.quantiles(values, n=20)[-1]:.2f}" if values else "n/a")
+        gpu = column(rows, "GPUTime")
+        # A PIE window macOS stops presenting (seemingly when covered) renders nothing: GPU time near zero. Such a
+        # point is no measurement, so say so rather than print its numbers (#179).
+        if gpu and statistics.mean(gpu) < EMPTY_GPU_MS:
+            cells = [f"no frames rendered (GPU {statistics.mean(gpu):.2f} ms)"] + ["-"] * (len(COLUMNS) - 1)
         print(f"| {point} | " + " | ".join(cells) + " |")
 
 
