@@ -7,7 +7,8 @@ Landscape Grass knows nothing of the PCG logs, so ferns and undergrowth grew str
 LOG_VARIANTS and the meadow's) and rock slab or boulder (SLAB_VARIANTS) from the generated instances, rasterises its
 footprint on T_GroundcoverMask's 2 m grid (same cells, same UVs) and grows it by a cell, at ON_LOG rather than
 black: plants still grow on and against a log, only fewer (operator: a log with nothing on it is not the target
-either). forest_floor.py multiplies it into the groundcover and undergrowth.
+either). forest_floor.py multiplies it into the groundcover and undergrowth, and keeps its rock and slab layers
+(SOLID_KINDS) off the logs entirely. The hand-placed shore logs (shore_logs.py) count too (#160).
 Rerun after every regenerate that moves logs, then forest_floor.py.
 """
 
@@ -35,15 +36,19 @@ def footprints():
     """Each placed log's footprint corners in world cm."""
     names, out = log_meshes(), []
     for actor in unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors():
-        for component in actor.get_components_by_class(unreal.InstancedStaticMeshComponent):
+        # Instanced: the PCG logs and rocks; plain: the hand-placed shore logs (shore_logs.py, #160).
+        for component in actor.get_components_by_class(unreal.StaticMeshComponent):
             mesh = component.static_mesh
             if not mesh or mesh.get_name() not in names:
                 continue
             box = mesh.get_bounding_box()
             corners = [unreal.Vector(x, y, 0) for x, y in ((box.min.x, box.min.y), (box.max.x, box.min.y),
                                                             (box.max.x, box.max.y), (box.min.x, box.max.y))]
-            for index in range(component.get_instance_count()):
-                transform = component.get_instance_transform(index, True)
+            if isinstance(component, unreal.InstancedStaticMeshComponent):
+                transforms = [component.get_instance_transform(i, True) for i in range(component.get_instance_count())]
+            else:
+                transforms = [component.get_world_transform()]
+            for transform in transforms:
                 out.append([unreal.MathLibrary.transform_location(transform, c) for c in corners])
     return out
 

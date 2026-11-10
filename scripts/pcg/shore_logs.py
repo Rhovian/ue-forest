@@ -14,8 +14,13 @@ import math
 
 import biome_variants
 import unreal
+from water_exclusions import KEEPOUT_TAG, place
 
 LABEL = "ShoreLog"  # label prefix and outliner folder
+# Each log's footprint, grown by this many cm, is a keepout for every group but the ground plants (KEEPOUT_TAG, applied
+# by exact_exclusions.py): Biome Core knew nothing of these hand-placed logs, and a regenerate put a slab and a boulder
+# straight through the near one (#160). Rerun exact_exclusions.py and regenerate_biome.py afterwards.
+KEEPOUT_CM = 120.0
 # Site -> (camera x m, y m, yaw, reach m, side): the lake spline point inside that camera's cone on the near or the far
 # shore (see site()). Both are in lake_edge, the bank view judged against lake_shore_01 (poses.py); from the
 # lake_shore pose the lake is 55 m and more away behind bank plants, and neither a near- nor a far-shore log read
@@ -137,19 +142,32 @@ def main():
         if not bank:
             raise RuntimeError(f"{name}: the log's hull is not over the bank; check its axis")
         drop = min(bank) + SINK
-        for actor in placed[-2:]:
+        for actor in placed[-2:]:  # the log and its shell
             actor.add_actor_world_offset(unreal.Vector(0, 0, -drop), False, False)
         gaps = [(d, underside_gap(log, p.x + ux * d * 100, p.y + uy * d * 100)) for d in GAP_SAMPLES]
         print(f"{name}: {host.get_name()} at ({p.x / 100:.1f}, {p.y / 100:.1f}) m, pitch {math.degrees(pitch):.1f} deg;"
               f" bank {inland / 100:.2f} m, bed {bed / 100:.2f} m, surface {surface / 100:.2f} m; lowered {drop:.0f} cm;"
               f" underside gap (m along the normal, + inland: cm) {gaps}")
+        margin = KEEPOUT_CM / SCALE  # in the mesh's own units
+        corners = [unreal.Vector(x, y, box.min.z) for x, y in ((box.min.x - margin, box.min.y - margin),
+                                                               (box.max.x + margin, box.min.y - margin),
+                                                               (box.max.x + margin, box.max.y + margin),
+                                                               (box.min.x - margin, box.max.y + margin))]
+        footprint = [log.get_actor_transform().transform_location(c) for c in corners]
+        keepout_label = f"{LABEL}_{name}_Keepout"
+        stale = old.pop(keepout_label, None)
+        if stale is not None:
+            old[keepout_label + "_stale"] = stale  # destroyed and saved with the other leftovers below
+        keepout = place(keepout_label, [(c.x, c.y) for c in footprint], 1000.0, KEEPOUT_TAG)
+        keepout.set_folder_path(LABEL)
+        placed.append(keepout)
     packages = [a.get_package() for a in old.values()]
     for actor in old.values():
         actors.destroy_actor(actor)
     packages += [a.get_package() for a in placed]
     if not unreal.EditorLoadingAndSavingUtils.save_packages(packages, False):
         raise RuntimeError("could not save the shore logs")
-    print(f"{len(placed) // 2} shore logs; {len(old)} removed")
+    print(f"{len(placed) // 3} shore logs with keepouts; {len(old)} removed")
 
 
 main()
