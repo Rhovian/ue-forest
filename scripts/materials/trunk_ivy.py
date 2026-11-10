@@ -186,17 +186,20 @@ def write(host, mesh):
 
 
 def unbake(host):
-    """Remove a host's ivy: its shell's Ivy section (the last slot, as write appends it) or its SM_<host>_Ivy."""
+    """Remove a host's ivy, both its SM_<host>_Ivy and its shell's Ivy section (the last slot, as write appends it);
+    True if there was any."""
+    removed = False
     old = unreal.load_asset(ivy_path(host))
     if old is not None:
-        unreal.EditorAssetLibrary.delete_asset(old.get_path_name())
-        return True
+        if not unreal.EditorAssetLibrary.delete_asset(old.get_path_name()):
+            raise SystemExit(f"could not delete {old.get_path_name()}")
+        removed = True
     shell = unreal.load_asset(moss_shells.shell_path(host))
     if shell is None:
-        return False
+        return removed
     slots = [str(s.get_editor_property("material_slot_name")) for s in shell.get_editor_property("static_materials")]
     if "Ivy" not in slots:
-        return False
+        return removed
     if slots[-1] != "Ivy":
         raise SystemExit(f"{shell.get_name()}: the Ivy slot is not last; cannot drop it without remapping")
     lod = G.GeometryScriptMeshReadLOD()
