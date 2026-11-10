@@ -23,6 +23,7 @@ SPACING = 1000.0  # cm between trees
 RES = (1920, 1080)
 WARMUP_FRAMES = 300  # let Nanite streaming and Lumen settle at each point
 CAPTURE_FRAMES = 600
+TRACE_DRAIN_FRAMES = 60  # after Trace.Stop, before the process exits
 SETTLE_FRAMES = 60  # after csvprofile stop, before the file is on disk
 CVARS = [
     "r.Lumen.HardwareRayTracing", "sg.GlobalIlluminationQuality", "r.ScreenPercentage",
@@ -166,7 +167,10 @@ class Run:
             manifest.update(tree=self.tree, count=self.count, spacing_cm=SPACING)
         with open(os.path.join(self.out, "manifest.json"), "w") as f:
             json.dump(manifest, f, indent=2)
-        self.quit()
+        # The trace writer drains on its own thread; stop it and give it time before the exit below cuts it off.
+        console("Trace.Stop")
+        self.steps = [self.quit]
+        return TRACE_DRAIN_FRAMES
 
     def quit(self):
         # Destroying the PIE window asserts IsInGameThread() in FSceneViewport on Mac (the window close runs on the
