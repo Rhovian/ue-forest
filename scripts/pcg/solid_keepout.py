@@ -50,9 +50,9 @@ def targets(actors):
     rows, seen, solid_graphs = {}, set(), set()
 
     def visit(data, under_solid):
-        if data in seen:
+        if (data, under_solid) in seen:  # a list under both a solid and a plant is visited in each context
             return
-        seen.add(data)
+        seen.add((data, under_solid))
         for row in data.get_editor_property("BiomeAssets"):
             graph = get(row, "TransformGraph")
             mesh = get(row, "SkeletalMesh") or get(row, "Mesh")
