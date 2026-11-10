@@ -88,6 +88,7 @@ def place(label, outline, z, tag=None):
     if tag:  # Biome Core selects exclusions by the PCG_BiomeExclusion tag: swap it so only exact_exclusions applies this
         actor.tags = [tag]
     print(f"{label}: {len(outline)} points")
+    return actor
 
 
 def main():

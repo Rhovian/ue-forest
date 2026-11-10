@@ -135,6 +135,10 @@ GRASS_MASK = f"{FOLDER}/T_GroundcoverMask"
 # 2026-11-09). scan_mask.py's distance from the sand, on the same grid, keeps them 6-12 m inland.
 SCAN_MASK = f"{FOLDER}/T_ScanSandMask"
 LOG_MASK = f"{FOLDER}/T_LogMask"  # log_mask.py: the tall cover thinned on and beside fallen logs (#117)
+# Layers of rocks and slabs, which must not grow through a log at all (#160: a lake stone stood through a shore log):
+# none where T_LogMask marks a log (ON_LOG, 0.3), all where it is clear (1).
+SOLID_KINDS = ("patches", "lake", "waterline", "dry sand")
+CLEAR_OF_LOGS = (0.35, 0.6)
 # The lake and stream bed (water_bed_mask.py, #141): their own ground under the water, with some of the moss's green.
 WATER_BED, LAKE_BED = f"{FOLDER}/T_WaterBedMask", f"{FOLDER}/T_LakeMask"
 BED_SCALE = 8.0  # cm per texture step (water_bed_mask.SCALE)
@@ -482,6 +486,9 @@ def build():
     sand_edge = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": g.mask(g.sample(SAND_EDGE_MASK, mask_uv, 2), 2, "r"),
                                                               "B": g.wire(unreal.MaterialExpressionMultiply, 2, {
                                                                   "A": edge_patches, "B": allowed})})
+    clear_of_logs = g.wire(unreal.MaterialExpressionSmoothStep, 2, {
+        "Min": g.node(unreal.MaterialExpressionConstant, 3, r=CLEAR_OF_LOGS[0]),
+        "Max": g.node(unreal.MaterialExpressionConstant, 3, r=CLEAR_OF_LOGS[1]), "Value": on_logs})
     weights = {"Groundcover": (weight, grass_type())}
     for name, (asset, variants, density, cull, scale, kind) in GRASS_LAYERS.items():
         if kind in ("sand", "waterline", "dry sand", "lake", "shallows", "sand edge"):
@@ -489,6 +496,8 @@ def build():
                      "shallows": lake_plants, "sand edge": sand_edge}[kind]
         else:
             layer = floor if kind == "all" else g.wire(unreal.MaterialExpressionMultiply, 1, {"A": floor, "B": where[kind]})
+        if kind in SOLID_KINDS:
+            layer = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": layer, "B": clear_of_logs})
         weights[name] = (layer, grass_type(asset, variants, density, cull, scale))
     output = g.node(unreal.MaterialExpressionLandscapeGrassOutput, 0)
     inputs = []
