@@ -5,6 +5,13 @@ description: Lessons for this project's Biome Core PCG placement of everything o
 
 Each rule below cost real time when it was learned. A new rule says what broke, why, and the check that prevents it.
 
+## New assets: pass the budget before placing
+
+- Run `scripts/asset-budget.py` on a newly imported asset, and fix what it reports, before adding it to any placement
+  group. Megaplants trees came in over 400 bones and without trunk collision; they were placed first and had to be
+  re-exported from PVE afterwards (Bone Reduction, Trunk Only collision; `scripts/pve-bone-reduction.py`), with several
+  variants left out (#153, operator 2026-11-09). Variants that fail go on #154's list.
+
 ## Cost: estimate before you build
 
 - A generator samples the **whole biome volume** before any filter, so its cost is density x the island's bounds

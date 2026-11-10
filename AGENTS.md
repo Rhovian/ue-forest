@@ -52,4 +52,6 @@ UE 5.8 C++ project on one Mac, coordinated by Niles. Decisions behind these rule
 
 - Before adding or tuning a placement group, read `.claude/skills/forest-pcg/SKILL.md` (cost budget, AssetType, children, verification), and append each newly understood PCG failure to it.
 
+- A newly imported asset of any kind passes `scripts/asset-budget.py` (fixed by re-export where needed) before it goes into any placement group or graph.
+
 - Every placed asset kind (trees, logs, stumps, rocks, children of assemblies, plants) is an appendable list of variants in the script that builds it, even when it holds one mesh, so adding a variant is a one-line change.

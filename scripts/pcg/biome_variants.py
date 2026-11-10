@@ -87,16 +87,17 @@ FERN_COLONY_SHARES = {"Ferns": 0.35, "SwordFerns": 0.3, "DeerFerns": 0.2, "Beech
 # The Trees group's canopy (DA_Forest_TreesAssets, canopy_trees.py; #144). Operator decision (2026-11-09): spruce leads,
 # toward the Olympic rainforests' Sitka spruce and hemlock, with maple (bigleaf maple's role), cypress (redcedar's) and
 # alder (red alder's) mixed in and beech one tree of the mix. Shares: spruce 45%, beech 20%, maple 15%, cypress and
-# alder 10% each, split evenly across each species' variants. Maple D (2 m) and cypress E (3 m) are saplings and stay out.
+# alder 10% each, split evenly across each species' variants. Every listed tree was re-exported from PVE under the bone
+# budget with Trunk Only collision; the variants that could not be yet (and the saplings) are on #154's list.
 MEGAPLANTS = "/Game/Megaplant_Library/"
 TREE_VARIANTS = [
     *[(f"{MEGAPLANTS}Tree_Norway_Spruce/Tree_Norway_Spruce_01/Tree_Norway_Spruce_01_{v}", 45 / 4) for v in "ABCD"],
     *[(f"{MEGAPLANTS}Tree_European_Beech/Tree_European_Beech_01/Tree_European_Beech_01_{v}", 20 / 4) for v in "ABCD"],
-    *[(f"{MEGAPLANTS}Tree_Norway_Maple/Tree_Norway_Maple_Forest_01/Tree_Norway_Maple_Forest_01_{v}", 15 / 3)
-      for v in "ABC"],
-    *[(f"{MEGAPLANTS}Tree_Japanese_Cypress/Tree_Japanese_Cypress_01/Tree_Japanese_Cypress_01_{v}", 10 / 5)
-      for v in "ABCDF"],
-    *[(f"{MEGAPLANTS}Tree_Black_Alder/Tree_Black_Alder_01/Tree_Black_Alder_01_{v}", 10 / 4) for v in "ABCD"],
+    *[(f"{MEGAPLANTS}Tree_Norway_Maple/Tree_Norway_Maple_Forest_01/Tree_Norway_Maple_Forest_01_{v}", 15)
+      for v in "A"],
+    *[(f"{MEGAPLANTS}Tree_Japanese_Cypress/Tree_Japanese_Cypress_01/Tree_Japanese_Cypress_01_{v}", 10 / 2)
+      for v in "BF"],
+    *[(f"{MEGAPLANTS}Tree_Black_Alder/Tree_Black_Alder_01/Tree_Black_Alder_01_{v}", 10 / 2) for v in "BC"],
 ]
 # Veteran beech (#80, interior_01's massive old trunks): the Megascans open-grown field tree, a static Nanite mesh.
 VETERAN_VARIANTS = [
