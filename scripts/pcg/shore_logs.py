@@ -17,10 +17,12 @@ import unreal
 from water_exclusions import KEEPOUT_TAG, place
 
 LABEL = "ShoreLog"  # label prefix and outliner folder
-# Each log's footprint, grown by this many cm, is a keepout for every group but the ground plants (KEEPOUT_TAG, applied
-# by exact_exclusions.py): Biome Core knew nothing of these hand-placed logs, and a regenerate put a slab and a boulder
-# straight through the near one (#160). Rerun exact_exclusions.py and regenerate_biome.py afterwards.
+# Each log's footprint, grown by this many cm plus the farthest any solid (log, slab, stump) reaches from its pivot, is
+# a keepout for every group but the ground plants (KEEPOUT_TAG, applied by exact_exclusions.py): Biome Core knew nothing
+# of these hand-placed logs (#160). The exclusion tests a candidate's pivot, not its bounds, so the margin must cover a
+# whole solid whose pivot lies just outside (#173 review). Rerun exact_exclusions.py and regenerate_biome.py afterwards.
 KEEPOUT_CM = 120.0
+SOLID_SCALE_MAX = 1.2  # deadwood_rocks.generator's ScaleMax
 # Site -> (camera x m, y m, yaw, reach m, side): the lake spline point inside that camera's cone on the near or the far
 # shore (see site()). Both are in lake_edge, the bank view judged against lake_shore_01 (poses.py); from the
 # lake_shore pose the lake is 55 m and more away behind bank plants, and neither a near- nor a far-shore log read
@@ -68,9 +70,11 @@ def underside_gap(log, x, y):
     """cm between the landscape and the log's collision underside at (x, y) (negative: sunk into it), traced up from
     5 m below the ground, ignoring the landscape: a trace starting inside the hull would not hit it."""
     z = ground(x, y)
-    landscapes = [a for a in actors.get_all_level_actors() if isinstance(a, unreal.LandscapeProxy)]
+    # Ignore the landscape and the keepout splines: on a rerun the previous keepout's spline was hit before the log.
+    ignored = [a for a in actors.get_all_level_actors()
+               if isinstance(a, unreal.LandscapeProxy) or a.get_actor_label().endswith("_Keepout")]
     hit = unreal.SystemLibrary.line_trace_single(world, unreal.Vector(x, y, z - 500), unreal.Vector(x, y, z + 500),
-                                                 unreal.TraceTypeQuery.TRACE_TYPE_QUERY1, True, landscapes,
+                                                 unreal.TraceTypeQuery.TRACE_TYPE_QUERY1, True, ignored,
                                                  unreal.DrawDebugTrace.NONE, True)
     fields = hit.to_tuple() if hit else None
     if not fields or fields[9] is None or fields[9].get_actor_label() != log.get_actor_label():
@@ -93,6 +97,9 @@ def main():
               for i in range(spline.get_number_of_spline_points())]
     cx, cy = sum(p.x for p in points) / len(points), sum(p.y for p in points) / len(points)
     old = {a.get_actor_label(): a for a in actors.get_all_level_actors() if a.get_actor_label().startswith(LABEL + "_")}
+    solids = variants.LOG_VARIANTS + variants.MEADOW_LOG_VARIANTS + variants.SLAB_VARIANTS + variants.STUMP_VARIANTS
+    solid_reach = max(SOLID_SCALE_MAX * math.hypot(max(abs(b.min.x), abs(b.max.x)), max(abs(b.min.y), abs(b.max.y)))
+                for b in (unreal.load_asset(variants.asset_path(path)).get_bounding_box() for path, _ in solids))
     placed = []
     for index, (name, (x, y, yaw, reach, side)) in enumerate(SITES.items()):
         host, shell = hosts[index % len(hosts)], shells[index % len(hosts)]  # appendable: sites cycle the variants
@@ -148,7 +155,7 @@ def main():
         print(f"{name}: {host.get_name()} at ({p.x / 100:.1f}, {p.y / 100:.1f}) m, pitch {math.degrees(pitch):.1f} deg;"
               f" bank {inland / 100:.2f} m, bed {bed / 100:.2f} m, surface {surface / 100:.2f} m; lowered {drop:.0f} cm;"
               f" underside gap (m along the normal, + inland: cm) {gaps}")
-        margin = KEEPOUT_CM / SCALE  # in the mesh's own units
+        margin = (KEEPOUT_CM + solid_reach) / SCALE  # in the mesh's own units
         corners = [unreal.Vector(x, y, box.min.z) for x, y in ((box.min.x - margin, box.min.y - margin),
                                                                (box.max.x + margin, box.min.y - margin),
                                                                (box.max.x + margin, box.max.y + margin),
@@ -167,7 +174,7 @@ def main():
     packages += [a.get_package() for a in placed]
     if not unreal.EditorLoadingAndSavingUtils.save_packages(packages, False):
         raise RuntimeError("could not save the shore logs")
-    print(f"{len(placed) // 3} shore logs with keepouts; {len(old)} removed")
+    print(f"{len(placed) // 3} shore logs with keepouts {KEEPOUT_CM + solid_reach:.0f} cm out; {len(old)} removed")
 
 
 main()
