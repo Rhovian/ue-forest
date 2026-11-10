@@ -30,6 +30,9 @@ DRIFTS = {"Ferns": (16, 550, 260), "Herbs": (80, 320, 200), "Balsam": (40, 280, 
 # Child scale per drift kind. Gap hazel at 1.1-1.5 merged into one even band 2-3 m tall round each clearing, a hedge
 # over the ferns (operator 2026-11-10, #164): knee-high to head-high now, in smaller clumps.
 DRIFT_SCALE = {"GapShrubs": (0.45, 1.6)}
+# Scale per generator (kind + patch), where it must differ from the template's 0.8-1.2: the beech saplings in the canopy
+# gaps stood at one height in a band with the hazel (#164 review); from knee-high seedlings to young trees now.
+GENERATOR_SCALE = {"SaplingsCanopy": (0.35, 1.3)}
 # Steepest slope (deg) a kind grows on; ferns and ivy clothe the coastal and stream bank faces (edge_in, #71). The
 # coastal bluff behind edge_in rises 3-15 m at 53-66 deg (traced), so 45 deg left it bare.
 SLOPE = {"Ferns": 65, "Ivy": 70}
@@ -326,6 +329,12 @@ def main():
             put(value, GeneratorAllowOverlap=overlap)
             data.set_editor_property("Generator", value)
             save(data)
+            if kind + patch in GENERATOR_SCALE:
+                low, high = GENERATOR_SCALE[kind + patch]
+                graph = load(ROOT + f"PCG_Forest_{kind}{patch}Generator")
+                for name, scale in (("ScaleMin", low), ("ScaleMax", high)):
+                    unreal.PCGGraphParametersHelpers.set_vector_parameter(graph, name, unreal.Vector(scale, scale, scale))
+                save(graph)
             for (path, weight), (k, patch_list) in itertools.product(rows, enumerate(patches)):
                 mesh = meshes[path]
                 value = entry(template, mesh, data, transform, weight / len(patches), children=patch_list,
