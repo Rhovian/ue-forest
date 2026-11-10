@@ -6,10 +6,10 @@
 The solid groups allow overlap (deadwood_rocks.generator: Core's priority difference uses the trees' canopy bounds and
 erased nearly every rock and log under them), so nothing kept a trunk out of a boulder: 413 of 1,357 solids had a stem
 inside them, mostly hazel and huckleberry standing on the rocks' own sampler points. This bakes every placed solid's
-footprint (its instance transform and mesh box) into each TransformGraph a tree, sapling or shrub uses, and drops the
+footprint (its instance transform and mesh box) into each TransformGraph a tree, sapling or shrub uses (children too), and drops the
 plants standing in one, so they give way and the rocks keep their count. Graphs of the tree groups alone keep trunks
-TRUNK_CM off; graphs shared with ferns and flowers test the pivot only. Child graphs are left alone: the seedlings on
-the nurse logs stand on them by design. Re-runnable: a rerun replaces the baked footprints.
+TRUNK_CM off; graphs shared with ferns and flowers test the pivot only. The solids' own children are left alone: the
+seedlings on the nurse logs stand on them by design. Re-runnable: a rerun replaces the baked footprints.
 
 Footprints come from the placed level, so run it after a regenerate, then regenerate again: after exact_exclusions.py,
 and again whenever the solid groups change (deadwood_rocks.py, shore_logs.py, biome_variants' solid palettes).
@@ -44,21 +44,35 @@ def kind(data, row):
 
 
 def targets(actors):
-    """{TransformGraph: margin cm} for each top-level graph a tree, sapling or shrub uses: TRUNK_CM where only tree
-    groups use it, PIVOT_CM where ferns and flowers share it (they may stand at a rock's foot)."""
-    rows, seen = {}, set()
-    for actor in actors:
-        if not actor.get_class().get_name().startswith("BP_PCGBiomeVolume"):
-            continue
-        for data in actor.get_editor_property("Assets"):
-            if data in seen:
-                continue
-            seen.add(data)
-            for row in data.get_editor_property("BiomeAssets"):
-                graph = get(row, "TransformGraph")
-                if graph:
+    """{TransformGraph: margin cm} for each graph a tree, sapling or shrub uses, children included (the shrub drifts
+    place stems round each anchor): TRUNK_CM where only tree groups use it, PIVOT_CM where ferns and flowers share it
+    (they may stand at a rock's foot). The solids' own children are skipped: the nurse-log seedlings stand on them."""
+    rows, seen, solid_graphs = {}, set(), set()
+
+    def visit(data, under_solid):
+        if data in seen:
+            return
+        seen.add(data)
+        for row in data.get_editor_property("BiomeAssets"):
+            graph = get(row, "TransformGraph")
+            mesh = get(row, "SkeletalMesh") or get(row, "Mesh")
+            if graph:
+                if under_solid:
+                    solid_graphs.add(graph)
+                else:
                     rows.setdefault(graph, set()).add(kind(data, row))
+            child = get(row, "ChildAssets")
+            if child:
+                visit(child, under_solid or bool(mesh and mesh.get_name() in SOLIDS))
+
+    for actor in actors:
+        if actor.get_class().get_name().startswith("BP_PCGBiomeVolume"):
+            for data in actor.get_editor_property("Assets"):
+                visit(data, False)
     found = {graph: TRUNK_CM if kinds == {"tree"} else PIVOT_CM for graph, kinds in rows.items() if kinds - {None}}
+    shared = sorted(graph.get_name() for graph in found if graph in solid_graphs)
+    if shared:
+        raise RuntimeError(f"Woody TransformGraphs shared with the solids' children: {shared}")
     if not found:
         raise RuntimeError("No woody TransformGraphs loaded")
     return found
