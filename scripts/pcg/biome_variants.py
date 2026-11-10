@@ -173,9 +173,9 @@ IVY_TREES = [  # (tree, coverage): coverage scales the share of trunk the strand
     ("/Game/Megascans/3D_Plants/EuropeanHornbeam/Geometry/SimpleWind/SM_EuropeanHornbeam_Forest_04", 1.0),
     ("/Game/Megascans/3D_Plants/EuropeanHornbeam/Geometry/SimpleWind/SM_EuropeanHornbeam_Forest_07", 1.0),
 ]
-# Slabs and boulders with ivy spilling over one corner (trunk_ivy.py, #121, rock_assembly_01): all of them, as the
-# rock_assembly view's own rock is a boulder (#132 review).
-IVY_SLABS = [VENDOR + path for path, _ in SLAB_VARIANTS]
+# Boulders with ivy spilling over one corner (trunk_ivy.py, #121, rock_assembly_01): two of the four, about a fifth of
+# all rocks. On every slab and boulder it hid the rocks themselves (#166).
+IVY_SLABS = [VENDOR + path for path, _ in SLAB_VARIANTS if "wc1kebr" in path or "wfstcdnaw" in path]
 IVY_VARIANTS = [
     ("/Game/Fab/Megascans/Plants/English_Ivy_xfcnebhqx/Medium/xfcnebhqx_tier_2/StaticMeshes/SM_xfcnebhqx_VarA", 1),
 ]
