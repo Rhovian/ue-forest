@@ -75,7 +75,7 @@ def ivy_path(tree):
     return f"{FOLDER}/SM_{tree.get_name()}_Ivy"
 
 
-def bake(tree, slab=False):
+def bake(tree, slab=False, coverage=1.0):
     """Ivy sheets over a tree's lower bark, or over a slab's corner; returns (mesh, count)."""
     bark = moss_shells.read(tree) if slab else moss_shells.read(tree, IVY_TOP)
     if slab:
@@ -113,7 +113,7 @@ def bake(tree, slab=False):
                 around = math.atan2(p.y, p.x) * 100 / RUN_CM[0]  # ~1 unit per RUN_CM of girth on a 1 m trunk
                 run = moss_shells.noise(around + 31, p.z / RUN_CM[1], 7.0)
                 t = min(1.0, max(0.0, (run - RUN_LOW) / (RUN_HIGH - RUN_LOW)))
-                keep = t * t * (3 - 2 * t) * max(0.0, 1 - p.z / IVY_TOP) ** 1.2
+                keep = coverage * t * t * (3 - 2 * t) * max(0.0, 1 - p.z / IVY_TOP) ** 1.2
                 outward = unreal.Vector(normal.x, normal.y, 0).normal()
                 up = unreal.Vector(rng.uniform(-0.15, 0.15), rng.uniform(-0.15, 0.15), 1)
             if rng.random() >= keep:
@@ -186,11 +186,12 @@ def write(host, mesh):
 
 
 def main():
-    for path, slab in [(p, False) for p in biome_variants.IVY_TREES] + [(p, True) for p in biome_variants.IVY_SLABS]:
+    hosts = [(p, False, c) for p, c in biome_variants.IVY_TREES] + [(p, True, 1.0) for p in biome_variants.IVY_SLABS]
+    for path, slab, coverage in hosts:
         host = unreal.load_asset(path)
         if host is None:
             raise SystemExit(f"missing ivy host {path}")
-        mesh, count = bake(host, slab)
+        mesh, count = bake(host, slab, coverage)
         if not count:
             raise SystemExit(f"{host.get_name()}: no ivy placed; check its bark slot, IVY_TOP and CORNER")
         asset = write(host, mesh)
