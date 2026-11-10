@@ -4,7 +4,7 @@ one corner of each IVY_SLABS slab (rock_assembly_01: ivy spilling over one corne
     scripts/editor-py scripts/materials/trunk_ivy.py
 
 For each tree, Geometry Script reads its bark below IVY_TOP (moss_shells.read) and scatters TRUNK_IVY_VARIANTS sheets
-over its near-vertical faces: each sheet's back (-Y) against the bark, its up along the trunk, densest at the base and
+over its trunk's near-vertical faces (narrow strands, no branches): each sheet's back (-Y) against the bark, its up along the trunk, densest at the base and
 thinning to none at IVY_TOP, in noisy vertical runs so the ivy climbs in strands rather than as an even sleeve. The
 ivy is written into the host's moss shell as an "Ivy" section where it has one (so run this after moss_shells.py,
 whose rebuild drops it), else into SM_<host>_Ivy (Nanite, no collision) in the host's own space, which
@@ -31,16 +31,44 @@ moss_shells = importlib.reload(moss_shells)
 G = unreal
 
 FOLDER = "/Game/ForestBiome/Ivy"
-IVY_TOP = 1200.0  # cm: ivy thins to none at this height (canopy_up_01 wants it climbing toward the crown)
+# cm: ivy thins to none at this height. 12 m let ivy onto the branches of trees that sway (skinned beech, the hornbeam
+# and veterans' wind offset) while the shell stays put, so it hung in the air (#156); the trunk moves least low down.
+IVY_TOP = 700.0
+TRUNK_REACH = 60.0  # cm from the trunk's axis (mesh space) that counts as trunk; branches lie further out
+TRUNK_BAND = 100.0  # cm: the axis is followed up the trunk in bands this tall
 CORNER = 0.45  # a slab's ivy reaches this share of the footprint's diagonal from its corner
-DENSITY = 40.0  # sheets per m2 of bark at the base (9 read as a faint patch on a veteran)
+DENSITY = 120.0  # strands per m2 of bark at the base: narrow strands need three times the 40 the wide sheets had (#156)
 SLAB_DENSITY = 160.0  # sheets per m2 on a slab, where only its corner keeps them
-MIN_CANDIDATES = 300  # at least this many candidate sheets per host: the slim Megaplants beech has 2.5 m2 of bark
+MIN_CANDIDATES = 900  # at least this many candidate sheets per host: the slim Megaplants beech has 2.5 m2 of bark
 VERTICAL = 0.5  # |normal.z| above this is a flare's top or a branch, not the trunk's side
 RUN_CM = (60.0, 400.0)  # noise feature size around and along the trunk: narrow vertical runs
 RUN_LOW, RUN_HIGH = 0.35, 0.55  # run noise: no ivy below RUN_LOW, full above RUN_HIGH
-SCALE = (0.8, 1.4)
+SCALE = (0.8, 1.4)  # slab sheets
+TRUNK_SCALE = (0.6, 1.0)  # trunk strands: the tree's own scale (1.1-1.9) enlarges them again
 SINK = 3.0  # cm into the bark
+
+
+def trunk_only(faces):
+    """The faces on the trunk itself: follow its axis up in TRUNK_BAND bands from the base (the bark centroid of the
+    lowest band), each band's centre the mean of its faces within TRUNK_REACH of the band below's, and keep those
+    faces. Ivy on branches hung in the air when the tree swayed (#156)."""
+    bands = {}
+    for face in faces:
+        centre = face[1] + (face[2] + face[3]) / 3
+        bands.setdefault(int(centre.z // TRUNK_BAND), []).append((face, centre))
+    if not bands:
+        return []
+    kept = []
+    low = min(bands)
+    axis = None
+    for band in range(low, max(bands) + 1):
+        members = bands.get(band, [])
+        near = [(f, c) for f, c in members if axis is None or math.hypot(c.x - axis[0], c.y - axis[1]) <= TRUNK_REACH]
+        if not near:
+            break  # the trunk ends, or is hidden: no ivy above a gap
+        axis = (sum(c.x for _, c in near) / len(near), sum(c.y for _, c in near) / len(near))
+        kept += [f for f, c in near if math.hypot(c.x - axis[0], c.y - axis[1]) <= TRUNK_REACH]
+    return kept
 
 
 def ivy_path(tree):
@@ -56,7 +84,7 @@ def bake(tree, slab=False):
         reach = CORNER * math.hypot(box.max.x - box.min.x, box.max.y - box.min.y)
     queries = G.GeometryScript_MeshQueries
     rng = random.Random(tree.get_name())  # the same ivy on every rebuild
-    variants = biome_variants.TRUNK_IVY_VARIANTS
+    variants = biome_variants.SLAB_IVY_VARIANTS if slab else biome_variants.TRUNK_IVY_VARIANTS
     weights = [w for _, w in variants]
     placed = [[] for _ in variants]
     triangles = G.GeometryScript_List.convert_index_list_to_array(queries.get_all_triangle_i_ds(bark)[1])
@@ -67,6 +95,8 @@ def bake(tree, slab=False):
             continue
         a, b, c = (x for x in queries.get_triangle_positions(bark, triangle) if isinstance(x, unreal.Vector))
         faces.append((normal, a, b - a, c - a, (b - a).cross(c - a).length() / 2 / 10000))  # m2
+    if not slab:
+        faces = trunk_only(faces)
     density = max(SLAB_DENSITY if slab else DENSITY, MIN_CANDIDATES / max(sum(f[4] for f in faces), 0.01))
     for normal, a, ab, ac, area in faces:
         for _ in range(int(area * density + rng.random())):
@@ -89,7 +119,7 @@ def bake(tree, slab=False):
             if rng.random() >= keep:
                 continue
             rotation = unreal.MathLibrary.make_rot_from_yz(outward, up)  # leaves (+Y) out from the surface
-            scale = rng.uniform(*SCALE)
+            scale = rng.uniform(*(SCALE if slab else TRUNK_SCALE))
             index = rng.choices(range(len(variants)), weights)[0]
             placed[index].append(unreal.Transform(p - outward * SINK, rotation, unreal.Vector(scale, scale, scale)))
     ivy = G.DynamicMesh()
