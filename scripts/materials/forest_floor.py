@@ -137,6 +137,12 @@ WATER_BED, LAKE_BED = f"{FOLDER}/T_WaterBedMask", f"{FOLDER}/T_LakeMask"
 BED_SCALE = 8.0  # cm per texture step (water_bed_mask.SCALE)
 BED_EDGE_CM = (-40.0, 80.0)  # the bed fades in from just above the water's edge to under it
 SHALLOWS_CM = 400.0  # the lake's shallow plants grow within this of its edge
+# Lake stones (#162; operator 2026-11-09: a few that break the surface are the effect, the fully submerged ones should be
+# very few): full density within STONE_EDGE_CM of the lake's edge, where the bed is shallow enough for them to show
+# above the water, fading over STONE_FADE_CM to STONE_DEEP_SHARE further out.
+STONE_EDGE_CM = 250.0
+STONE_FADE_CM = 250.0
+STONE_DEEP_SHARE = 0.1
 BED = ("/Game/Megascans/Surfaces/MossyRockyGround/T_MossyRockyGround_01", 400.0)  # Electric Dreams surface, tile cm
 BED_MOSS = 0.25  # share of the moss floor's colour kept on the bed
 LAKE_NOISE_CM = 800.0  # feature size of the lake's stone and plant patches
@@ -456,7 +462,12 @@ def build():
         smooth, 3, {"Min": const(SHALLOWS_CM + 200), "Max": const(SHALLOWS_CM), "Value": in_lake})})
     lake_patches = g.wire(smooth, 3, {"Min": p["GrassRunLow"], "Max": p["GrassRunHigh"],
                                       "Value": g.noise(4, LAKE_NOISE_CM)})
-    lake_stones = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": lake, "B": lake_patches})
+    near_edge = g.wire(smooth, 2, {"Min": const(STONE_EDGE_CM + STONE_FADE_CM), "Max": const(STONE_EDGE_CM),
+                                   "Value": in_lake})
+    stone_share = g.wire(unreal.MaterialExpressionLinearInterpolate, 2, {"A": const(STONE_DEEP_SHARE), "B": const(1.0),
+                                                                        "Alpha": near_edge})
+    lake_stones = g.wire(unreal.MaterialExpressionMultiply, 1, {
+        "A": g.wire(unreal.MaterialExpressionMultiply, 1, {"A": lake, "B": stone_share}), "B": lake_patches})
     lake_plants = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": shallows, "B": lake_patches})
     # On the sand within a few metres of the forest edge (scan_mask.py's T_SandEdgeMask), in patches (#38).
     edge_patches = g.wire(smooth, 3, {"Min": p["GrassRunLow"], "Max": p["GrassRunHigh"],
