@@ -29,14 +29,17 @@ DEFAULTS = {  # parameter -> default texture (virtual-streamed like the scans', 
 ROUGHNESS = (0.55, 1.0)  # the DR green channel mapped onto this range
 RVT_HEIGHT = "/Game/ForestBiome/RVT/T_ForestHeightRVT"
 # A scan is placed flat at one landscape point and stands on the floor as a plate with a rim (#135, stop 2): most of
-# its surface is more than a few cm above the floor. The vertex offset sinks it by ScanSink cm, so only its stones and
-# roots stand out. Near its edge (from RimStart of ScanRadius out from the pivot) what is still higher than RimLift cm
-# above the floor height RVT is cut out, so the plate thins into the floor where the floor falls away under it: a hard,
-# noisy edge (dithering read as a see-through ghost). The height RVT can't drape it instead: it reads empty in the
-# vertex shader (no feedback there) and sank every scan. ScanRadius is set per instance from its mesh (main).
-SCAN = {"ScanSink": 8.0, "ScanRadius": 150.0, "RimStart": 0.45, "RimLift": 4.0, "RimSoftness": 2.0}
+# its surface is more than a few cm above the floor. sink_meshes lowers each scan mesh by SINK_CM, so only its stones
+# and roots stand out; in the mesh, as a material vertex offset made the interior view's frame time unsteady. Near its
+# edge (from RimStart of ScanRadius out from the pivot) what is still higher than RimLift cm above the floor height RVT
+# is cut out, so the plate thins into the floor where the floor falls away under it: a hard, noisy edge (dithering read
+# as a see-through ghost). ScanRadius is set per instance from its mesh (main).
+SCAN = {"ScanRadius": 150.0, "RimStart": 0.45, "RimLift": 4.0, "RimSoftness": 2.0}
+SINK_CM = 8.0
+SINK_SHARE = 0.4  # at most this share of a mesh's height above its pivot, so a thin scan (ForestGround, 5 cm) stays
+SINK_TAG = "ForestScanSinkCm"  # metadata on each mesh: how far it is already sunk, so a rerun moves it only the difference
 RIM_NOISE_CM = 40.0  # feature size of the wander added to the edge, so the cut is not a circle
-BRANCH = {"ScanSink": 3.0, "RimLift": 1000.0}  # the fallen branch scans lie on the floor whole: no rim cut
+BRANCH = {"RimLift": 1000.0}  # the fallen branch scans lie on the floor whole: no rim cut, and not sunk
 X, MP = unreal, unreal.MaterialProperty
 
 
@@ -66,12 +69,6 @@ def build():
     material.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
     if not mel.connect_material_property(rim(g, p), "", MP.MP_OPACITY_MASK):
         raise SystemExit("could not connect the opacity mask")
-    zero = g.node(X.MaterialExpressionConstant, 2, r=0.0)
-    sink = g.wire(X.MaterialExpressionAppendVector, 1, {
-        "A": g.wire(X.MaterialExpressionAppendVector, 1, {"A": zero, "B": zero}),
-        "B": g.wire(X.MaterialExpressionMultiply, 2, {"A": p["ScanSink"], "B": g.node(X.MaterialExpressionConstant, 3, r=-1.0)})})
-    if not mel.connect_material_property(sink, "", MP.MP_WORLD_POSITION_OFFSET):
-        raise SystemExit("could not connect the world position offset")
     mel.recompile_material(material)
     unreal.EditorAssetLibrary.save_loaded_asset(material, False)
     return material
@@ -98,6 +95,34 @@ def rim(g, p):
     return g.wire(X.MaterialExpressionOneMinus, 2, {"": cut})
 
 
+def sink_meshes():
+    """Lower every non-branch scan mesh into the floor by SINK_CM, or less if thin (geometry, not a vertex offset)."""
+    G = unreal.GeometryScript_AssetUtils
+    for path, _ in biome_variants.SCAN_VARIANTS:
+        if not path.startswith("/Game/Megascans/") or "OldTreeBranch" in path:
+            continue
+        mesh = unreal.load_asset(path)
+        done = float(unreal.EditorAssetLibrary.get_metadata_tag(mesh, SINK_TAG) or 0.0)
+        sink = round(min(SINK_CM, SINK_SHARE * (mesh.get_bounding_box().max.z + done)), 1)
+        if done == sink:
+            continue
+        dynamic = unreal.DynamicMesh()
+        _, outcome = G.copy_mesh_from_static_mesh(mesh, dynamic, unreal.GeometryScriptCopyMeshFromAssetOptions(),
+                                                  unreal.GeometryScriptMeshReadLOD())
+        if outcome != unreal.GeometryScriptOutcomePins.SUCCESS:
+            raise SystemExit(f"could not read {path}")
+        unreal.GeometryScript_MeshTransforms.translate_mesh(dynamic, unreal.Vector(0, 0, done - sink))
+        options = unreal.GeometryScriptCopyMeshToAssetOptions(enable_recompute_normals=False,
+                                                              enable_recompute_tangents=False,
+                                                              enable_remove_degenerates=False)
+        _, outcome = G.copy_mesh_to_static_mesh(dynamic, mesh, options, unreal.GeometryScriptMeshWriteLOD())
+        if outcome != unreal.GeometryScriptOutcomePins.SUCCESS:
+            raise SystemExit(f"could not write {path}")
+        unreal.EditorAssetLibrary.set_metadata_tag(mesh, SINK_TAG, str(sink))
+        unreal.EditorAssetLibrary.save_loaded_asset(mesh, False)
+        print(f"sank {path.rsplit('/', 1)[1]} to {sink:g} cm")
+
+
 def scan_instances():
     """{material instance path: the larger half extent of its mesh's bounds (cm)} for every Electric Dreams scan."""
     found = {}
@@ -113,6 +138,7 @@ def scan_instances():
 
 
 def main():
+    sink_meshes()
     material = build()
     only = set(sys.argv[1:])
     for path, radius in sorted(scan_instances().items()):
