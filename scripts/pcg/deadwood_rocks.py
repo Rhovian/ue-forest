@@ -98,6 +98,9 @@ STUMPS_PER_HA = 8
 # cm between a nurse log's side plants, and their scale: at 90 cm and 0.7-1.1 they hedged the trunk out of sight (#117,
 # operator 2026-11-09); some still grow against it.
 BASE_SPACING, BASE_SCALE = 200, (0.5, 0.85)
+# A mushroom cluster at each fungus station (#163): cm offsets on the log's top, close enough to stay on the bark of
+# the smallest log, sunk a little as they go off the crown line.
+FUNGI_CLUSTER = [(0, 0), (9, 4), (-6, 8), (4, -9), (-10, -4), (13, -2)]
 LITTER_SPACING, LITTER_MARGIN = 180, 0  # cm between litter piles along a log or round a slab, and out from its edge
 
 
@@ -329,12 +332,13 @@ def main():
         tops = hits + surface_hits(shell) if shell else hits
         length = max(getattr(box.max, a) - getattr(box.min, a) for a in "xy")
         seedling_tops = along_top(tops, max(1, min(5, round(length / 400))))
-        fungi_tops = [(x, y, z - min(bases) - 0.25)  # bury the stem base 2.5 mm, not the cap
-                      for x, y, z in along_top(tops, 3)[::2][:2 if length > 400 else 1]]
+        fungi_tops = [(x + dx, y + dy, z - min(bases) - 0.25 - abs(dx + dy) * 0.05)  # bury the stem base 2.5 mm
+                      for x, y, z in along_top(tops, 3)[::2][:2 if length > 400 else 1]
+                      for dx, dy in FUNGI_CLUSTER]
         sides = along_sides(hits, BASE_SPACING, 15)
         # The moss shell comes first: Core prunes later entries against earlier ones, and its bounds are tiny.
         nurse_children = children("DA_NurseChildren_" + name, template, shell_layout(mesh) + [
-            ("PCG_Fungi_" + name, fungi_tops, (0.9, 1.3), fungi, False),
+            ("PCG_Fungi_" + name, fungi_tops, (0.7, 1.4), fungi, False),
             ("PCG_Seedlings_" + name, seedling_tops, (1.0, 1.5), seedlings, False),
             ("PCG_LogBase_" + name, sides, BASE_SCALE, base_plants, True)] + litter_layout(name, hits, litter))
         # Logs over 4 m (the Large Fallen Trees) are all nurse logs; the short piece keeps plain:nurse 2:1.
