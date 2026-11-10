@@ -26,9 +26,13 @@ from trees_above_shore import shore_height, z_range
 # drift of plants as ground-projected children, so plants read as masses with moss between. (count, length cm, width cm)
 # per kind; the anchor density is divided by count, so the plant total stays about the same.
 DRIFTS = {"Ferns": (16, 550, 260), "Herbs": (80, 320, 200), "Balsam": (40, 280, 180), "Shrubs": (5, 450, 350),
-          "GapShrubs": (9, 400, 350), "Foxglove": (7, 260, 180)}  # Shrubs, GapShrubs: clearing_02 masses
-# Child scale per drift kind: gap hazel overlaps into one broad waist-to-head mass (clearing_02, #81 review).
-DRIFT_SCALE = {"GapShrubs": (1.1, 1.5)}
+          "GapShrubs": (5, 300, 250), "Foxglove": (7, 260, 180)}  # Shrubs: clearing_02 masses; GapShrubs: clumps (#164)
+# Child scale per drift kind. Gap hazel at 1.1-1.5 merged into one even band 2-3 m tall round each clearing, a hedge
+# over the ferns (operator 2026-11-10, #164): knee-high to head-high now, in smaller clumps.
+DRIFT_SCALE = {"GapShrubs": (0.45, 1.6)}
+# Scale per generator (kind + patch), where it must differ from the template's 0.8-1.2: the beech saplings in the canopy
+# gaps stood at one height in a band with the hazel (#164 review); from knee-high seedlings to young trees now.
+GENERATOR_SCALE = {"SaplingsCanopy": (0.35, 1.3)}
 # Steepest slope (deg) a kind grows on; ferns and ivy clothe the coastal and stream bank faces (edge_in, #71). The
 # coastal bluff behind edge_in rises 3-15 m at 53-66 deg (traced), so 45 deg left it bare.
 SLOPE = {"Ferns": 65, "Ivy": 70}
@@ -243,8 +247,8 @@ def main():
         ("Herbs", variants.HERB_VARIANTS, 20000), ("Ivy", variants.IVY_VARIANTS, 500),
         # A yellow accent beside the white anemone (#82): fewer, smaller colonies.
         ("Balsam", variants.BALSAM_VARIANTS, 6000),
-        # Hazel masses in every canopy gap (0.7 ha): ~2 drifts in a 5 m gap, ~6 in a 9 m one, merging; see GAP_ONLY.
-        ("GapShrubs", variants.GAP_SHRUB_VARIANTS, 2000),
+        # Hazel clumps in every canopy gap (0.7 ha), at several heights with open ground between (#164); see GAP_ONLY.
+        ("GapShrubs", variants.GAP_SHRUB_VARIANTS, 1100),
         # Violet spikes in drifts in the canopy gaps and on the banks (#98 qualified, #105); see OPENINGS.
         ("Foxglove", variants.FOXGLOVE_VARIANTS, 3000)]
     paths = list({path for _, rows, _ in kinds for path, _ in rows})
@@ -325,6 +329,12 @@ def main():
             put(value, GeneratorAllowOverlap=overlap)
             data.set_editor_property("Generator", value)
             save(data)
+            if kind + patch in GENERATOR_SCALE:
+                low, high = GENERATOR_SCALE[kind + patch]
+                graph = load(ROOT + f"PCG_Forest_{kind}{patch}Generator")
+                for name, scale in (("ScaleMin", low), ("ScaleMax", high)):
+                    unreal.PCGGraphParametersHelpers.set_vector_parameter(graph, name, unreal.Vector(scale, scale, scale))
+                save(graph)
             for (path, weight), (k, patch_list) in itertools.product(rows, enumerate(patches)):
                 mesh = meshes[path]
                 value = entry(template, mesh, data, transform, weight / len(patches), children=patch_list,
