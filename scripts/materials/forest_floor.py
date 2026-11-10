@@ -106,7 +106,6 @@ GRASS_LAYERS = {
     "SandLitter": (f"{FOLDER}/DA_SandLitter", "SAND_LITTER_VARIANTS", 150.0, 3000, (1.0, 2.0), "sand"),
     # #122: stones clustered at the waterline, a few big rocks among them, sparse stones on the dry sand.
     "WaterlineStones": (f"{FOLDER}/DA_WaterlineStones", "WATERLINE_STONE_VARIANTS", 120.0, 4000, (1.5, 3.5), "waterline"),
-    "WaterlineGround": (f"{FOLDER}/DA_WaterlineGround", "WATERLINE_GROUND_VARIANTS", 3.0, 6000, (0.6, 1.0), "waterline"),
     # 6-9 m rocks: at 0.4 per 10 m2 they walled the beach in (#122 trial).
     "WaterlineBoulders": (f"{FOLDER}/DA_WaterlineBoulders", "WATERLINE_BOULDER_VARIANTS", 0.02, 10000, (0.25, 0.45), "waterline"),
     "DrySandStones": (f"{FOLDER}/DA_DrySandStones", "DRY_SAND_STONE_VARIANTS", 6.0, 3000, (1.5, 3.0), "dry sand"),
@@ -122,6 +121,10 @@ SCAN_NOISE_CM = 700.0  # feature size of the scan patches
 # a band to 50 cm covered all of it (#122 trial).
 WATERLINE_CM = (-30.0, -5.0, 3.0, 12.0)
 WATERLINE_NOISE_CM = 900.0  # feature size of the waterline stone clusters
+# Clusters along the water's edge read as an even dotted line (#155; operator 2026-11-09): a second, larger noise
+# leaves long stretches of bare shore between groups.
+WATERLINE_GAP_CM = 3000.0
+WATERLINE_GAPS = (0.45, 0.6)  # no stones where the gap noise is below the first value, all above the second
 SAND_LITTER_ABOVE_CM = 30.0  # cm above the sea over which sand litter fades in
 SAND_LITTER_NOISE_CM = 600.0  # feature size of the litter patches on the upper sand
 MEADOW_BLEND_CM = 1000.0  # the further layers fade out over this inside each meadow stretch's edge (meadow.MEADOWS)
@@ -442,8 +445,12 @@ def build():
     clusters = g.wire(unreal.MaterialExpressionSmoothStep, 3, {"Min": g.node(unreal.MaterialExpressionConstant, 4, r=0.55),
                                                               "Max": g.node(unreal.MaterialExpressionConstant, 4, r=0.7),
                                                               "Value": g.noise(4, WATERLINE_NOISE_CM)})
+    groups = g.wire(unreal.MaterialExpressionSmoothStep, 3, {
+        "Min": g.node(unreal.MaterialExpressionConstant, 4, r=WATERLINE_GAPS[0]),
+        "Max": g.node(unreal.MaterialExpressionConstant, 4, r=WATERLINE_GAPS[1]), "Value": g.noise(4, WATERLINE_GAP_CM)})
     waterline = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": g.wire(unreal.MaterialExpressionMultiply, 2, {
-        "A": waterline_band, "B": sand_mask}), "B": clusters})
+        "A": waterline_band, "B": sand_mask}), "B": g.wire(unreal.MaterialExpressionMultiply, 2, {"A": clusters,
+                                                                                               "B": groups})})
     dry_sand = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": sand_mask, "B": g.wire(
         unreal.MaterialExpressionSmoothStep, 2, {"Min": w_full_high, "Max": w_high, "Value": z})})
     # Lake and stream bed (water_bed_mask.py): signed cm to the water's edge, positive in the water, SCALE cm per step.

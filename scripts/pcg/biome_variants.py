@@ -269,10 +269,6 @@ WATERLINE_STONE_VARIANTS = [  # 10-26 cm stones, scaled up
     (f"{EDA}NordicBeachRock/SM_NordicBeachRock_01", 3),
     *[(f"{EDA}SmallStonesPack/SM_SmallStonesPack_{i:02}", 0.5) for i in range(1, 15)],
 ]
-WATERLINE_GROUND_VARIANTS = [  # 3 m pebble and rocky-ground scans, at about their own size
-    *[(f"{EDA}BeachSandWithPebbles/SM_BeachSandWithPebbles_0{i}", 1) for i in range(1, 3)],
-    *[(f"{EDA}NordicBeachRockyGround/SM_NordicBeachRockyGround_0{i}", 1) for i in range(1, 3)],
-]
 WATERLINE_BOULDER_VARIANTS = [
     (f"{EDA}NordicBeachRocks/SM_NordicBeachRocks_01", 1),
     *[(f"{EDA}NordicBoulder/SM_NordicBoulder_0{i}", 0.5) for i in range(1, 3)],
