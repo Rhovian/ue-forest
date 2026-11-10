@@ -9,6 +9,16 @@ mel = unreal.MaterialEditingLibrary
 # (moss_coating.py), so they read as one moss; untinted it reads near-black under the canopy (#71 item 6).
 MOSS_TINT = (2.6, 3.0, 1.0)
 
+# The forest floor's moss and its soil patches (#157), shared by forest_floor.py and moss_coating.py's MF_GroundBlend,
+# which shows the same floor at the base of rocks and logs (#166). Electric Dreams surfaces: AO and roughness in R and
+# G, as in ORM.
+ED_SURFACE = {"B": "_BC", "N": "_N", "ORM": "_AoRDp"}
+FLOOR_MOSS = ("/Game/Megascans/Surfaces/NordicMoss/T_NordicMoss_01", 800.0)  # texture prefix, tile cm
+FLOOR_MOSS_TINT = (1.35, 1.5, 0.95)  # NordicMoss is brighter than the Fab moss scan MOSS_TINT was set for
+FLOOR_VARIANT = ("/Game/Megascans/Surfaces/MossyRockyGround/T_MossyRockyGround_01", 400.0)  # moss with soil and stones
+FLOOR_VARIANT_NOISE_CM = 1100.0  # feature size of its patches (world-space noise: the same pattern in every material)
+FLOOR_VARIETY = (0.65, 0.58, 0.8)  # at most this share, from where the noise passes the second value to the third
+
 def fresh_material(path):
     """Load or create the material at path and remove every expression."""
     folder, name = path.rsplit("/", 1)

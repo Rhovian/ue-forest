@@ -29,10 +29,10 @@ Graph = matgraph.Graph
 
 FOLDER = "/Game/ForestBiome"
 FAB = "/Game/Fab/Megascans"
-ED_SURFACE = {"B": "_BC", "N": "_N", "ORM": "_AoRDp"}  # Electric Dreams surfaces: AO and roughness in R and G, as ORM
+ED_SURFACE = matgraph.ED_SURFACE
 LAYERS = {  # layer -> (texture prefix, tile size in cm[, suffix per kind: default _B, _N, _ORM])
     "Sand": (f"{FAB}/Surfaces/Rocky_Sand_vmkecjj/Medium/vmkecjj_tier_2/Textures/T_vmkecjj_2K", 300.0),
-    "Moss": ("/Game/Megascans/Surfaces/NordicMoss/T_NordicMoss_01", 300.0, ED_SURFACE),
+    "Moss": (*matgraph.FLOOR_MOSS, ED_SURFACE),
     "Leaves": (f"{FAB}/Surfaces/Dry_Fallen_Leaves_vetladiaw/Medium/vetladiaw_tier_2/Textures/T_vetladiaw_2K", 300.0),
 }
 PATCHES = f"{FAB}/Decals/Tileable_Moss_Patches_sfdnqii/Medium/sfdnqii_tier_2/Textures/T_sfdnqii_2K_B-O"
@@ -67,18 +67,16 @@ SCALARS = {  # world units are cm; sea level is Z 0
     "MacroBrightness": 0.15,  # +/- brightness variation across the ground
     # #157: patches of MOSS_VARIANT (moss with soil and stones) through the moss carpet, so it is not one lawn: at most
     # this share, from where the variant noise passes Low to where it passes High.
-    "MossVariety": 0.65,
-    "MossVarietyLow": 0.58,
-    "MossVarietyHigh": 0.8,
+    **dict(zip(("MossVariety", "MossVarietyLow", "MossVarietyHigh"), matgraph.FLOOR_VARIETY)),
     "GrassRunLow": 0.3,  # groundcover noise: none below GrassRunLow, full above GrassRunHigh
     "GrassRunHigh": 0.55,
     # cm inland, horizontally, over which groundcover fades in above the (noisy) shore line: starting it at the sand
     # edge drew a crisp green line along the beach (transition_ground; operator on #38: no distinct line).
     "GrassShoreWidth": 500.0,
 }
-MOSS_TINT = (1.35, 1.5, 0.95)  # NordicMoss is brighter than the Fab moss scan matgraph.MOSS_TINT was set for (#157)
-MOSS_VARIANT = ("/Game/Megascans/Surfaces/MossyRockyGround/T_MossyRockyGround_01", 400.0)  # Electric Dreams, tile cm
-MOSS_VARIANT_NOISE_CM = 1100.0  # feature size of the variant patches
+MOSS_TINT = matgraph.FLOOR_MOSS_TINT
+MOSS_VARIANT = matgraph.FLOOR_VARIANT
+MOSS_VARIANT_NOISE_CM = matgraph.FLOOR_VARIANT_NOISE_CM
 MOSS_NOISE_CM = 2000.0  # feature size of the noise that places moss
 MACRO_NOISE_CM = 1200.0  # feature size of the noise that hides texture repetition
 SHORE_NOISE_CM = 350.0  # feature size of the shore line's tongues and islands
@@ -499,6 +497,12 @@ def build():
     mel.connect_material_property(normal, "", unreal.MaterialProperty.MP_NORMAL)
     mel.connect_material_property(g.mask(orm, 0, "r"), "", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)
     mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    # The floor's height for the rocks and slabs to blend into (ground_rvt.py, moss_coating.py MF_GroundBlend; #166). Height
+    # only: a material that writes an RVT cannot sample the virtual-streamed Electric Dreams surfaces this one uses.
+    rvt = g.node(unreal.MaterialExpressionRuntimeVirtualTextureOutput, 0)
+    if not mel.connect_material_expressions(g.mask(g.node(unreal.MaterialExpressionWorldPosition, 1), 0, "b"), "", rvt,
+                                            "WorldHeight"):
+        raise SystemExit("could not connect the RVT WorldHeight")
     mel.recompile_material(material)
     unreal.EditorAssetLibrary.save_loaded_asset(material, False)
 
