@@ -29,9 +29,10 @@ Graph = matgraph.Graph
 
 FOLDER = "/Game/ForestBiome"
 FAB = "/Game/Fab/Megascans"
-LAYERS = {  # layer -> (texture prefix, tile size in cm)
+ED_SURFACE = matgraph.ED_SURFACE
+LAYERS = {  # layer -> (texture prefix, tile size in cm[, suffix per kind: default _B, _N, _ORM])
     "Sand": (f"{FAB}/Surfaces/Rocky_Sand_vmkecjj/Medium/vmkecjj_tier_2/Textures/T_vmkecjj_2K", 300.0),
-    "Moss": (f"{FAB}/Surfaces/Mossy_Forest_Floor_vfylbge/Medium/vfylbge_tier_2/Textures/T_vfylbge_2K", 400.0),
+    "Moss": (*matgraph.FLOOR_MOSS, ED_SURFACE),
     "Leaves": (f"{FAB}/Surfaces/Dry_Fallen_Leaves_vetladiaw/Medium/vetladiaw_tier_2/Textures/T_vetladiaw_2K", 300.0),
 }
 PATCHES = f"{FAB}/Decals/Tileable_Moss_Patches_sfdnqii/Medium/sfdnqii_tier_2/Textures/T_sfdnqii_2K_B-O"
@@ -60,17 +61,22 @@ SCALARS = {  # world units are cm; sea level is Z 0
     "MossNoiseStrength": 1.6,  # how far large-scale noise pushes moss in and out of the damp zones
     "PatchTile": 800.0,
     "PatchStrength": 0.6,  # moss-patch texture adds edge detail inside the noise's mossy areas
-    "DetailScale": 2.7,  # each layer is also sampled this many times larger, blended by slow noise (anti-tiling)
-    "MacroBrightness": 0.15,  # +/- brightness variation across the ground
+    "DetailScale": matgraph.FLOOR_DETAIL_SCALE,  # #157
+    "MacroBrightness": matgraph.FLOOR_MACRO_BRIGHTNESS,
+    # #157: patches of MOSS_VARIANT (moss with soil and stones) through the moss carpet, so it is not one lawn: at most
+    # this share, from where the variant noise passes Low to where it passes High.
+    **dict(zip(("MossVariety", "MossVarietyLow", "MossVarietyHigh"), matgraph.FLOOR_VARIETY)),
     "GrassRunLow": 0.3,  # groundcover noise: none below GrassRunLow, full above GrassRunHigh
     "GrassRunHigh": 0.55,
     # cm inland, horizontally, over which groundcover fades in above the (noisy) shore line: starting it at the sand
     # edge drew a crisp green line along the beach (transition_ground; operator on #38: no distinct line).
     "GrassShoreWidth": 500.0,
 }
-MOSS_TINT = matgraph.MOSS_TINT
+MOSS_TINT = matgraph.FLOOR_MOSS_TINT
+MOSS_VARIANT = matgraph.FLOOR_VARIANT
+MOSS_VARIANT_NOISE_CM = matgraph.FLOOR_VARIANT_NOISE_CM
 MOSS_NOISE_CM = 2000.0  # feature size of the noise that places moss
-MACRO_NOISE_CM = 1200.0  # feature size of the noise that hides texture repetition
+MACRO_NOISE_CM = matgraph.FLOOR_MACRO_NOISE_CM
 SHORE_NOISE_CM = 350.0  # feature size of the shore line's tongues and islands
 LITTER_NOISE_CM = 120.0  # feature size of the litter patches on sand
 # Groundcover (#100): ankle-high tufts and rosettes (biome_variants.GROUNDCOVER_VARIANTS, #98) as Landscape Grass, which
@@ -305,18 +311,19 @@ def build():
     )
 
     sets = {}
-    for name, (prefix, tile) in LAYERS.items():
+    for name, (prefix, tile, *suffixes) in LAYERS.items():
+        suffix = suffixes[0] if suffixes else {kind: "_" + kind for kind in ("B", "N", "ORM")}
         size = g.node(P, 7, parameter_name=f"{name}Tile", default_value=tile)
         uv = g.wire(unreal.MaterialExpressionDivide, 6, {"A": xy, "B": size})
-        big = g.wire(unreal.MaterialExpressionMultiply, 7, {"A": size, "B": p["DetailScale"]})
-        uv_big = g.wire(unreal.MaterialExpressionDivide, 6, {"A": xy, "B": big})
+        detail = g.wire(unreal.MaterialExpressionMultiply, 7, {"A": size, "B": p["DetailScale"]})
+        uv_detail = g.wire(unreal.MaterialExpressionDivide, 6, {"A": xy, "B": detail})
         sets[name] = {
             kind: g.wire(
                 lerp,
                 4,
                 {
-                    "A": g.sample(f"{prefix}_{kind}", uv, 5),
-                    "B": g.sample(f"{prefix}_{kind}", uv_big, 5),
+                    "A": g.sample(prefix + suffix[kind], uv, 5),
+                    "B": g.sample(prefix + suffix[kind], uv_detail, 5),
                     "Alpha": macro,
                 },
             )
@@ -328,6 +335,14 @@ def build():
     moss_tint = g.node(unreal.MaterialExpressionVectorParameter, 9, parameter_name="MossTint",
                        default_value=unreal.LinearColor(*MOSS_TINT, 1.0))
     sets["Moss"]["B"] = g.wire(unreal.MaterialExpressionMultiply, 4, {"A": sets["Moss"]["B"], "B": moss_tint})
+    variant_uv = g.wire(unreal.MaterialExpressionDivide, 6, {"A": xy, "B": g.node(unreal.MaterialExpressionConstant, 7,
+                                                                                    r=MOSS_VARIANT[1])})
+    variety = g.wire(unreal.MaterialExpressionMultiply, 5, {"A": p["MossVariety"], "B": g.wire(
+        unreal.MaterialExpressionSmoothStep, 6, {"Min": p["MossVarietyLow"], "Max": p["MossVarietyHigh"],
+                                                 "Value": g.noise(6, MOSS_VARIANT_NOISE_CM)})})
+    for kind, suffix in ED_SURFACE.items():
+        sets["Moss"][kind] = g.wire(lerp, 4, {"A": sets["Moss"][kind], "B": g.sample(MOSS_VARIANT[0] + suffix, variant_uv, 5),
+                                              "Alpha": variety})
 
     def blend(sand, kind, column=2):
         floor = g.wire(lerp, column, {"A": sets["Leaves"][kind], "B": sets["Moss"][kind], "Alpha": moss_mask})
@@ -480,6 +495,12 @@ def build():
     mel.connect_material_property(normal, "", unreal.MaterialProperty.MP_NORMAL)
     mel.connect_material_property(g.mask(orm, 0, "r"), "", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)
     mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    # The floor's height for the rocks and slabs to blend into (ground_rvt.py, moss_coating.py MF_GroundBlend; #166). Height
+    # only: a material that writes an RVT cannot sample the virtual-streamed Electric Dreams surfaces this one uses.
+    rvt = g.node(unreal.MaterialExpressionRuntimeVirtualTextureOutput, 0)
+    if not mel.connect_material_expressions(g.mask(g.node(unreal.MaterialExpressionWorldPosition, 1), 0, "b"), "", rvt,
+                                            "WorldHeight"):
+        raise SystemExit("could not connect the RVT WorldHeight")
     mel.recompile_material(material)
     unreal.EditorAssetLibrary.save_loaded_asset(material, False)
 

@@ -10,7 +10,20 @@ moss does not swim in the wind.
 # editor-py: fresh-siblings
 
 import unreal
-from matgraph import MOSS_TINT, Graph, mel
+from matgraph import (
+    ED_SURFACE,
+    FLOOR_DETAIL_SCALE,
+    FLOOR_MACRO_BRIGHTNESS,
+    FLOOR_MACRO_NOISE_CM,
+    FLOOR_MOSS,
+    FLOOR_MOSS_TINT,
+    FLOOR_VARIANT,
+    FLOOR_VARIANT_NOISE_CM,
+    FLOOR_VARIETY,
+    MOSS_TINT,
+    Graph,
+    mel,
+)
 
 FOLDER = "/Game/ForestBiome/Moss"
 FAB = "/Game/Fab/Megascans"
@@ -43,6 +56,17 @@ SCALARS = {  # shared by every coated surface; distances in cm, UVs in metres
     "EdgeWidth": 0.15,
     "MossTile": 0.25,  # moss texture repeats every 4 m, as on the floor (MI_ForestFloor MossTile 400): one moss (#103)
 }
+# Ground blend on static meshes (#157, #166): near the floor, a surface takes on the floor's moss and soil patches
+# (matgraph FLOOR_*, sampled in world space as the floor samples them), so rocks, slabs and logs sit in the ground rather
+# than on it. The floor's height comes from its runtime virtual texture (ground_rvt.py). Fully the floor at the
+# contact, fading out over GroundBlendHeight cm above it, with a ragged top edge.
+GROUND = {
+    "GroundBlend": 1.0,  # 0 = off
+    "GroundBlendHeight": 30.0,
+    "GroundJitter": 25.0,  # cm the edge's top wanders up: the contact itself is always fully the floor
+}
+NOISE_CM = 70.0  # feature size of that wander (a node property, not a parameter)
+RVT_HEIGHT = "/Game/ForestBiome/RVT/T_ForestHeightRVT"
 STATIC = "static"
 TREE = "tree"
 MASTERS = {  # stock master -> (coated copy, how it finds up)
@@ -51,6 +75,7 @@ MASTERS = {  # stock master -> (coated copy, how it finds up)
     "/ProceduralVegetationEditor/SampleAssets/Materials/MasterMaterials/MA_Foliage_Trees": ("M_Foliage_Trees_Moss", TREE),
 }
 SLAB = {"SlopeLow": 0.75, "SlopeHigh": 0.92}  # faces within ~25-40 deg of up
+BARE = {"MossAmount": 0.0}  # ground blend only
 LOG = {"SlopeLow": -0.5, "SlopeHigh": 0.1}  # top and sides down past the middle: no pale side stripe (nurse_log_01, #71)
 COATED = {  # instances that get the coating, with their overrides; one line per variant
     f"{FAB}/3D/Large_Fallen_Tree_wd1mbcvbw/Medium/wd1mbcvbw_tier_2/Materials/MI_wd1mbcvbw": LOG,
@@ -60,6 +85,9 @@ COATED = {  # instances that get the coating, with their overrides; one line per
     # the moss shell (moss_shells.py) carries the top's thickness (#110 review).
     f"{FAB}/3D/Limestone_Slab_ubxbadpda/Medium/ubxbadpda_tier_2/Materials/MI_ubxbadpda": SLAB,
     "/Game/Megaplant_Library/Tree_European_Beech/Materials/MI_European_Beech_Bark_01": {},
+    # Already mossy scans: no extra moss, only the ground blend at their base (#166).
+    **{f"{FAB}/3D/Mossy_Forest_Boulder_{key}/Medium/{key}_tier_2/Materials/MI_{key}": BARE
+       for key in ("wc1kebr", "wdbncbl", "wfstcdnaw", "wfstchwaw")},
 }
 ATTRIBUTES = [  # MakeMaterialAttributes pins passed straight through on the tree master
     "Metallic", "Specular", "Anisotropy", "EmissiveColor", "Opacity", "OpacityMask", "Tangent",
@@ -162,6 +190,78 @@ def build_function():
     return function
 
 
+def build_ground_function():
+    function = asset(FOLDER, "MF_GroundBlend", unreal.MaterialFunction, unreal.MaterialFunctionFactoryNew())
+    for expression in list(mel.get_material_function_expressions(function)):
+        mel.delete_material_expression_in_function(function, expression)
+    if mel.get_num_material_expressions_in_function(function):
+        raise SystemExit("MF_GroundBlend: could not clear the old graph")
+    g = FunctionGraph(function)
+    T = unreal.FunctionInputType
+    inputs = {name: g.node(X.MaterialExpressionFunctionInput, 8, input_name=name, input_type=kind, sort_priority=order)
+              for order, (name, kind) in enumerate([("BaseColor", T.FUNCTION_INPUT_VECTOR3),
+                                                    ("Normal", T.FUNCTION_INPUT_VECTOR3),
+                                                    ("Roughness", T.FUNCTION_INPUT_SCALAR)])}
+    p = {name: g.node(X.MaterialExpressionScalarParameter, 8, parameter_name=name, default_value=value, group="Ground")
+         for name, value in GROUND.items()}
+    Kind = unreal.RuntimeVirtualTextureMaterialType
+    ground = g.node(X.MaterialExpressionRuntimeVirtualTextureSample, 6, virtual_texture=unreal.load_asset(RVT_HEIGHT),
+                    material_type=Kind.WORLD_HEIGHT)
+    position = g.node(X.MaterialExpressionWorldPosition, 7)
+    above = g.wire(X.MaterialExpressionSubtract, 5, {"A": g.mask(position, 6, "b"), "B": (ground, "WorldHeight")})
+    # Noise in 0..1 subtracted, so it only raises the edge: at the contact (above <= 0) the blend stays full (#168 review).
+    noise = g.node(X.MaterialExpressionNoise, 6, scale=1.0 / NOISE_CM, levels=2, output_min=0.0, output_max=1.0)
+    noisy = g.wire(X.MaterialExpressionMultiply, 6, {"A": noise, "B": p["GroundJitter"]})
+    height = g.wire(X.MaterialExpressionSubtract, 4, {"A": above, "B": noisy})
+    fade = g.wire(X.MaterialExpressionSmoothStep, 3, {"Min": g.node(X.MaterialExpressionConstant, 4, r=0.0),
+                                                      "Max": p["GroundBlendHeight"], "Value": height})
+    alpha = g.wire(X.MaterialExpressionMultiply, 2, {"A": g.wire(X.MaterialExpressionOneMinus, 3, {"": fade}),
+                                                     "B": p["GroundBlend"]})
+    # The floor at this point, built as forest_floor.py builds it (matgraph FLOOR_*): its moss at two scales blended by
+    # the macro noise and tinted, the soil patches where the same world-space noise puts them, the macro brightness.
+    def world_noise(feature_cm):  # matgraph.Graph.noise's settings, so the patterns line up with the floor's
+        raw = g.node(X.MaterialExpressionNoise, 6, scale=1.0 / feature_cm, levels=3, output_min=0.0, output_max=1.0)
+        return g.wire(X.MaterialExpressionSaturate, 5, {"": raw})
+
+    def const(value):
+        return g.node(X.MaterialExpressionConstant, 6, r=value)
+
+    xy = g.mask(position, 6, "rg")
+    moss_uv = g.wire(X.MaterialExpressionDivide, 5, {"A": xy, "B": const(FLOOR_MOSS[1])})
+    detail_uv = g.wire(X.MaterialExpressionDivide, 5, {"A": xy, "B": const(FLOOR_MOSS[1] * FLOOR_DETAIL_SCALE)})
+    soil_uv = g.wire(X.MaterialExpressionDivide, 5, {"A": xy, "B": const(FLOOR_VARIANT[1])})
+    macro = world_noise(FLOOR_MACRO_NOISE_CM)
+    share, low, high = FLOOR_VARIETY
+    soil = g.wire(X.MaterialExpressionMultiply, 4, {"A": const(share), "B": g.wire(
+        X.MaterialExpressionSmoothStep, 5, {"Min": const(low), "Max": const(high),
+                                            "Value": world_noise(FLOOR_VARIANT_NOISE_CM)})})
+    tint = g.node(X.MaterialExpressionConstant3Vector, 5, constant=unreal.LinearColor(*FLOOR_MOSS_TINT, 1.0))
+    floor = {}
+    for kind, suffix in ED_SURFACE.items():
+        moss = g.wire(X.MaterialExpressionLinearInterpolate, 4, {
+            "A": g.sample(FLOOR_MOSS[0] + suffix, moss_uv, 5), "B": g.sample(FLOOR_MOSS[0] + suffix, detail_uv, 5),
+            "Alpha": macro})
+        if kind == "B":
+            moss = g.wire(X.MaterialExpressionMultiply, 3, {"A": moss, "B": tint})
+        floor[kind] = g.wire(X.MaterialExpressionLinearInterpolate, 2, {
+            "A": moss, "B": g.sample(FLOOR_VARIANT[0] + suffix, soil_uv, 4), "Alpha": soil})
+    brightness = g.wire(X.MaterialExpressionLinearInterpolate, 2, {
+        "A": const(1 - FLOOR_MACRO_BRIGHTNESS), "B": const(1 + FLOOR_MACRO_BRIGHTNESS), "Alpha": macro})
+    floor["B"] = g.wire(X.MaterialExpressionMultiply, 2, {"A": floor["B"], "B": brightness})
+
+    def blend(a, b):
+        return g.wire(X.MaterialExpressionLinearInterpolate, 1, {"A": a, "B": b, "Alpha": alpha})
+
+    outputs = {"BaseColor": blend(inputs["BaseColor"], floor["B"]),
+               "Normal": g.wire(X.MaterialExpressionNormalize, 0, {"": blend(inputs["Normal"], floor["N"])}),
+               "Roughness": blend(inputs["Roughness"], g.mask(floor["ORM"], 1, "g")),
+               "Mask": alpha}
+    for order, (name, source) in enumerate(outputs.items()):
+        g.wire(X.MaterialExpressionFunctionOutput, 0, {"": source}, output_name=name, sort_priority=order)
+    mel.update_material_function(function)
+    return function
+
+
 def coat_inputs(g, mode):
     """UpZ, Height and UV for the function: world-based for static meshes, rest-pose for skinned trees."""
     if mode == STATIC:
@@ -215,7 +315,7 @@ def coat_inputs(g, mode):
     return g.mask(normal, 7, "b"), height, uv, seed, side
 
 
-def coated_master(source_path, name, function, mode):
+def coated_master(source_path, name, function, mode, ground):
     path = f"{FOLDER}/{name}"
     if unreal.EditorAssetLibrary.does_asset_exist(path):
         unreal.EditorAssetLibrary.delete_asset(path)
@@ -228,11 +328,15 @@ def coated_master(source_path, name, function, mode):
     for pin, source in {"UpZ": up, "Height": height, "UV": uv, "Seed": seed, "Side": side}.items():
         mel.connect_material_expressions(source, "", call, pin) or fail(name, pin)
     if mode == STATIC:
+        # Stock outputs -> moss -> ground blend -> outputs.
+        blend = g.node(X.MaterialExpressionMaterialFunctionCall, 1)
+        blend.set_material_function(ground)
         for pin, prop in {"BaseColor": MP.MP_BASE_COLOR, "Normal": MP.MP_NORMAL, "Roughness": MP.MP_ROUGHNESS}.items():
             source = mel.get_material_property_input_node(material, prop)
             out = mel.get_material_property_input_node_output_name(material, prop)
             mel.connect_material_expressions(source, out, call, pin) or fail(name, pin)
-            mel.connect_material_property(call, pin, prop) or fail(name, pin)
+            mel.connect_material_expressions(call, pin, blend, pin) or fail(name, pin)
+            mel.connect_material_property(blend, pin, prop) or fail(name, pin)
     else:
         source = mel.get_material_property_input_node(material, MP.MP_MATERIAL_ATTRIBUTES)
         out = mel.get_material_property_input_node_output_name(material, MP.MP_MATERIAL_ATTRIBUTES)
@@ -268,14 +372,15 @@ stocks = {path: stock_master(instance) for path, instance in instances.items()}
 for path, instance in instances.items():  # back to stock so the copies can be rebuilt
     mel.set_material_instance_parent(instance, unreal.load_asset(stocks[path]))
 function = build_function()
-coated = {stock: coated_master(stock, name, function, mode) for stock, (name, mode) in MASTERS.items()}
+ground = build_ground_function()
+coated = {stock: coated_master(stock, name, function, mode, ground) for stock, (name, mode) in MASTERS.items()}
 for path, instance in instances.items():
     mel.set_material_instance_parent(instance, coated[stocks[path]])
-    # Drop stale moss overrides (texture overrides stay), then apply this instance's.
+    # Drop stale moss and ground overrides (texture overrides stay), then apply this instance's.
     kept = [v for v in instance.get_editor_property("scalar_parameter_values")
-            if str(v.parameter_info.name) not in SCALARS]
+            if str(v.parameter_info.name) not in SCALARS and str(v.parameter_info.name) not in GROUND]
     instance.set_editor_property("scalar_parameter_values", kept)
-    for name in SCALARS:
+    for name in list(SCALARS) + list(GROUND):
         if name in COATED[path]:
             mel.set_material_instance_scalar_parameter_value(instance, name, COATED[path][name])
     mel.update_material_instance(instance)
