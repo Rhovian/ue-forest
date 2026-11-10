@@ -20,10 +20,7 @@ out=$(cd "$out" && pwd)
 
 # An aborted run leaves a dirty template map; kill rather than face the save prompt.
 trap 'pkill -9 -f "UnrealEditor.*Forest.uproject"' INT TERM
-# The editor throttles itself when it is not the foreground app, and the PIE window then measured empty frames
-# (0.4 ms GPU) at the route's first points; this override is for this run only, not saved.
 "$here/../editor.sh" open -ExecCmds="py $here/baseline.py" \
-  -ini:EditorPerProjectUserSettings:[/Script/UnrealEd.EditorPerformanceSettings]:bThrottleCPUWhenNotForeground=False \
   "${measure_args[@]}" -MeasureOut="$out" \
   -trace=cpu,frame,gpu,bookmark,loadtime,file -tracefile="$out/trace.utrace"
 while pgrep -f "UnrealEditor.*Forest.uproject" >/dev/null; do sleep 2; done
