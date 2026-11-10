@@ -166,13 +166,15 @@ class Run:
             manifest.update(tree=self.tree, count=self.count, spacing_cm=SPACING)
         with open(os.path.join(self.out, "manifest.json"), "w") as f:
             json.dump(manifest, f, indent=2)
-        unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).editor_request_end_play()
-        self.steps = [self.quit]
-        return 120  # quitting while the PIE window is torn down asserts in FSceneViewport
+        self.quit()
 
     def quit(self):
+        # Destroying the PIE window asserts IsInGameThread() in FSceneViewport on Mac (the window close runs on the
+        # Cocoa main thread), whether by ending play or quitting, and leaves a crash reporter open per run. Nothing
+        # is saved, the CSVs and manifest are written, so flush the log run.sh copies and exit without teardown.
         unreal.unregister_slate_post_tick_callback(self.handle)
-        unreal.SystemLibrary.quit_editor()
+        console("FlushLog")
+        os._exit(0)
 
 
 RUN = Run()
