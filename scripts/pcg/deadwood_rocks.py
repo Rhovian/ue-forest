@@ -79,7 +79,8 @@ def edge(graph, source, source_pin, target, target_pin):
         raise RuntimeError(f"PCG connection failed: {source_pin} -> {target_pin}")
 
 
-def filter_graph(name, reach=0, slope=0):
+def filter_graph(name, reach=0, slope=0, sink=None):
+    """Points above the shore band (and off the water by reach); sink=(min, max) cm lowers each point into the floor."""
     graph = copy_asset(ROOT + "PCG_TreesAboveShore", name)
     inp, out = graph.get_input_node(), graph.get_output_node()
     for node in list(graph.get_editor_property("nodes")):
@@ -88,6 +89,13 @@ def filter_graph(name, reach=0, slope=0):
     band = z_range(graph, shore_height() + 150 + reach * math.sin(math.radians(slope)), 1.0e7)
     edge(graph, inp, "In", band, "In")
     last, pin = water_keepout(graph, band, "InsideFilter", reach, edge) if reach else (band, "InsideFilter")
+    if sink:
+        lower, settings = graph.add_node_of_type(unreal.PCGTransformPointsSettings)
+        settings.set_editor_property("absolute_offset", True)
+        settings.set_editor_property("offset_min", unreal.Vector(0, 0, -sink[1]))
+        settings.set_editor_property("offset_max", unreal.Vector(0, 0, -sink[0]))
+        edge(graph, last, pin, lower, "In")
+        last, pin = lower, "Out"
     edge(graph, last, pin, out, "Out")
     save(graph)
     return graph
@@ -98,6 +106,9 @@ STUMPS_PER_HA = 8
 # cm between a nurse log's side plants, and their scale: at 90 cm and 0.7-1.1 they hedged the trunk out of sight (#117,
 # operator 2026-11-09); some still grow against it.
 BASE_SPACING, BASE_SCALE = 200, (0.5, 0.85)
+# Share of a rock's height set below its pivot, which is at its base: placed flat on the floor, a slab stood on it with
+# its whole side showing and a hard line at the contact, and on a slope its downhill end floated (#166).
+ROCK_SINK = (0.15, 0.3)
 # A mushroom cluster at each fungus station (#163): cm offsets on the log's top, close enough to stay on the bark of
 # the smallest log, sunk a little as they go off the crown line.
 FUNGI_CLUSTER = [(0, 0), (9, 4), (-6, 8), (4, -9), (-10, -4), (13, -2)]
@@ -360,7 +371,9 @@ def main():
                                         # litter trapped against the base on its own ring, inside the plants' (#117 review)
                                         ("PCG_RockLitter_" + mesh.get_name(), base_ring(hits, LITTER_SPACING, LITTER_MARGIN),
                                          (0.8, 1.3), litter, True)]
-        rock_entries.append(entry(template, mesh, rocks, plain, weight,
+        height = mesh.get_bounding_box().max.z
+        buried = filter_graph("PCG_Rock_" + mesh.get_name(), sink=[share * height for share in ROCK_SINK])
+        rock_entries.append(entry(template, mesh, rocks, buried, weight,
                                   children("DA_RockChildren_" + mesh.get_name(), template, layouts)))
     groups = [asset_list("DA_Forest_DeadwoodAssets", entries), asset_list("DA_Forest_RocksAssets", rock_entries)]
     for actor in biomes:

@@ -126,6 +126,9 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
 - Children are made before Core prunes the parents by priority, so a child outlives a parent pruned by another
   group's bounds: beech tuft children at 0.1% bounds stood alone round every veteran (one in eight). Give such a
   child its parent's bounds (`flare_moss.match_bounds`), so whatever prunes the parent prunes it too.
+- Children are laid out from the parent's point after its TransformGraph: sinking the rocks 15-30% of their height
+  with a Transform Points offset in their own graph (`PCG_Rock_*`, #166) moved their moss shells and ivy with them
+  (shell minus rock z = 0 on all 404), while ground-projected children stayed on the floor.
 - Every child layout runs per parent point, and regenerate memory scales with it: a second child (trunk ivy) on a quarter
   of the ~5,700 beech pushed regenerate past the 60 GB guard twice, where the same ivy merged into the trees' existing
   moss shell as an extra section (trunk_ivy.py) peaked at ~56 GB. Add geometry to an existing child's mesh before adding
