@@ -86,6 +86,9 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   bakes the placed solids' footprints into every TransformGraph a tree, sapling or shrub uses instead. Rerun it, then
   regenerate, after any change to the solid groups. The understory generators share the solids' sampler points (82
   hazel within 5 cm of a solid's pivot): the keep-out removed ~40% of the hazel and huckleberry, all inside a solid.
+- A TransformGraph whose Distance node sets density (the canopy-gap filter, `canopy_filter()`) overwrites the
+  generator's spatial noise: turning noise on for the gap saplings changed not one instance (#164). Thin such a group
+  by density, or clump it with drift children.
 - A non-overlapping group at a priority below the Trees group (0) prunes the beech around its points, but its own
   skinned instances did not spawn (a veteran-beech trial left canopy holes with no tree in them); static meshes do
   spawn there (veteran_trees.py: 81 field beech, each in its own opening). Groups among the

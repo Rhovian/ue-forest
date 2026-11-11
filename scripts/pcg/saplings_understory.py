@@ -71,7 +71,9 @@ OPENINGS = {"Foxglove"}
 
 # x the Saplings density inside canopy gaps (canopy_gaps.json), with no spatial noise: regeneration is densest under
 # the opening (clearing_01), while noise thins the island-wide saplings to about 1/ha. Saplings are skinned: measure.
-CANOPY = 20  # about one sapling per 1.5 m2 in 0.7 ha of gaps: a few thousand skinned saplings
+# At 20 the gap saplings, with the gap hazel, stood as one connected woody band round the clearing (#164 review); the
+# gap filter sets each point's density from its distance, so spatial noise cannot clump them here: fewer instead.
+CANOPY = 8
 
 COLUMN_STEP = 100  # cm between a gap's stacked distance targets, from its lowest to its highest traced ground
 
