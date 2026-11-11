@@ -144,6 +144,8 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   skinned instances (trees, saplings, anemones) are GPU-only and their transforms are not readable from Python.
 - Edits through the editor's MCP toolsets (Niagara stack inputs, for example) change the loaded asset only: save it
   (`unreal.EditorAssetLibrary.save_loaded_asset`) and check `git status` shows it before committing.
+- Revert resaved graphs with `git checkout` only while the editor is closed: a loaded package reads its file lazily,
+  and the next save of PCG_PlantsAboveShore after a revert under the open editor crashed it (seek past end of file, #164).
 - Capture with `scripts/review/capture`: a single raw `CaptureViewport` returns the previous view's frame.
 
 - `regenerate_biome.py`'s per-group instance count misattributes components when groups share a mesh; count by mesh,

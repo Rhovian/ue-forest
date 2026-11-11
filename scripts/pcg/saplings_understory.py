@@ -29,7 +29,8 @@ DRIFTS = {"Ferns": (16, 550, 260), "Herbs": (80, 320, 200), "Balsam": (40, 280, 
           "GapShrubs": (5, 300, 250), "Foxglove": (7, 260, 180)}  # Shrubs: clearing_02 masses; GapShrubs: clumps (#164)
 # Child scale per drift kind. Gap hazel at 1.1-1.5 merged into one even band 2-3 m tall round each clearing, a hedge
 # over the ferns (operator 2026-11-10, #164): knee-high to head-high now, in smaller clumps.
-DRIFT_SCALE = {"GapShrubs": (0.45, 1.6)}
+# At up to 1.6 with 1,100 anchors/ha the gap hazel still joined into the clearing's central woody band (#185 review).
+DRIFT_SCALE = {"GapShrubs": (0.35, 1.3)}
 # Scale per generator (kind + patch), where it must differ from the template's 0.8-1.2: the beech saplings in the canopy
 # gaps stood at one height in a band with the hazel (#164 review); from knee-high seedlings to young trees now.
 GENERATOR_SCALE = {"SaplingsCanopy": (0.35, 1.3)}
@@ -250,7 +251,7 @@ def main():
         # A yellow accent beside the white anemone (#82): fewer, smaller colonies.
         ("Balsam", variants.BALSAM_VARIANTS, 6000),
         # Hazel clumps in every canopy gap (0.7 ha), at several heights with open ground between (#164); see GAP_ONLY.
-        ("GapShrubs", variants.GAP_SHRUB_VARIANTS, 1100),
+        ("GapShrubs", variants.GAP_SHRUB_VARIANTS, 550),
         # Violet spikes in drifts in the canopy gaps and on the banks (#98 qualified, #105); see OPENINGS.
         ("Foxglove", variants.FOXGLOVE_VARIANTS, 3000)]
     paths = list({path for _, rows, _ in kinds for path, _ in rows})
