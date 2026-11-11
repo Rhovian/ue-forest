@@ -11,8 +11,10 @@ import unreal
 
 WIND = {
     "/Game/EuropeanBeech/Materials/Simplewind/MAI_EuropeanBeech": {
-        "Wind Animation Strength": 0.4,  # was 0.85
-        "Wind Noise Strength": 0.6,  # was 1.3
+        # Halving the first two (0.4, 0.6) still swayed too much in motion (operator review, #161).
+        "Wind Animation Strength": 0.15,  # was 0.85
+        "Wind Noise Strength": 0.25,  # was 1.3
+        "Additional Wind Animation Noise Strength": 0.3,  # was 1.0
     },
 }
 
