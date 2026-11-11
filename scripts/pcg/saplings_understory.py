@@ -29,7 +29,8 @@ DRIFTS = {"Ferns": (16, 550, 260), "Herbs": (80, 320, 200), "Balsam": (40, 280, 
           "GapShrubs": (5, 300, 250), "Foxglove": (7, 260, 180)}  # Shrubs: clearing_02 masses; GapShrubs: clumps (#164)
 # Child scale per drift kind. Gap hazel at 1.1-1.5 merged into one even band 2-3 m tall round each clearing, a hedge
 # over the ferns (operator 2026-11-10, #164): knee-high to head-high now, in smaller clumps.
-DRIFT_SCALE = {"GapShrubs": (0.45, 1.6)}
+# At up to 1.6 with 1,100 anchors/ha the gap hazel still joined into the clearing's central woody band (#185 review).
+DRIFT_SCALE = {"GapShrubs": (0.35, 1.3)}
 # Scale per generator (kind + patch), where it must differ from the template's 0.8-1.2: the beech saplings in the canopy
 # gaps stood at one height in a band with the hazel (#164 review); from knee-high seedlings to young trees now.
 GENERATOR_SCALE = {"SaplingsCanopy": (0.35, 1.3)}
@@ -71,7 +72,9 @@ OPENINGS = {"Foxglove"}
 
 # x the Saplings density inside canopy gaps (canopy_gaps.json), with no spatial noise: regeneration is densest under
 # the opening (clearing_01), while noise thins the island-wide saplings to about 1/ha. Saplings are skinned: measure.
-CANOPY = 20  # about one sapling per 1.5 m2 in 0.7 ha of gaps: a few thousand skinned saplings
+# At 20 the gap saplings, with the gap hazel, stood as one connected woody band round the clearing (#164 review); the
+# gap filter sets each point's density from its distance, so spatial noise cannot clump them here: fewer instead.
+CANOPY = 8
 
 COLUMN_STEP = 100  # cm between a gap's stacked distance targets, from its lowest to its highest traced ground
 
@@ -248,7 +251,7 @@ def main():
         # A yellow accent beside the white anemone (#82): fewer, smaller colonies.
         ("Balsam", variants.BALSAM_VARIANTS, 6000),
         # Hazel clumps in every canopy gap (0.7 ha), at several heights with open ground between (#164); see GAP_ONLY.
-        ("GapShrubs", variants.GAP_SHRUB_VARIANTS, 1100),
+        ("GapShrubs", variants.GAP_SHRUB_VARIANTS, 550),
         # Violet spikes in drifts in the canopy gaps and on the banks (#98 qualified, #105); see OPENINGS.
         ("Foxglove", variants.FOXGLOVE_VARIANTS, 3000)]
     paths = list({path for _, rows, _ in kinds for path, _ in rows})

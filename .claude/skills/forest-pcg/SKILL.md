@@ -86,6 +86,9 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   bakes the placed solids' footprints into every TransformGraph a tree, sapling or shrub uses instead. Rerun it, then
   regenerate, after any change to the solid groups. The understory generators share the solids' sampler points (82
   hazel within 5 cm of a solid's pivot): the keep-out removed ~40% of the hazel and huckleberry, all inside a solid.
+- A TransformGraph whose Distance node sets density (the canopy-gap filter, `canopy_filter()`) overwrites the
+  generator's spatial noise: turning noise on for the gap saplings changed not one instance (#164). Thin such a group
+  by density, or clump it with drift children.
 - A non-overlapping group at a priority below the Trees group (0) prunes the beech around its points, but its own
   skinned instances did not spawn (a veteran-beech trial left canopy holes with no tree in them); static meshes do
   spawn there (veteran_trees.py: 81 field beech, each in its own opening). Groups among the
@@ -141,6 +144,8 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   skinned instances (trees, saplings, anemones) are GPU-only and their transforms are not readable from Python.
 - Edits through the editor's MCP toolsets (Niagara stack inputs, for example) change the loaded asset only: save it
   (`unreal.EditorAssetLibrary.save_loaded_asset`) and check `git status` shows it before committing.
+- Revert resaved graphs with `git checkout` only while the editor is closed: a loaded package reads its file lazily,
+  and the next save of PCG_PlantsAboveShore after a revert under the open editor crashed it (seek past end of file, #164).
 - Capture with `scripts/review/capture`: a single raw `CaptureViewport` returns the previous view's frame.
 
 - `regenerate_biome.py`'s per-group instance count misattributes components when groups share a mesh; count by mesh,
