@@ -18,7 +18,22 @@ import random
 import biome_variants
 import deadwood_rocks
 import unreal
-from deadwood_rocks import ROOT, asset_list, children, copy_asset, edge, entry, field, generator, get, load, put, save
+from deadwood_rocks import (
+    PLANT_FADE,
+    ROOT,
+    asset_list,
+    children,
+    copy_asset,
+    edge,
+    entry,
+    fade_in,
+    field,
+    generator,
+    get,
+    load,
+    put,
+    save,
+)
 from shore_path import LABEL
 from trees_above_shore import shore_height, z_range
 
@@ -217,10 +232,13 @@ def damp_filter():
     for node in list(graph.get_editor_property("nodes")):
         if node not in (inp, out):
             graph.remove_node(node)
-    shore = z_range(graph, shore_height() + 150, 1.0e7)
+    floor = shore_height() + 150
+    shore = z_range(graph, floor, 1.0e7)
     edge(graph, inp, "In", shore, "In")
-    low = z_range(graph, shore_height() + 150, 1200)
-    edge(graph, shore, "InsideFilter", low, "In")
+    above = fade_in(graph, shore, "OutsideFilter", floor, PLANT_FADE)  # the same ragged lower edge as the Gaps (#165)
+    edge(graph, shore, "InsideFilter", above, "In")
+    low = z_range(graph, shore_height(), 1200)
+    edge(graph, above, "Out", low, "In")
     merge, _ = graph.add_node_of_type(unreal.PCGMergeSettings)
     edge(graph, low, "InsideFilter", merge, "In")
     near, pin = water_near(graph, low, "OutsideFilter", 3000)
@@ -284,7 +302,7 @@ def main():
         print(f"{args.group} preflight OK: {len(paths)} variants, scale {args.density_scale}; no changes")
         return
     from deadwood_rocks import filter_graph
-    plain = filter_graph("PCG_PlantsAboveShore")
+    plain = filter_graph("PCG_PlantsAboveShore", fade=PLANT_FADE)
     damp = damp_filter() if args.group == "understory" else None
     banks = [(band, bank_filter(band, inner, outer), shares) for band, inner, outer, shares in BANKS
              ] if args.group == "understory" else []

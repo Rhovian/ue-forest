@@ -39,8 +39,10 @@ PATCHES = f"{FAB}/Decals/Tileable_Moss_Patches_sfdnqii/Medium/sfdnqii_tier_2/Tex
 SCALARS = {  # world units are cm; sea level is Z 0
     "ShoreHeight": 150.0,  # sand below, forest floor above
     "ShoreBlend": 50.0,  # cm across, horizontally, of each sand/floor edge (through the slope, like ShoreWidth)
-    "ShoreWidth": 450.0,  # cm across which sand and forest floor interleave (transition_ground_01: 2-4 m; #39; #117 review)
-    "ShorePatchShare": 0.6,  # share of that width from the moss-patch texture: ragged edges, sand pockets in moss
+    # cm across which sand and forest floor interleave (transition_ground_01: 2-4 m; #39; #117 review). At 450 with 0.6
+    # of it from the patch texture, flat moss blotches lay metres out on the sand like stickers (#165).
+    "ShoreWidth": 250.0,
+    "ShorePatchShare": 0.4,  # share of that width from the moss-patch texture: ragged edges, sand pockets in moss
     "SlopeMin": 0.05,  # the slope assumed on flat ground, so the interleave still has a width there
     "SlopeMax": 2.0,
     "LitterWidth": 400.0,  # cm out onto the sand that beech litter mixes in

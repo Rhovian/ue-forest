@@ -63,7 +63,11 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
 
 - A height band alone cannot find "the sand just before the forest": low sand spits by the water lie at the same
   height as the upper beach, and sand heather in a 35-75 cm band landed on the spits (#165). Use something that knows
-  the forest edge (distance to it, or a mask such as T_SandEdgeMask).
+  the forest edge (distance to it, or a mask such as T_SandEdgeMask). meadow.py's SandHeather measures distance to
+  forest_foot.json's foot points: at 1,500 anchors/ha it kept ~370 drifts on the 4 km foot, regenerate peak 55 GB.
+- The floor plants' lower edge (shore height + 150 cm) is set separately in each filter graph: `filter_graph()` and
+  `damp_filter()` each had their own copy, and fading only the first left the damp-ground ferns on the old contour
+  (#165). Change every graph that sets it (`fade_in()`, `PLANT_FADE`).
 
 ## Counts do not scale smoothly
 
@@ -142,6 +146,8 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
 
 - Generated points are readable with `unreal.ForestPCGLibrary.get_generated_point_locations(component, "GEN:<group>")`;
   skinned instances (trees, saplings, anemones) are GPU-only and their transforms are not readable from Python.
+  The points include each anchor's children: a heather drift is 19 points (anchor plus 18 plants), so 1,510 points were
+  ~79 drifts, not 1,510 (#165). Divide by the children per anchor before judging spacing.
 - Edits through the editor's MCP toolsets (Niagara stack inputs, for example) change the loaded asset only: save it
   (`unreal.EditorAssetLibrary.save_loaded_asset`) and check `git status` shows it before committing.
 - Revert resaved graphs with `git checkout` only while the editor is closed: a loaded package reads its file lazily,
