@@ -11,13 +11,14 @@ Works whether or not this session's MCP client connected at startup. Prints the 
 import base64
 import json
 import os
+import signal
 import sys
-import urllib.error
 import urllib.request
 
-URL = "http://127.0.0.1:8000/mcp"
-# s to wait for each reply. Without a limit, a CaptureViewport the server never answered held the capture run for
-# 7.5 hours while the editor itself kept running (#165).
+URL = os.environ.get("EDITOR_MCP_URL", "http://127.0.0.1:8000/mcp")
+# s of wall-clock time each request may take, headers to last byte. Without a limit, a CaptureViewport the server never
+# answered held the capture run for 7.5 hours while the editor itself kept running (#165). A socket timeout alone would
+# not do: it bounds each read, so a server trickling stream bytes could still hold a request forever.
 TIMEOUT = float(os.environ.get("EDITOR_MCP_TIMEOUT", "120"))
 session = None
 
@@ -32,16 +33,19 @@ def rpc(method, params=None):
     headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
     if session:
         headers["Mcp-Session-Id"] = session
+
+    def hung(*_):
+        sys.exit(f"{method}: no reply from {URL} within {TIMEOUT:g}s; the MCP server is hung (scripts/editor-py may"
+                 " still work)")
+
+    signal.signal(signal.SIGALRM, hung)
+    signal.setitimer(signal.ITIMER_REAL, TIMEOUT)
     try:
-        with urllib.request.urlopen(urllib.request.Request(URL, json.dumps(body).encode(), headers),
-                                    timeout=TIMEOUT) as response:
+        with urllib.request.urlopen(urllib.request.Request(URL, json.dumps(body).encode(), headers)) as response:
             session = session or response.headers.get("Mcp-Session-Id")
             text = response.read().decode()
-    except (TimeoutError, urllib.error.URLError) as error:
-        if not isinstance(getattr(error, "reason", error), TimeoutError):
-            raise
-        sys.exit(f"{method}: no reply from {URL} after {TIMEOUT:.0f}s; the MCP server is hung (scripts/editor-py may"
-                 " still work)")
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
     if "id" not in body:
         return None
     data = [line[5:] for line in text.splitlines() if line.startswith("data:")]
