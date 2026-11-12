@@ -185,9 +185,13 @@ IVY_VARIANTS = [
 # Low connector between fern colonies (#100): soft green tufts and small leafy rosettes, ankle high.
 ED = "/Game/Megascans/3D_Plants/"  # Electric Dreams sample plants (free on Fab), an art-direction reference (operator, 2026-11-08)
 EDA = "/Game/Megascans/3D_Assets/"
+# The grass blades: off the sand, where they read as stickers, and off the shaded forest floor; on trial in the sunny,
+# open clearings (the meadow stretches), kept only if they make a clearing read fuller (#165, operator 2026-11-09).
+CLEARING_GRASS_VARIANTS = [
+    ("/Game/PN_FoliageCollection/Meshes/grassMesh/lowGrass_01_01_SM", 1),
+    ("/Game/PN_FoliageCollection/Meshes/grassMesh/lowGrass_01_02_SM", 1),
+]
 GROUNDCOVER_VARIANTS = [
-    ("/Game/PN_FoliageCollection/Meshes/grassMesh/lowGrass_01_01_SM", 1.5),  # less grass, more plants (operator, 2026-11-08)
-    ("/Game/PN_FoliageCollection/Meshes/grassMesh/lowGrass_01_02_SM", 1.5),
     ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_01_01", 1),
     ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_01_02", 1),
     ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_01_03", 1),

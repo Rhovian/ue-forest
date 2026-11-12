@@ -107,7 +107,7 @@ GRASS_SCALE = (0.9, 1.6)
 # "patches" is a sparse noise of its own, kept back from the sand (SCAN_MASK); "sand" is the litter patches on the upper sand;
 # "waterline" is clusters on the sand at the water's edge and "dry sand" the sand above it, everywhere; "lake" is
 # patches over the lake bed and "shallows" patches near its edge; "sand edge" is patches on the sand near the
-# forest edge (SAND_EDGE_MASK).
+# forest edge (SAND_EDGE_MASK); "clearing" is the meadow stretches' low ground (meadow.MEADOWS, below TOP).
 GRASS_LAYERS = {
     "Undergrowth": (f"{FOLDER}/DA_ForestUndergrowth", "UNDERGROWTH_VARIANTS", 60.0, 6000, (0.8, 1.3), "gaps"),
     "Debris": (f"{FOLDER}/DA_ForestDebris", "DEBRIS_VARIANTS", 150.0, 2500, (1.0, 2.5), "all"),
@@ -121,6 +121,10 @@ GRASS_LAYERS = {
     "DrySandStones": (f"{FOLDER}/DA_DrySandStones", "DRY_SAND_STONE_VARIANTS", 6.0, 3000, (1.5, 3.0), "dry sand"),
     # #38: low plants out onto the sand before the forest edge, in patches, thinning toward the water.
     "SandEdge": (f"{FOLDER}/DA_SandEdge", "SAND_EDGE_VARIANTS", 120.0, 4000, (0.8, 1.4), "sand edge"),
+    # #165: the grass blades, only in the sunny open clearings (the meadow stretches' low ground), between the reeds.
+    # At 300 they cover the bare moss and soil between the reeds at meadow_fringe, which reads fuller; from the 40 m
+    # aerial nothing changes, since they stop at the cull distance.
+    "ClearingGrass": (f"{FOLDER}/DA_ClearingGrass", "CLEARING_GRASS_VARIANTS", 300.0, 4000, (0.9, 1.6), "clearing"),
     # #141: stones over the lake bed in patches and plants in its shallows (water_bed_mask.py), not the stream.
     "LakeStones": (f"{FOLDER}/DA_LakeStones", "LAKE_STONE_VARIANTS", 20.0, 5000, (1.0, 2.5), "lake"),
     "LakePlants": (f"{FOLDER}/DA_LakePlants", "LAKE_PLANT_VARIANTS", 12.0, 5000, (0.7, 1.2), "shallows"),
@@ -506,11 +510,15 @@ def build():
     clear_of_logs = g.wire(unreal.MaterialExpressionSmoothStep, 2, {
         "Min": g.node(unreal.MaterialExpressionConstant, 3, r=CLEAR_OF_LOGS[0]),
         "Max": g.node(unreal.MaterialExpressionConstant, 3, r=CLEAR_OF_LOGS[1]), "Value": on_logs})
+    clearing = g.wire(unreal.MaterialExpressionMultiply, 1, {
+        "A": g.wire(unreal.MaterialExpressionMultiply, 2, {"A": inland, "B": gentle}),
+        "B": g.wire(unreal.MaterialExpressionMultiply, 2, {"A": allowed, "B": g.wire(
+            unreal.MaterialExpressionMultiply, 3, {"A": meadow, "B": low})})})
     weights = {"Groundcover": (weight, grass_type())}
     for name, (asset, variants, density, cull, scale, kind) in GRASS_LAYERS.items():
-        if kind in ("sand", "waterline", "dry sand", "lake", "shallows", "sand edge"):
+        if kind in ("sand", "waterline", "dry sand", "lake", "shallows", "sand edge", "clearing"):
             layer = {"sand": sand_litter, "waterline": waterline, "dry sand": dry_sand, "lake": lake_stones,
-                     "shallows": lake_plants, "sand edge": sand_edge}[kind]
+                     "shallows": lake_plants, "sand edge": sand_edge, "clearing": clearing}[kind]
         else:
             layer = floor if kind == "all" else g.wire(unreal.MaterialExpressionMultiply, 1, {"A": floor, "B": where[kind]})
         if kind in SOLID_KINDS:
