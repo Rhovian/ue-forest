@@ -18,7 +18,23 @@ import random
 import biome_variants
 import deadwood_rocks
 import unreal
-from deadwood_rocks import ROOT, asset_list, children, copy_asset, edge, entry, field, generator, get, load, put, save
+from deadwood_rocks import (
+    PLANT_FADE,
+    ROOT,
+    asset_list,
+    children,
+    copy_asset,
+    edge,
+    entry,
+    fade_in,
+    field,
+    foot_graph,
+    generator,
+    get,
+    load,
+    put,
+    save,
+)
 from shore_path import LABEL
 from trees_above_shore import shore_height, z_range
 
@@ -41,6 +57,14 @@ SLOPE = {"Ferns": 65, "Ivy": 70}
 # base density, only on slopes between STEEP and the kind's SLOPE limit.
 STEEP = 30
 STEEP_SHARE = {"Ferns": 5}
+# The forest foot along the coast (#165): the gentle apron between a bluff and the sand stayed a bright continuous strip
+# with the general colonies alone (#188 review). An extra Foot patch, x the kind's base density, on ground FOOT
+# (low cm, high cm above the floor material's shore height, reach cm from forest_foot.json's foot points). It starts
+# at the moss's lower edge: from 25 cm above it, the 3-5 m of moss nearest the sand stayed bare. It has no colony
+# noise: with it, at 6x, drifts bunched (10 per 10 m of foot) and left 20 m stretches with one. At 2x without,
+# ~1,800 drifts island-wide (30,700 points), 1-5 per 10 m of foot.
+FOOT = (5, 325, 800)
+FOOT_SHARE = {"Ferns": 2}
 SHAPES = 4  # drift outlines per kind; each variant's weight is split across them, so neighbouring drifts differ
 # Colony noise floor per kind (default 0.3, see `colonies` in main): a lower floor keeps more of the noise field, so
 # drifts touch into connected runs instead of separate patches (#101: "still just patches in the interior").
@@ -93,7 +117,7 @@ BANKS = [("Near", 0, 500, {"Ferns": 2, "Herbs": 24, "Balsam": 12, "Foxglove": 8}
          ("Far", 500, 1000, {"Ferns": 1, "Herbs": 4, "Balsam": 2, "Foxglove": 2})]
 # Each fern colony kind (biome_variants.FERN_COLONY_SHARES, #142) grows as the ferns do.
 for _kind in biome_variants.FERN_COLONY_SHARES:
-    for _settings in (DRIFTS, SLOPE, STEEP_SHARE, COLONY_LOW) + tuple(shares for *_, shares in BANKS):
+    for _settings in (DRIFTS, SLOPE, STEEP_SHARE, FOOT_SHARE, COLONY_LOW) + tuple(shares for *_, shares in BANKS):
         _settings.setdefault(_kind, _settings["Ferns"])
 
 
@@ -217,10 +241,13 @@ def damp_filter():
     for node in list(graph.get_editor_property("nodes")):
         if node not in (inp, out):
             graph.remove_node(node)
-    shore = z_range(graph, shore_height() + 150, 1.0e7)
+    floor = shore_height() + 150
+    shore = z_range(graph, floor, 1.0e7)
     edge(graph, inp, "In", shore, "In")
-    low = z_range(graph, shore_height() + 150, 1200)
-    edge(graph, shore, "InsideFilter", low, "In")
+    above = fade_in(graph, shore, "OutsideFilter", floor, PLANT_FADE)  # the same ragged lower edge as the Gaps (#165)
+    edge(graph, shore, "InsideFilter", above, "In")
+    low = z_range(graph, shore_height(), 1200)
+    edge(graph, above, "Out", low, "In")
     merge, _ = graph.add_node_of_type(unreal.PCGMergeSettings)
     edge(graph, low, "InsideFilter", merge, "In")
     near, pin = water_near(graph, low, "OutsideFilter", 3000)
@@ -284,8 +311,10 @@ def main():
         print(f"{args.group} preflight OK: {len(paths)} variants, scale {args.density_scale}; no changes")
         return
     from deadwood_rocks import filter_graph
-    plain = filter_graph("PCG_PlantsAboveShore")
+    plain = filter_graph("PCG_PlantsAboveShore", fade=PLANT_FADE)
     damp = damp_filter() if args.group == "understory" else None
+    foot = foot_graph("PCG_UnderstoryFoot", shore_height() + FOOT[0], shore_height() + FOOT[1], FOOT[2]
+                      ) if args.group == "understory" else None
     banks = [(band, bank_filter(band, inner, outer), shares) for band, inner, outer, shares in BANKS
              ] if args.group == "understory" else []
     entries = []
@@ -313,14 +342,15 @@ def main():
             [("Damp", 0.5, damp, True)] if damp else []) + (
             [("Canopy", CANOPY, canopy_filter(), True)] if args.group == "saplings" else []) + (
             [("Bank" + band, shares[kind], graph, True) for band, graph, shares in banks if kind in shares]) + (
-            [("Steep", STEEP_SHARE[kind], plain, True)] if damp and kind in STEEP_SHARE else [])
+            [("Steep", STEEP_SHARE[kind], plain, True)] if damp and kind in STEEP_SHARE else []) + (
+            [("Foot", FOOT_SHARE[kind], foot, True)] if foot and kind in FOOT_SHARE else [])
         for patch, share, transform, overlap in spread:
             doubles, bools = colonies if damp is not None else (None, None)
             if doubles and kind in COLONY_LOW:
                 doubles = {**doubles, "SpatialDensityLow": COLONY_LOW[kind]}
-            if patch == "Canopy":
+            if patch in ("Canopy", "Foot"):
                 doubles, bools = {"SpatialDensityLow": 1.0}, {"EnableSpatialNoise": False}
-            elif patch.startswith("Bank"):  # the colony noise still breaks the bank into runs, but keeps more of it
+            elif patch.startswith("Bank"):  # the colony noise still breaks it into runs, keeping more
                 doubles = {**doubles, "SpatialDensityLow": 0.0}
             elif patch == "Steep":  # SlopeMaskHigh below 1 keeps only ground steeper than STEEP
                 doubles = {**doubles, "SpatialDensityLow": 0.0, "SlopeMaskHigh": math.cos(math.radians(STEEP))}

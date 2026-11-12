@@ -10,8 +10,10 @@ Densities are candidates/ha before slope, noise, shore and Core exclusions/pruni
 
 import argparse
 import importlib
+import json
 import math
 import re
+from pathlib import Path
 
 import biome_variants
 import unreal
@@ -79,16 +81,79 @@ def edge(graph, source, source_pin, target, target_pin):
         raise RuntimeError(f"PCG connection failed: {source_pin} -> {target_pin}")
 
 
-def filter_graph(name, reach=0, slope=0, sink=None):
-    """Points above the shore band (and off the water by reach); sink=(min, max) cm lowers each point into the floor."""
+def fade_in(graph, source, pin, top, steps):
+    """Points below `top` from source's pin kept in noise-driven tongues: each (depth, threshold) step keeps the points
+    from the previous step's depth down to its own where FADE_NOISE passes the threshold. Returns the merge node."""
+    noise, settings = graph.add_node_of_type(unreal.PCGSpatialNoiseSettings)
+    settings.set_editor_property("transform", unreal.Transform(scale=unreal.Vector(FADE_NOISE_SCALE, FADE_NOISE_SCALE, 1)))
+    edge(graph, source, pin, noise, "In")
+    merge, _ = graph.add_node_of_type(unreal.PCGMergeSettings)
+    upper = 0
+    for depth, threshold in steps:
+        step = z_range(graph, top - depth, top - upper)
+        edge(graph, noise, "Out", step, "In")
+        keep, settings = graph.add_node_of_type(unreal.PCGDensityFilterSettings)
+        settings.set_editor_property("lower_bound", threshold)
+        settings.set_editor_property("upper_bound", 1.0)
+        edge(graph, step, "InsideFilter", keep, "In")
+        edge(graph, keep, "Out", merge, "In")
+        upper = depth
+    return merge
+
+
+def foot_graph(name, low, high, reach):
+    """Ground between low and high cm above the sea within reach cm of the forest foot (forest_foot.json's points along
+    the shore, one Distance to all of them). A height band alone also takes low sand spits by the water (#165)."""
+    foot = json.loads(Path(__file__).with_name("forest_foot.json").read_text())
     graph = copy_asset(ROOT + "PCG_TreesAboveShore", name)
     inp, out = graph.get_input_node(), graph.get_output_node()
     for node in list(graph.get_editor_property("nodes")):
         if node not in (inp, out):
             graph.remove_node(node)
-    band = z_range(graph, shore_height() + 150 + reach * math.sin(math.radians(slope)), 1.0e7)
+    band = z_range(graph, low, high)
     edge(graph, inp, "In", band, "In")
-    last, pin = water_keepout(graph, band, "InsideFilter", reach, edge) if reach else (band, "InsideFilter")
+    mark, settings = graph.add_node_of_type(unreal.PCGCreatePointsSettings)
+    points = []
+    for x, y in foot["points_m"]:
+        point = unreal.PCGPoint()
+        point.set_editor_property("transform", unreal.Transform(location=unreal.Vector(x * 100, y * 100, foot["shore_cm"])))
+        points.append(point)
+    settings.set_editor_property("points_to_create", points)
+    settings.set_editor_property("coordinate_space", unreal.PCGCoordinateSpace.WORLD)
+    settings.set_editor_property("cull_points_outside_volume", False)
+    distance, settings = graph.add_node_of_type(unreal.PCGDistanceSettings)
+    settings.set_editor_property("set_density", True)
+    settings.set_editor_property("maximum_distance", reach)
+    settings.set_editor_property("source_shape", unreal.PCGDistanceShape.CENTER)
+    settings.set_editor_property("target_shape", unreal.PCGDistanceShape.CENTER)
+    edge(graph, band, "InsideFilter", distance, "Source")
+    edge(graph, mark, "Out", distance, "Target")
+    near, settings = graph.add_node_of_type(unreal.PCGDensityFilterSettings)
+    settings.set_editor_property("lower_bound", 0)
+    settings.set_editor_property("upper_bound", 0.99)  # drop the saturated beyond-reach distance
+    edge(graph, distance, "Out", near, "In")
+    edge(graph, near, "Out", out, "Out")
+    save(graph)
+    return graph
+
+
+def filter_graph(name, reach=0, slope=0, sink=None, fade=None):
+    """Points above the shore band (and off the water by reach); sink=(min, max) cm lowers each point into the floor;
+    fade=((depth, threshold), ...) lets points below the band's floor through in tongues (fade_in)."""
+    graph = copy_asset(ROOT + "PCG_TreesAboveShore", name)
+    inp, out = graph.get_input_node(), graph.get_output_node()
+    for node in list(graph.get_editor_property("nodes")):
+        if node not in (inp, out):
+            graph.remove_node(node)
+    floor = shore_height() + 150 + reach * math.sin(math.radians(slope))
+    band = z_range(graph, floor, 1.0e7)
+    edge(graph, inp, "In", band, "In")
+    last, pin = band, "InsideFilter"
+    if fade:
+        merge = fade_in(graph, band, "OutsideFilter", floor, fade)
+        edge(graph, band, "InsideFilter", merge, "In")
+        last, pin = merge, "Out"
+    last, pin = water_keepout(graph, last, pin, reach, edge) if reach else (last, pin)
     if sink:
         lower, settings = graph.add_node_of_type(unreal.PCGTransformPointsSettings)
         settings.set_editor_property("absolute_offset", True)
@@ -101,6 +166,13 @@ def filter_graph(name, reach=0, slope=0, sink=None):
     return graph
 
 
+# The floor plants' lower edge (#165): every plant stopped on the contour 150 cm above the shore, a hard line along each
+# bank's foot with bare moss below it. (cm below that contour, noise threshold) per step: deeper steps need more noise,
+# so the plants come down in irregular tongues. PCG Spatial Noise's base period is 100 m: a scale of 6 gives ~15 m tongues.
+# Thresholds of 0.45-0.62 to 140 cm down (Perlin rarely passes 0.6) left the 2-6 m apron between a bluff and the sand a
+# bright continuous strip (#188 review); these reach the sand at the shore height.
+PLANT_FADE = ((50, 0.35), (100, 0.42), (150, 0.5))
+FADE_NOISE_SCALE = 6.0
 LOGS_PER_HA = 20  # #32 ruling: more deadwood on the floor (was 12 logs + 6 stumps)
 STUMPS_PER_HA = 8
 # cm between a nurse log's side plants, and their scale: at 90 cm and 0.7-1.1 they hedged the trunk out of sight (#117,

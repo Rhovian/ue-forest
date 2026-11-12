@@ -22,6 +22,7 @@ from deadwood_rocks import (
     copy_asset,
     edge,
     entry,
+    foot_graph,
     generator,
     get,
     load,
@@ -44,6 +45,14 @@ HEATHER_DRIFT = (18, 450, 300)  # (plants, length cm, width cm) per drift
 # Coastal forest edge (#82): low ground in the open edge openings all round the island (canopy_gaps.py), at a lower
 # density with the template's spatial noise, so heather lies in separate patches, not a pink line.
 EDGE_HEATHER_PER_HA = 100
+# Sand edge (#165): heather drifts along the forest foot, from the dry upper sand up to where the floor plants begin
+# (deadwood_rocks.filter_graph), so plants rather than a line meet the sand. A height band alone put them on low sand
+# spits by the water (#165): forest_foot.json's foot points say where the forest edge is.
+# Drift anchors: few survive the narrow band and the spatial noise. 120/ha gave ~23 drifts and 300/ha ~79 along the
+# 4 km foot (generated points / 19, each drift's 18 plants plus its anchor), one per ~50 m: none in the shore views.
+SAND_HEATHER_PER_HA = 1500
+SAND_HEATHER_BAND = (20, 225)  # cm above the sea
+SAND_HEATHER_REACH = 500  # cm from the forest foot
 LOGS_PER_HA = 60  # ~10% survive the slope mask and meadow filter (measured: 200/ha -> 38 logs on 2 ha); ~11 logs
 
 
@@ -51,6 +60,11 @@ def edge_graph():
     """Low coastal ground (shore height up to TOP) inside a forest-edge opening (canopy_gaps.py): open sky beside the
     forest, so heather stays off the shaded beech floor (#95 review: low ground alone includes closed canopy)."""
     return openings_filter("PCG_HeatherEdge", "edges_m [x, y, ground low, ground high, radius]", shore_height(), TOP)
+
+
+def sand_edge_graph():
+    """SAND_HEATHER_BAND ground within SAND_HEATHER_REACH of the forest foot."""
+    return foot_graph("PCG_HeatherSandEdge", *SAND_HEATHER_BAND, SAND_HEATHER_REACH)
 
 
 def meadow_graph():
@@ -136,11 +150,17 @@ def main():
     put(value, GeneratorAllowOverlap=True)
     edge_group.set_editor_property("Generator", value)
     save(edge_group)
-    coast = edge_graph()
+    sand_group = generator("SandHeather", SAND_HEATHER_PER_HA, 35, 58)
+    value = sand_group.get_editor_property("Generator")
+    put(value, GeneratorAllowOverlap=True)
+    sand_group.set_editor_property("Generator", value)
+    save(sand_group)
+    coast, sand = edge_graph(), sand_edge_graph()
     for index, (mesh, weight) in enumerate(heather):
         drift = children(f"DA_HeatherDrift{index}", template, [(f"PCG_HeatherDrift{index}",
                                                                 drift_points(*HEATHER_DRIFT, index), (0.8, 1.2), heather, True)])
-        for group, transform, kind in ((heather_group, graph, "MeadowHeather_"), (edge_group, coast, "EdgeHeather_")):
+        for group, transform, kind in ((heather_group, graph, "MeadowHeather_"), (edge_group, coast, "EdgeHeather_"),
+                                       (sand_group, sand, "SandHeather_")):
             value = entry(template, mesh, group, transform, weight, children=drift, collision=False)
             put(value, AssetType=kind + mesh.get_name())
             entries.append(value)
@@ -150,7 +170,8 @@ def main():
         if assets not in current:
             actor.set_editor_property("Assets", current + [assets])
     print(f"Meadow: {len(grass)} grass variants, anchors at {ANCHORS_PER_HA}/ha x {PATCH} clumps, {len(heather)} heather"
-          f" variants in drifts at {HEATHER_PER_HA}/ha (meadow) and {EDGE_HEATHER_PER_HA}/ha (coast), logs at {LOGS_PER_HA}/ha on"
+          f" variants in drifts at {HEATHER_PER_HA}/ha (meadow), {EDGE_HEATHER_PER_HA}/ha (coast) and"
+          f" {SAND_HEATHER_PER_HA}/ha (sand edge), logs at {LOGS_PER_HA}/ha on"
           f" {len(MEADOWS)} stretches")
 
 
