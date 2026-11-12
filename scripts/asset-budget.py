@@ -49,19 +49,17 @@ def two_sided(material):
 
 
 def leafy(mesh):
-    """True for a static mesh that is a plant or a tree, judged by its materials rather than its folder.
+    """True for a static mesh with a masked, two-sided material: leaf, frond or needle cards.
 
-    A plant: every material is masked and two-sided (leaf, frond or needle cards). A tree: taller than
-    TREE_HEIGHT_CM with at least one such material beside its bark. The field beech and the hornbeams sat outside
-    /Megascans/Plants/ on Preserve Area and were never checked (#220). A low mesh with one such slot among solid ones
-    (a moss shell with tufts) is neither; Voxelize would be wrong for its solid part. Asked only of placed meshes
-    (PLACED): the packs hold hundreds of leafy meshes the level never uses.
+    Foliage by what it is, not by its folder: the field beech and the hornbeams sat outside /Megascans/Plants/ on
+    Preserve Area and were never checked (#220). One such material is enough: a tree, sapling or seedling has it
+    beside opaque bark. Asked only of placed meshes (PLACED): the packs hold hundreds of leafy meshes the level never
+    uses, and of the placed ones every mesh with a card material is a plant (24 with bark beside it, 2026-11-12).
+    The baked moss shells, solid with a slot of tufts, are placed by path from their hosts and are not in PLACED.
     """
     materials = [slot.get_editor_property("material_interface") for slot in mesh.get_editor_property("static_materials")]
-    cards = [blend_mode(material) == unreal.BlendMode.BLEND_MASKED and two_sided(material)
-             for material in materials if material is not None]
-    tall = mesh.get_bounds().box_extent.z * 2 > TREE_HEIGHT_CM
-    return bool(cards) and (all(cards) or (tall and any(cards)))
+    return any(blend_mode(material) == unreal.BlendMode.BLEND_MASKED and two_sided(material)
+               for material in materials if material is not None)
 
 
 def game_paths(value):

@@ -58,6 +58,7 @@ def rules(asset, package):
 LEAF = ("masked", True)
 VOXELIZE = "foliage Nanite shape preservation must be Voxelize"
 HORNBEAM = "/Game/Megascans/3D_Plants/EuropeanHornbeam/Geometry/SimpleWind/SM_EuropeanHornbeam_Forest_01"  # placed
+SEEDLING = "/Game/Megascans/3D_Plants/EuropeanHornbeam/Geometry/SimpleWind/SM_EuropeanHornbeam_Seedling_01"  # placed
 
 
 class FoliageRule(unittest.TestCase):
@@ -79,11 +80,19 @@ class FoliageRule(unittest.TestCase):
         tree = mesh(material("opaque", False), material(*LEAF), height=1500)
         self.assertEqual(rules(tree, HORNBEAM), [VOXELIZE])
 
-    def test_a_low_solid_mesh_with_one_leaf_slot_is_not_foliage(self):
-        self.assertEqual(rules(mesh(material("opaque", False), material(*LEAF)), HORNBEAM), [])
+    def test_a_seedling_with_a_bark_slot_is_foliage(self):
+        seedling = mesh(material("opaque", False), material(*LEAF), height=30)
+        self.assertEqual(rules(seedling, SEEDLING), [VOXELIZE])
+
+    def test_an_unplaced_solid_mesh_with_a_leaf_slot_is_not_asked(self):
+        shell = mesh(material("opaque", False), material(*LEAF))
+        self.assertEqual(rules(shell, "/Game/ForestBiome/MossShells/SM_Log_MossShell"), [])
 
     def test_masked_but_one_sided_is_not_foliage(self):
         self.assertEqual(rules(mesh(material("masked", False)), HORNBEAM), [])
+
+    def test_two_sided_but_opaque_is_not_foliage(self):
+        self.assertEqual(rules(mesh(material("opaque", True)), HORNBEAM), [])
 
     def test_an_instance_overrides_its_parent(self):
         parent = material("opaque", False)
