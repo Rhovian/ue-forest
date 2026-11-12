@@ -70,7 +70,7 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   (#165). Change every graph that sets it (`fade_in()`, `PLANT_FADE`).
 - The general colonies are too sparse to break a sunlit apron: below a coastal bluff the 2-6 m of gentle ground before
   the sand stayed one bright strip with fading alone (#188 review). The ferns' Foot patch (`FOOT`, `FOOT_SHARE`, on
-  `foot_graph`) adds ~76k ferns there and broke it near the camera; past ~40 m a thinner strip still reads.
+  `foot_graph`, 6x the fern density; 3x was ~38k ferns island-wide) broke it near the camera; past ~40 m a thinner strip still reads.
 
 ## Counts do not scale smoothly
 
