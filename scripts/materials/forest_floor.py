@@ -382,28 +382,32 @@ def build():
             for kind in ("B", "N", "ORM")
         }
 
+    def steep(top_down, colour, tile):
+        """`top_down` colour, replaced on steep faces by the same texture projected from the two vertical planes."""
+        side = g.wire(lerp, 5, {"A": g.sample(colour, g.wire(unreal.MaterialExpressionDivide, 6, {"A": xz, "B": tile}), 5),
+                                "B": g.sample(colour, g.wire(unreal.MaterialExpressionDivide, 6, {"A": yz, "B": tile}), 5),
+                                "Alpha": along_x})
+        return g.wire(lerp, 4, {"A": top_down, "B": side, "Alpha": sideways})
+
     for name in ("Moss", "Leaves"):  # the forest floor's layers; the sand lies flat
         prefix, _, *suffixes = LAYERS[name]
-        colour = prefix + (suffixes[0]["B"] if suffixes else "_B")
-        side = g.wire(lerp, 5, {
-            "A": g.sample(colour, g.wire(unreal.MaterialExpressionDivide, 6, {"A": xz, "B": tiles[name]}), 5),
-            "B": g.sample(colour, g.wire(unreal.MaterialExpressionDivide, 6, {"A": yz, "B": tiles[name]}), 5),
-            "Alpha": along_x})
-        sets[name]["B"] = g.wire(lerp, 4, {"A": sets[name]["B"], "B": side, "Alpha": sideways})
+        sets[name]["B"] = steep(sets[name]["B"], prefix + (suffixes[0]["B"] if suffixes else "_B"), tiles[name])
 
     # Moss albedo tint (#71 item 6, interior_01): the scanned moss reads dark grey-green under the canopy; the
     # reference floor is a bright yellow-green. A vector parameter, so MI_ForestFloor tunes it without a rebuild.
     moss_tint = g.node(unreal.MaterialExpressionVectorParameter, 9, parameter_name="MossTint",
                        default_value=unreal.LinearColor(*MOSS_TINT, 1.0))
     sets["Moss"]["B"] = g.wire(unreal.MaterialExpressionMultiply, 4, {"A": sets["Moss"]["B"], "B": moss_tint})
-    variant_uv = g.wire(unreal.MaterialExpressionDivide, 6, {"A": xy, "B": g.node(unreal.MaterialExpressionConstant, 7,
-                                                                                    r=MOSS_VARIANT[1])})
+    variant_tile = g.node(unreal.MaterialExpressionConstant, 7, r=MOSS_VARIANT[1])
+    variant_uv = g.wire(unreal.MaterialExpressionDivide, 6, {"A": xy, "B": variant_tile})
     variety = g.wire(unreal.MaterialExpressionMultiply, 5, {"A": p["MossVariety"], "B": g.wire(
         unreal.MaterialExpressionSmoothStep, 6, {"Min": p["MossVarietyLow"], "Max": p["MossVarietyHigh"],
                                                  "Value": g.noise(6, MOSS_VARIANT_NOISE_CM)})})
     for kind, suffix in ED_SURFACE.items():
-        sets["Moss"][kind] = g.wire(lerp, 4, {"A": sets["Moss"][kind], "B": g.sample(MOSS_VARIANT[0] + suffix, variant_uv, 5),
-                                              "Alpha": variety})
+        variant = g.sample(MOSS_VARIANT[0] + suffix, variant_uv, 5)
+        if kind == "B":  # the variant's soil and pebbles stretch as the moss does (#199 review)
+            variant = steep(variant, MOSS_VARIANT[0] + suffix, variant_tile)
+        sets["Moss"][kind] = g.wire(lerp, 4, {"A": sets["Moss"][kind], "B": variant, "Alpha": variety})
 
     def blend(sand, kind, column=2):
         floor = g.wire(lerp, column, {"A": sets["Leaves"][kind], "B": sets["Moss"][kind], "Alpha": moss_mask})
