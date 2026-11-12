@@ -110,6 +110,9 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   worlds on every placed static mesh, the static trees included (#217), but not on landscape grass. A skinned Megaplant redraws
   its pages whenever it animates, whatever that setting says; shortening the animation distance bought 1 ms and was
   dropped (#215). The field beech and the hornbeams cost far more than their count (#217).
+  Measure walking as well as standing (`MEASURE_WALK=1`): Static on the landscape grass looked 1-3 ms better standing
+  and was 5-7 ms worse walking on open ground, because the landscape keeps adding grass components and each one
+  invalidates cached static pages (#222, dropped). The same point also reads differently by what was visited before it.
 
 ## Counts do not scale smoothly
 

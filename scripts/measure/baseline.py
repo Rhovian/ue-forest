@@ -9,6 +9,8 @@
 #   -MeasureSet=Fern:cast_shadow=False;/Tree_:shadow_cache_invalidation_behavior=STATIC  set a property on the
 #       instanced mesh components whose asset path contains the part before the colon, at each point after warm-up;
 #       the value is a Python literal or the name of a constant of the property's enum
+#   -MeasureWalk  after each point's capture, walk the pawn forward along the point's yaw for WALK_SECONDS and capture
+#       that as <point>_walk: standing still hides what streaming, grass and shadow caches cost in motion
 #   -MeasureShots  save a screenshot of the PIE view before and after each point's capture, as <point>_a.png and _b.png
 import ast
 import glob
@@ -16,6 +18,7 @@ import json
 import math
 import os
 import shutil
+import time
 
 import unreal
 
@@ -36,6 +39,7 @@ TRACE_DRAIN_FRAMES = 60  # after Trace.Stop, before the process exits
 SETTLE_FRAMES = 60  # after csvprofile stop, before the file is on disk
 HIDE_FRAMES = 120  # after hiding meshes, before the capture
 SHOT_FRAMES = 30  # between looks for a screenshot on disk; it hitches, so it is taken outside the capture
+WALK_SECONDS = 30  # at the walker's own speed, on the ground, sliding along whatever it meets
 SHOT_LOOKS = 20  # a screenshot can take several hundred frames to appear after a render state change
 CVARS = [
     "r.Lumen.HardwareRayTracing", "sg.GlobalIlluminationQuality", "r.ScreenPercentage",
@@ -83,6 +87,9 @@ class Run:
         self.settings = []
         self.changed = {}
         self.shots = "-MeasureShots" in unreal.SystemLibrary.get_command_line().split()
+        self.walks = "-MeasureWalk" in unreal.SystemLibrary.get_command_line().split()
+        self.walking = None  # (direction, monotonic deadline) while a walk is being captured
+        self.walked = {}
         self.shot_dir = os.path.join(unreal.Paths.project_saved_dir(), "Screenshots")
         self.commands = []
         if os.path.exists(os.path.join(self.out, "commands.txt")):
@@ -102,11 +109,17 @@ class Run:
         wanted = arg("MeasurePoints")
         if wanted:
             names = wanted.split(",")
+            if len(set(names)) != len(names):
+                # Captures are filed by point name; a second visit would overwrite the first and be reported twice.
+                return [lambda: self.fail(f"-MeasurePoints names a point twice: {names}")]
             unknown = sorted(set(names) - {p[0] for p in self.points})
             if unknown:
                 # Raising here would leave the editor open with nothing ticking, and run.sh waiting on it.
                 return [lambda: self.fail(f"-MeasurePoints names no route point: {unknown}")]
-            self.points = [p for p in self.points if p[0] in names]
+            # In the order given: the first point is captured before the level has settled (#212), so a point that
+            # matters can be put second.
+            by_name = {p[0]: p for p in self.points}
+            self.points = [by_name[name] for name in names]
         try:
             self.settings = [self.setting(text) for text in arg("MeasureSet", "").split(";") if text]
         except ValueError as error:
@@ -121,9 +134,17 @@ class Run:
             before = [self.shoot, lambda p=point: self.move_shot(p, "a")] if self.shots else []
             after = [self.shoot, lambda p=point: self.move_shot(p, "b")] if self.shots else []
             steps += [*before, lambda p=point: self.capture(p), lambda p=point: self.collect(p), *after]
+            if self.walks and self.map:
+                steps += [lambda p=point: self.start_walk(p), lambda p=point: self.end_walk(p)]
         return steps + [self.finish]
 
     def tick(self, _delta):
+        if self.walking:
+            direction, deadline = self.walking
+            if time.monotonic() < deadline:
+                unreal.GameplayStatics.get_player_pawn(world(), 0).add_movement_input(direction, 1.0, False)
+                return
+            self.walking = None
         if self.wait > 0:
             self.wait -= 1
             return
@@ -269,6 +290,21 @@ class Run:
         console("csvprofile start")
         return CAPTURE_FRAMES
 
+    def start_walk(self, point):
+        name, _, (_, yaw) = point
+        pawn = unreal.GameplayStatics.get_player_pawn(world(), 0)
+        pawn.character_movement.set_movement_mode(unreal.MovementMode.MOVE_WALKING)  # the ground has streamed in by now
+        self.walk_from = pawn.get_actor_location()
+        console(f"trace.bookmark {name}_walk")
+        console("csvprofile start")
+        self.walking = (unreal.Rotator(0, 0, yaw).get_forward_vector(), time.monotonic() + WALK_SECONDS)
+
+    def end_walk(self, point):
+        pawn = unreal.GameplayStatics.get_player_pawn(world(), 0)
+        distance = unreal.MathLibrary.vector_distance(self.walk_from, pawn.get_actor_location())
+        self.walked[point[0]] = round(distance / 100, 1)  # m, straight line
+        return self.collect((f"{point[0]}_walk",))
+
     def collect(self, point):
         console("csvprofile stop")
         console("rhi.DumpMemory")
@@ -286,7 +322,8 @@ class Run:
             # on the 1680 x 1050 display), and the frame times are of the viewport.
             "pie_window": RES, "viewport": self.viewport_size(),
             "warmup_frames": WARMUP_FRAMES, "capture_frames": CAPTURE_FRAMES,
-            "points": [p[0] for p in self.points],
+            "points": [name for p in self.points for name in ([p[0], f"{p[0]}_walk"] if self.walks and self.map else [p[0]])],
+            "walk_seconds": WALK_SECONDS, "walked_m": self.walked,
             "cvars": {name: unreal.SystemLibrary.get_console_variable_float_value(name) for name in CVARS},
             "commands": self.commands, "hide": self.hide, "hidden_instances": self.hidden, "shots": self.shots,
             "set": [f"{part}:{name}={value}" for part, name, value in self.settings], "set_instances": self.changed,
