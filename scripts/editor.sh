@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Editor lifecycle for the lead. See AGENTS.md "Code changes".
-#   editor.sh open [editor args...]  launch with MCP on 8000; returns once MCP listens and L_vilm is fully loaded
+#   editor.sh open [editor args...]  launch with MCP on 8000; returns after an owned MCP round trip and loading L_vilm
 #   editor.sh close                  save dirty packages (stops if that fails), quit, force-quit if a dialog still holds it; returns once 8000 is free
 #   editor.sh kill                   force-quit a hung editor (unsaved work is lost); returns once 8000 is free
 #   editor.sh build                  full build; the editor must be closed
@@ -10,95 +10,157 @@
 set -euo pipefail
 
 UE_ROOT=${UE_ROOT:-"/Users/Shared/Epic Games/UE_5.8"}
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 UPROJECT=${EDITOR_UPROJECT:-"$HERE/../Forest/Forest.uproject"}
 UPROJECT="$(cd "$(dirname "$UPROJECT")" && pwd)/$(basename "$UPROJECT")"
 PORT=${EDITOR_PORT:-8000}
 export EDITOR_MCP_URL="http://127.0.0.1:$PORT/mcp"
 
-editor_pids() { pgrep -f "UnrealEditor.*$UPROJECT" || true; }
-running() { [[ -n "$(editor_pids)" ]]; }
+# Popen's new session isolates timeout cleanup to the command we started, including its children.
+# https://docs.python.org/3/library/subprocess.html#subprocess.Popen
+bounded() {
+  python3 - "$@" <<'PYTHON'
+import os, signal, subprocess, sys
+process = subprocess.Popen(sys.argv[2:], start_new_session=True)
+try:
+    sys.exit(process.wait(timeout=float(sys.argv[1])))
+except subprocess.TimeoutExpired:
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    process.wait(timeout=5)
+    print(f"timed out after {sys.argv[1]}s waiting for {sys.argv[2:]} (process group stopped)", file=sys.stderr)
+    sys.exit(124)
+PYTHON
+}
+# Bracket the initial letter so the process query cannot match its own bounded wrapper argv.
+editor_pids() {
+  local code=0
+  bounded 5 pgrep -f "[U]nrealEditor.*$UPROJECT" || code=$?
+  [[ $code == 0 || $code == 1 ]] || return "$code"  # pgrep: 1 means no match
+  return 0
+}
+running() { local pids; pids=$(editor_pids) || { echo "cannot query editor processes" >&2; exit 1; }; [[ -n "$pids" ]]; }
 LOG=${EDITOR_LOG:-"$HOME/Library/Logs/Unreal Engine/ForestEditor/Forest.log"}
 
-# lsof sees sockets inherited by CrashReportClient; netstat alone missed these (#190).
-command -v lsof >/dev/null || { echo "lsof is required to inspect port $PORT" >&2; exit 1; }
-holders() { { lsof -nP -iTCP:$PORT -sTCP:LISTEN -t || true; } | sort -u; }
-port_free() {
-  local pids; pids=$(holders)
-  [[ -z "$pids" ]] && return 0
-  echo "port $PORT held by:" >&2
-  ps -p "$(echo "$pids" | paste -sd , -)" -o pid=,comm= >&2
-  return 1
+# lsof sees inherited listeners; netstat additionally sees ownerless TIME_WAIT sockets (#190, e98fe22f).
+command -v lsof >/dev/null && command -v netstat >/dev/null ||
+  { echo "lsof and netstat are required to inspect port $PORT" >&2; exit 1; }
+holders() {
+  local pids code=0
+  pids=$(bounded 5 lsof -b -w -nP -iTCP:$PORT -sTCP:LISTEN -t) || code=$?
+  [[ $code == 0 || $code == 1 ]] || return "$code"
+  [[ -z "$pids" ]] || echo "$pids" | sort -u
+  return 0
+}
+show_holders() {
+  local pids=$1
+  [[ -n "$pids" ]] || return 0
+  bounded 5 ps -p "$(echo "$pids" | paste -sd , -)" -o pid=,comm= ||
+    echo "holder snapshot pid(s) $pids exited before process details were available"
+}
+port_clear() {
+  local pids sockets
+  pids=$(holders) || return
+  [[ -z "$pids" ]] || return 1
+  sockets=$(bounded 5 netstat -an -p tcp) || return
+  # netstat's local address is column 4; remote connections to this port must not delay our bind.
+  awk -v port="$PORT" '$4 ~ ("[.:]" port "$") && $6 == "TIME_WAIT" {busy=1} END {exit busy}' <<< "$sockets"
+}
+reporter_released() {
+  local pids; pids=$(holders) || return
+  ! echo "$pids" | grep -qx "$1"
+}
+await_port_free() {
+  local pids; pids=$(holders) || return
+  if [[ -n "$pids" ]]; then
+    echo "port $PORT held by:" >&2; show_holders "$pids" >&2; return 1
+  fi
+  if ! wait_for 60 "port $PORT to free (including TIME_WAIT)" port_clear; then
+    pids=$(holders) || return
+    show_holders "$pids" >&2
+    return 1
+  fi
 }
 cleanup_crash_reporters() {
-  local pid parent command executable project_name=${UPROJECT##*/}
+  local pid parent command executable table project_name=${UPROJECT##*/}
   project_name=${project_name%.uproject}
+  table=$(bounded 5 ps -ww -axo pid=,ppid=,command=) || return
   while read -r pid parent command; do
     # macOS uses a bare executable name and a shared engine crash directory (#190).
     # Require this project's folder name, executable identity and orphanhood.
     if [[ "$parent" == 1 && (
           "$command" == *"$HOME/Library/Application Support/Epic/UnrealEngine/"*"/Saved/Crashes/CrashReport-UE-$project_name-pid-"* ||
           "$command" == *"$(dirname "$UPROJECT")/Saved/Crashes/"* ) ]]; then
-      executable=$(ps -p "$pid" -o comm=)
+      if ! executable=$(bounded 5 ps -p "$pid" -o comm=); then
+        if kill -0 "$pid" 2>/dev/null; then
+          echo "cannot identify crash reporter pid $pid" >&2; return 1
+        fi
+        echo "crash reporter pid $pid already exited"; continue
+      fi
       [[ "${executable##*/}" == CrashReportClient ]] || continue
       echo "stopping orphaned CrashReportClient pid $pid: $command"
-      kill -9 "$pid"
+      if ! kill -9 "$pid" 2>/dev/null && kill -0 "$pid" 2>/dev/null; then
+        echo "could not stop crash reporter pid $pid" >&2; return 1
+      fi
+      wait_for 10 "crash reporter pid $pid to release port $PORT" reporter_released "$pid" || return
     fi
-  done < <(ps -ww -axo pid=,ppid=,command=)
+  done <<< "$table"
 }
 bind_failed() { [[ -f "$LOG" ]] && grep -q "HttpListener unable to bind to 127.0.0.1:$PORT" "$LOG"; }
 owned_listener() {
-  local pids; pids=$(holders)
+  local pids; pids=$(holders) || return
   [[ -n "$pids" && "$pids" == "$editor_pid" ]]
 }
-# subprocess.run's timeout kills and reaps the child (Python 3 subprocess docs); no custom watchdog.
-bounded() {
-  python3 - "$@" <<'PYTHON'
-import subprocess, sys
-try:
-    sys.exit(subprocess.run(sys.argv[2:], timeout=float(sys.argv[1]), check=False).returncode)
-except subprocess.TimeoutExpired:
-    sys.exit(f"timed out after {sys.argv[1]}s waiting for {sys.argv[2:]}")
-PYTHON
-}
 mcp_probe() {
-  local budget=$(( ${deadline:-$((SECONDS + 6))} - SECONDS ))
-  (( budget > 0 )) || return 1
-  (( budget <= 6 )) || budget=6
-  EDITOR_MCP_TIMEOUT=2 bounded "$budget" "$HERE/editor-mcp"
+  local reply
+  if reply=$(EDITOR_MCP_TIMEOUT="$2" bounded "$1" "$HERE/editor-mcp" 2>&1); then
+    echo "MCP round trip OK"
+  else
+    echo "$reply" >&2; return 1
+  fi
 }
 mcp_up() {
+  local probe_end=$((SECONDS + $1)) pids budget
   bind_failed && { echo "fresh editor log $LOG: MCP could not bind port $PORT" >&2; exit 1; }
   kill -0 "$editor_pid" 2>/dev/null || { echo "launched editor pid $editor_pid exited; see $LOG" >&2; exit 1; }
-  if [[ -n "$(holders)" ]] && ! owned_listener; then
+  pids=$(holders) || return
+  if [[ -n "$pids" && "$pids" != "$editor_pid" ]]; then
     echo "listener is not owned exclusively by launched editor pid $editor_pid" >&2
-    port_free; exit 1
+    show_holders "$pids" >&2; exit 1
   fi
-  [[ -f "$LOG" ]] && owned_listener && mcp_probe && owned_listener && ! bind_failed
+  budget=$((probe_end - SECONDS))
+  (( budget > 0 )) || return 1
+  (( budget <= 6 )) || budget=6
+  [[ -f "$LOG" ]] && owned_listener && mcp_probe "$budget" 2 && owned_listener && ! bind_failed
 }
 
-# wait_for <seconds> <description> <command...>
+# Checks receive their existing arguments followed by the explicit remaining budget in seconds.
 wait_for() {
   local limit=$1 what=$2; shift 2
-  local deadline=$((SECONDS + limit))
-  while (( SECONDS < deadline )); do "$@" && return 0; sleep 1; done
+  local end=$((SECONDS + limit))
+  while (( SECONDS < end )); do "$@" "$((end - SECONDS))" && return 0; sleep 1; done
   echo "timed out after ${limit}s waiting for $what" >&2
   return 1
 }
+stopped() { ! running; }
 
 build() {
   bounded 3600 "$UE_ROOT/Engine/Build/BatchFiles/Mac/Build.sh" ForestEditor Mac Development \
     -Project="$UPROJECT" -Architecture=arm64 "$@"
 }
 
+[[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0  # allow offline checks of lifecycle helpers
+
 case ${1:-} in
   open)
     shift
     running && { echo "editor already running" >&2; exit 1; }
     cleanup_crash_reporters
-    port_free
-    # Preserve yesterday's errors; a new file proves this launch wrote the log (mtime can share a second).
-    [[ ! -f "$LOG" ]] || mv "$LOG" "$(mktemp "$LOG.XXXXXX")"
+    await_port_free
+    # Keep one previous log; a new file proves this launch wrote it (mtime can share a second).
+    [[ ! -f "$LOG" ]] || mv "$LOG" "$LOG.prev"
     # Packages left by an earlier forced exit raise a restore prompt at startup whatever bAutoSaveEnable says
     # (PackageAutoSaver reads this file on its own), and the prompt blocks MCP and editor-py until clicked. Move it
     # aside, not away: the autosave packages and their mapping stay for a manual restore.
@@ -121,7 +183,7 @@ PYTHON
       { echo "editor is open, but loading L_vilm's cells failed (see above)" >&2; exit 1; }
     ;;
   close)
-    if ! running; then cleanup_crash_reporters; port_free; exit; fi
+    if ! running; then cleanup_crash_reporters; await_port_free; exit; fi
     # Save first, so quitting never stops on Unreal's unsaved-changes dialog: a modal blocks MCP and editor-py, and
     # the lead closes the editor unattended. The same request closes the queue (init_unreal.py), so nothing queued
     # after it can write before the quit. It refuses, leaving the editor open, when a regeneration is still running
@@ -140,30 +202,42 @@ PYTHON
     # Everything is saved and the queue is closed, so a dialog that still holds the editor (or a quit request it
     # cannot answer) is force-quit below without losing work.
     bounded 15 osascript -e 'with timeout of 10 seconds' -e 'quit app "UnrealEditor"' -e 'end timeout' || true
-    if ! wait_for 120 "the editor to quit" eval '! running'; then
+    if ! wait_for 120 "the editor to quit" stopped; then
       echo "force-quitting: a dialog still holds the editor after the save" >&2
-      pkill -9 -f "UnrealEditor.*$UPROJECT" || true
-      wait_for 30 "the editor to exit" eval '! running'
+      bounded 5 pkill -9 -f "[U]nrealEditor.*$UPROJECT" || true
+      wait_for 30 "the editor to exit" stopped
     fi
     cleanup_crash_reporters
-    wait_for 60 "port $PORT to free" port_free
+    await_port_free
     ;;
   kill)
-    pkill -9 -f "UnrealEditor.*$UPROJECT" || true
-    wait_for 30 "the editor to exit" eval '! running'
+    bounded 5 pkill -9 -f "[U]nrealEditor.*$UPROJECT" || true
+    wait_for 30 "the editor to exit" stopped
     cleanup_crash_reporters
-    wait_for 60 "port $PORT to free" port_free
+    await_port_free
     ;;
   status)
+    status_end=$((SECONDS + 60))
     editor_pid=$(editor_pids)
     echo "editor pid: ${editor_pid:-missing}; log: $LOG"
+    pids=$(holders)
+    echo "port $PORT listener: ${pids:-none}"
+    show_holders "$pids"
+    if [[ -z "$editor_pid" ]]; then
+      echo "editor is not running; MCP and editor-py probes skipped" >&2; exit 1
+    fi
     failed=0
-    port_free && failed=1
-    if [[ -z "$editor_pid" ]] || ! owned_listener; then
+    if ! owned_listener; then
       echo "port $PORT listener does not belong exclusively to the editor" >&2; failed=1
     fi
-    mcp_probe || failed=1
-    EDITOR_PY_TIMEOUT=5 "$HERE/editor-py" -e "'editor-py round trip OK'" || failed=1
+    budget=$((status_end - SECONDS)); (( budget <= 30 )) || budget=30
+    (( budget > 0 )) && mcp_probe "$budget" 10 || failed=1
+    budget=$((status_end - SECONDS)); (( budget <= 30 )) || budget=30
+    if (( budget > 0 )); then
+      EDITOR_PY_TIMEOUT="$budget" "$HERE/editor-py" --probe || failed=1
+    else
+      echo "status exhausted its 60s budget before the editor-py round trip" >&2; failed=1
+    fi
     exit "$failed"
     ;;
   build)
@@ -178,7 +252,7 @@ PYTHON
     "$0" close && "$0" build && "$0" open
     ;;
   *)
-    sed -n '2,8p' "$0" >&2
+    sed -n '2,9p' "$0" >&2
     exit 2
     ;;
 esac

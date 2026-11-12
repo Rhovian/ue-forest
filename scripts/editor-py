@@ -3,23 +3,29 @@
 
     scripts/editor-py file.py [args...]  run a file; args reach it as sys.argv[1:]
     scripts/editor-py - <<'PY'     run stdin
+    scripts/editor-py --probe      read-only status check; remove its queued request on exit
     scripts/editor-py -e EXPR      print one expression
 
 Drops the script into Forest/Saved/EditorPy/in, where Content/Python/init_unreal.py runs it on the
 editor's game thread, and prints what it wrote to out/.
 """
+import atexit
 import json
 import os
 import sys
 import time
 import uuid
 
-ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Forest", "Saved", "EditorPy")
+ROOT = os.environ.get("EDITOR_PY_ROOT") or os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "Forest", "Saved", "EditorPy")
 TIMEOUT = float(os.environ.get("EDITOR_PY_TIMEOUT", "600"))
 
 if len(sys.argv) < 2:
     sys.exit(__doc__)
-if sys.argv[1] == "-e":
+probe = sys.argv[1:] == ["--probe"]
+if probe:
+    source = "print('editor-py round trip OK')"
+elif sys.argv[1] == "-e":
     source = f"print({' '.join(sys.argv[2:])})"
 elif sys.argv[1] == "-":
     source = sys.stdin.read()
@@ -50,6 +56,16 @@ deferred_out = os.path.join(ROOT, "out", name + ".deferred.json")
 if deferred:
     source = f"EDITOR_PY_DEFERRED_RESULT = {deferred_out!r}\n" + source
 tmp = os.path.join(ROOT, "in", name + ".tmp")
+if probe:
+    # atexit preserves normal callers' queued work; only this read-only probe is disposable.
+    def cancel_probe():
+        for path in (tmp, os.path.join(ROOT, "in", name + ".py"), os.path.join(ROOT, "out", name + ".json")):
+            try:
+                os.remove(path)
+            except FileNotFoundError:
+                pass
+    atexit.register(cancel_probe)
+
 with open(tmp, "w") as f:
     f.write(source)
 os.replace(tmp, os.path.join(ROOT, "in", name + ".py"))  # the editor only picks up complete .py files
@@ -57,7 +73,8 @@ os.replace(tmp, os.path.join(ROOT, "in", name + ".py"))  # the editor only picks
 out = os.path.join(ROOT, "out", name + ".json")
 while not os.path.exists(out):
     if time.time() > deadline:
-        sys.exit(f"no result after {TIMEOUT:.0f}s; is the editor open? (request left in {ROOT}/in)")
+        detail = "probe request removed" if probe else f"request left in {ROOT}/in"
+        sys.exit(f"no result after {TIMEOUT:.0f}s; is the editor open? ({detail})")
     time.sleep(0.1)
 with open(out) as f:
     result = json.load(f)

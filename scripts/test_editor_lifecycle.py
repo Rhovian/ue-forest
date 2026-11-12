@@ -23,8 +23,13 @@ class LifecycleTests(unittest.TestCase):
             sock.bind(("127.0.0.1", 0))
             self.port = sock.getsockname()[1]
         self.env = dict(os.environ, EDITOR_PORT=str(self.port), EDITOR_UPROJECT=str(self.project),
-                        EDITOR_LOG=str(self.root / "editor.log"), EDITOR_OPEN_TIMEOUT="3",
+                        EDITOR_LOG=str(self.root / "editor.log"), EDITOR_OPEN_TIMEOUT="4", HOME=str(self.root),
                         PYTHONPATH=str(SCRIPTS))
+        self.env["PATH"] = str(self.root) + os.pathsep + os.environ["PATH"]
+        # No lifecycle command may discover or signal a real editor/reporter, even on a dirty machine.
+        self.script("ps", '#!/bin/sh\ncase "$*" in *-axo*) exit 0;; *) exec /bin/ps "$@";; esac\n')
+        self.script("pgrep", "#!/bin/sh\nexit 1\n")
+        self.script("pkill", "#!/bin/sh\nexit 0\n")
         for name in ("editor.sh", "editor-mcp"):
             shutil.copy(SCRIPTS / name, self.root / name)
         self.script("editor-py", "#!/bin/sh\necho python-queue-ok\n")
@@ -65,6 +70,11 @@ else:
         self.assertEqual(result.returncode == 0, ok, result.stdout + result.stderr)
         return result.stdout + result.stderr
 
+    def helper(self, body, *args):
+        return subprocess.run(["bash", "-c", 'source "$1"; shift; ' + body,
+                               "helper", str(self.root / "editor.sh"), *args], check=False,
+                              env=self.env, capture_output=True, text=True, timeout=10)
+
     def listener(self):
         sock = socket.socket()
         sock.bind(("127.0.0.1", self.port))
@@ -99,9 +109,15 @@ else:
         self.assertNotIn("MCP up", stdout)
 
     def test_owned_listener_and_successful_round_trip_are_ready(self):
+        (self.root / "editor.log.prev").write_text("older launch")
         (self.root / "editor.log").write_text(f"HttpListener unable to bind to 127.0.0.1:{self.port}")
         self.env["LISTEN"] = "1"
-        self.assertIn("MCP up", self.run_editor("open", ok=True))
+        output = self.run_editor("open", ok=True)
+        self.assertIn("MCP up", output)
+        self.assertNotIn("done", output)
+        self.assertEqual((self.root / "editor.log.prev").read_text(),
+                         f"HttpListener unable to bind to 127.0.0.1:{self.port}")
+        self.assertEqual(list(self.root.glob("editor.log.*")), [self.root / "editor.log.prev"])
 
     def test_launch_survives_calling_shell_exit_and_sighup_in_its_own_session(self):
         self.env["LISTEN"] = "1"
@@ -149,12 +165,138 @@ else:
         self.run_editor("open", ok=True)
         self.script("pgrep", '#!/bin/sh\ncat "$MARKER"\n')
         self.env["PATH"] = str(self.root) + os.pathsep + os.environ["PATH"]
+        real_mcp = self.root / "editor-mcp-real"
+        (self.root / "editor-mcp").rename(real_mcp)
+        probe_limit = self.root / "probe-limit"
+        self.script("editor-mcp", f'#!/bin/sh\necho "$EDITOR_MCP_TIMEOUT" > "{probe_limit}"\nexec "{real_mcp}" "$@"\n')
+        self.script("editor-py", '#!/bin/sh\n[ "$EDITOR_PY_TIMEOUT" = 30 ] && [ "$1" = --probe ] || exit 2\necho python-queue-ok\n')
         output = self.run_editor("status", ok=True)
         self.assertIn((self.root / "pid").read_text(), output)
-        self.assertIn("done", output)
+        self.assertIn("MCP round trip OK", output)
+        self.assertNotIn("done", output)
+        self.assertNotIn("held by", output)
         self.assertIn("python-queue-ok", output)
+        self.assertEqual(probe_limit.read_text().strip(), "10")
         self.script("editor-py", "#!/bin/sh\necho queue-failed >&2\nexit 1\n")
         self.assertIn("queue-failed", self.run_editor("status"))
+        self.script("editor-py", "#!/bin/sh\necho python-queue-ok\n")
+        self.script("editor-mcp", "#!/bin/sh\necho mcp-failed\nexit 1\n")
+        self.assertIn("mcp-failed", self.run_editor("status"))
+
+    def test_closed_status_never_queues_a_probe(self):
+        queued = self.root / "queued"
+        self.script("editor-py", f'#!/bin/sh\ntouch "{queued}"\n')
+        output = self.run_editor("status")
+        self.assertIn("missing", output)
+        self.assertFalse(queued.exists())
+
+    def test_time_wait_is_drained_before_open_close_or_kill_return(self):
+        self.env["LISTEN"] = "1"
+        real_launch = self.root / "launch-real"
+        (self.root / "launch").rename(real_launch)
+        cleared, early = self.root / "clear", self.root / "early"
+        self.script("launch", f'#!/bin/sh\n[ -f "{cleared}" ] || touch "{early}"\nexec "{real_launch}" "$@"\n')
+        for action in ("close", "kill", "open"):
+            with self.subTest(action=action):
+                cleared.unlink(missing_ok=True)
+                self.script("netstat", f'#!/bin/sh\nif [ -f "{cleared}" ]; then echo "tcp4 0 0 127.0.0.1.1234 127.0.0.1.{self.port} TIME_WAIT"; exit 0; fi\n'
+                            f'touch "{cleared}"\necho "tcp4 0 0 127.0.0.1.{self.port} 127.0.0.1.1234 TIME_WAIT"\n')
+                self.run_editor(action, ok=True)
+                self.assertTrue(cleared.exists(), f"{action} never checked TIME_WAIT")
+                self.assertFalse(early.exists(), "launched before TIME_WAIT cleared")
+
+    def test_open_and_kill_wait_for_cleaned_reporter_to_release_socket(self):
+        self.env["LISTEN"] = "1"
+        for action in ("kill", "open"):
+            with self.subTest(action=action):
+                child = subprocess.Popen(["sleep", "30"])
+                self.addCleanup(child.wait, 5)
+                self.addCleanup(child.kill)
+                table = f"{child.pid} 1 CrashReportClient {self.root}/Saved/Crashes/local"
+                self.script("ps", f'#!/bin/sh\ncase "$*" in *-axo*) echo "{table}";; *) echo CrashReportClient;; esac\n')
+                stale = self.root / "stale"
+                stale.unlink(missing_ok=True)
+                self.script("lsof", f'#!/bin/sh\nif [ ! -f "{stale}" ]; then touch "{stale}"; echo {child.pid}; '
+                            'else exec /usr/sbin/lsof "$@"; fi\n')
+                output = self.run_editor(action, ok=True)
+                self.assertIn(f"stopping orphaned CrashReportClient pid {child.pid}", output)
+                self.assertNotIn("held by", output)
+                self.assertEqual(child.wait(timeout=5), -signal.SIGKILL)
+
+    def test_inspection_does_not_find_its_own_wrapper_and_usage_includes_restart(self):
+        self.script("pgrep", '#!/bin/sh\nexec /usr/bin/pgrep "$@"\n')
+        result = self.helper("editor_pids")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "", "process query matched its own timeout wrapper")
+        self.assertIn("editor.sh restart", self.run_editor("unknown"))
+
+    def test_probe_budget_is_explicit_even_with_an_epoch_deadline(self):
+        self.script("editor-mcp", "#!/bin/sh\nsleep 3\n")
+        result = self.helper("deadline=9999999999; mcp_probe .2 .1")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("timed out after .2s", result.stderr)
+
+    def test_timeout_stops_the_command_process_group_including_children(self):
+        pids = self.root / "tree-pids"
+        self.script("tree", f'''#!/usr/bin/env python3
+import os, subprocess, time
+from pathlib import Path
+child = subprocess.Popen(['sleep', '30'], stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+Path({str(pids)!r}).write_text(f'{{os.getpid()}} {{child.pid}}')
+time.sleep(30)
+''')
+        def stop_tree():
+            if pids.exists():
+                try:
+                    os.killpg(int(pids.read_text().split()[0]), signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+        self.addCleanup(stop_tree)
+        result = self.helper('bounded .5 "$1"', str(self.root / "tree"))
+        self.assertEqual(result.returncode, 124, result.stderr)
+        self.assertIn("process group stopped", result.stderr)
+        self.assertIn("tree", result.stderr)
+        parent, child = map(int, pids.read_text().split())
+        for pid in (parent, child):
+            state = subprocess.run(["/bin/ps", "-p", str(pid), "-o", "stat="], check=False,
+                                   capture_output=True, text=True, timeout=2)
+            self.assertTrue(state.returncode == 1 or state.stdout.strip().startswith("Z"), state.stdout)
+
+    def test_process_exit_during_inspection_or_cleanup_is_harmless(self):
+        child = subprocess.Popen(["true"])
+        child.wait(timeout=2)
+        table = f"{child.pid} 1 CrashReportClient {self.root}/Saved/Crashes/local"
+        self.script("ps", f'#!/bin/sh\ncase "$*" in *-axo*) echo "{table}";; *) exit 1;; esac\n')
+        output = self.run_editor("close", ok=True)
+        self.assertIn(f"pid {child.pid} already exited", output)
+        result = self.helper('show_holders "$1"', str(child.pid))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(str(child.pid), result.stdout)
+        self.script("ps", f'#!/bin/sh\ncase "$*" in *-axo*) echo "{table}";; *) echo CrashReportClient;; esac\n')
+        result = self.helper('kill() { return 1; }; cleanup_crash_reporters')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("stopping orphaned", result.stdout)
+        result = self.helper('kill() { [[ "$1" == -0 ]]; }; cleanup_crash_reporters')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"could not stop crash reporter pid {child.pid}", result.stderr)
+
+    def test_editor_py_probe_timeout_removes_only_its_own_request(self):
+        queue = self.root / "queue"
+        (queue / "in").mkdir(parents=True)
+        (queue / "out").mkdir()
+        foreign = queue / "in/keep.py"
+        foreign.write_text("unrelated queued work")
+        env = dict(self.env, EDITOR_PY_ROOT=str(queue), EDITOR_PY_TIMEOUT=".2")
+        result = subprocess.run([str(SCRIPTS / "editor-py"), "--probe"], check=False, env=env,
+                                capture_output=True, text=True, timeout=3)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("probe request removed", result.stderr)
+        self.assertEqual(list((queue / "in").iterdir()), [foreign])
+        result = subprocess.run([str(SCRIPTS / "editor-py"), "-e", "1"], check=False, env=env,
+                                capture_output=True, text=True, timeout=3)
+        self.assertIn("request left", result.stderr)
+        self.assertEqual(len(list((queue / "in").glob("*.py"))), 2)
 
     def test_capture_stops_at_failed_status_before_python_queue(self):
         review = self.root / "review"
@@ -170,26 +312,27 @@ else:
 
     def test_cleanup_selects_only_project_orphan_reporter(self):
         # Fake only ps's process table; each candidate is a real sleep owned by this test.
-        children = [subprocess.Popen(["sleep", "30"]) for _ in range(5)]
+        children = [subprocess.Popen(["sleep", "30"]) for _ in range(6)]
         for child in children:
             self.addCleanup(child.wait, 5)
             self.addCleanup(child.kill)
-        # The lead's real #190 command, with only the process-table PID replaced by our child PID.
+        # The lead's real #190 command; remap its home and PID into private, owned test fixtures.
         observed = ("CrashReportClient /Users/tp/Library/Application Support/Epic/UnrealEngine/5.8/"
                     "Saved/Crashes/CrashReport-UE-Forest-pid-33014-CC15FA4C8745D60EA51B51B4D1A42A9C")
-        self.env["HOME"] = "/Users/tp"
+        observed = observed.replace("/Users/tp", self.env["HOME"])
         commands = (observed, observed.replace("UE-Forest-pid", "UE-Other-pid"), observed,
-                    observed.replace("CrashReportClient ", "Other ", 1), "Other " + observed)
+                    observed.replace("CrashReportClient ", "Other ", 1), "Other " + observed, f"CrashReportClient {self.root}/Saved/Crashes/local")
         table = "\n".join(f"{child.pid} {parent} {command}" for child, parent, command in
-                          zip(children, (1, 1, 99, 1, 1), commands))
+                          zip(children, (1, 1, 99, 1, 1, 1), commands))
         self.script("ps", f"#!/bin/sh\nif [ \"$1\" = -p ]; then\n"
-                    f"  case \"$2\" in {children[0].pid}) echo CrashReportClient;; *) echo /fake/Other;; esac\n"
+                    f"  case \"$2\" in {children[0].pid}|{children[-1].pid}) echo CrashReportClient;; *) echo /fake/Other;; esac\n"
                     f"else printf '%s\\n' '{table}'; fi\n")
         self.env["PATH"] = str(self.root) + os.pathsep + os.environ["PATH"]
         output = self.run_editor("close", ok=True)
         self.assertIn(f"stopping orphaned CrashReportClient pid {children[0].pid}", output)
         self.assertEqual(children[0].wait(timeout=5), -signal.SIGKILL)
-        self.assertTrue(all(child.poll() is None for child in children[1:]))
+        self.assertEqual(children[-1].wait(timeout=5), -signal.SIGKILL)
+        self.assertTrue(all(child.poll() is None for child in children[1:-1]))
 
 
 if __name__ == "__main__":
