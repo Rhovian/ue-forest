@@ -85,13 +85,18 @@ def off_steep_ground(coast, distances):
 
 
 def slope_check(centre):
-    """Fail when the corridor to be built crosses ground steeper than CORRIDOR_DEG: its centre line and both edges, at
-    each vertex and midway between vertices. The search above works on the unsmoothed route; this checks the result."""
-    dense = [p for a, b in itertools.pairwise(centre) for p in (a, ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2))] + [centre[-1]]
-    worst = max((slope, side, point) for side in (-150, 0, 150)
-                for slope, point in zip(slopes(offset(dense, [side] * len(dense), False)), dense))
-    print(f"Footpath steepest corridor ground {worst[0]:.0f} deg ({worst[1]:+d} cm from the centre line at {worst[2]})")
-    if worst[0] > CORRIDOR_DEG:
+    """Fail when the corridor to be built crosses ground steeper than CORRIDOR_DEG. It tests the centre line and the two
+    edges corridor() authors (the centre vertices offset 150 cm, joined by straight segments), each at its vertices and
+    midway along each segment: offsetting first, since a midpoint of the centre line offset sideways is not on an edge
+    at a bend. The search above works on the unsmoothed route; this checks the result."""
+    probes = []
+    for side in (-150, 0, 150):
+        line = offset(centre, [side] * len(centre), False)
+        probes += [(side, p) for a, b in itertools.pairwise(line) for p in (a, ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2))]
+        probes.append((side, line[-1]))
+    slope, (side, point) = max(zip(slopes([point for _, point in probes]), probes))
+    print(f"Footpath steepest corridor ground {slope:.0f} deg ({side:+d} cm line at {point})")
+    if slope > CORRIDOR_DEG:
         raise RuntimeError(f"Footpath corridor crosses ground steeper than {CORRIDOR_DEG} deg; route needs adjustment")
 
 
