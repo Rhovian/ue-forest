@@ -25,7 +25,7 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   (`children()` with a disc of points, `ground=True`), as in `meadow.py`. Cost then scales with the anchors.
   The budget covers anchors only: the instance total is accepted anchors x children per patch, so measure it after
   each change (fern drifts: 16 children each, ~194k ferns). `candidate_estimate` uses the capped density.
-- `regenerate_biome.py` prints duration and peak editor memory. Above `MEMORY_LIMIT_GB` (60) it cancels all PCG generation
+- `regenerate_biome.py` prints duration and peak editor memory. Above `MEMORY_LIMIT_GB` (70 since #198; 60 before, which older lessons here refer to) it cancels all PCG generation
   through `unreal.ForestPCGLibrary.cancel_all_pcg_generation()` (C++: `PCGComponent::CancelGeneration` is not exposed
   to Python) and saves nothing. Pass a density only as `generator()`'s `density`; a `PointsPerSquareMeter` override is
   refused because the budget would not see it.
@@ -92,6 +92,8 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   and six cancels at the 60 GB guard among them (#186). The guard reads resident memory, which also reads lower when the
   machine is short of memory. A retry in the same editor session after a cancel starts higher: restart the editor for
   every real attempt, and treat a run of cancels as the level being at the limit, not as bad luck.
+  The guard went from 60 to 70 GB for this (#198). That is the last raise on the 96 GB machine: content whose peak
+  passes 60 GB is over budget even though the run completes, and the peak has to come down instead (#203).
 
 ## Counts do not scale smoothly
 
