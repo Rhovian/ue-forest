@@ -83,10 +83,13 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
 - An exclusion corridor routed by distance alone ignores the ground under it: the footpath, 25 m in from the coast,
   ran along the brink of the coastal bluff for a third of its length, a 3 m vegetation-free band across a 40-60 deg
   face that read as a bare contour stripe between planted terraces (#186). Trace the slope under a corridor before
-  building it; `shore_path.off_steep_ground` moves the route inland to the first gentle ground. After moving any
-  exclusion, rebake T_GroundcoverMask, regenerate, rerun `solid_keepout.py` (solids near it move) and regenerate again.
-- The regenerate's memory peak varies by about 10 GB between runs of the same content: 52.8 GB in one run and five
-  cancels at the 60 GB guard just before it (#186). The guard reads resident memory, which also reads lower when the
+  building it; `shore_path.off_steep_ground` moves the route inland to the first gentle ground. Check the corridor as
+  built, edges included, not the points the search looked at: the first version moved points with their neighbours and
+  smoothed them without rechecking, and left 50 deg ground under one corridor edge (`slope_check`, #197 review). After
+  moving any exclusion, rebake T_GroundcoverMask, regenerate, rerun `solid_keepout.py` (solids near it move) and
+  regenerate again.
+- The regenerate's memory peak varies by about 10 GB between runs of the same content: 52.7-54.9 GB in three runs
+  and six cancels at the 60 GB guard among them (#186). The guard reads resident memory, which also reads lower when the
   machine is short of memory. A retry in the same editor session after a cancel starts higher: restart the editor for
   every real attempt, and treat a run of cancels as the level being at the limit, not as bad luck.
 
