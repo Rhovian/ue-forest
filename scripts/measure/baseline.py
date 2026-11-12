@@ -40,6 +40,7 @@ SHOT_LOOKS = 20  # a screenshot can take several hundred frames to appear after 
 CVARS = [
     "r.Lumen.HardwareRayTracing", "sg.GlobalIlluminationQuality", "r.ScreenPercentage",
     "r.AntiAliasingMethod", "r.Nanite", "r.Shadow.Virtual.Enable", "r.VSync", "t.MaxFPS",
+    "r.Shadow.Virtual.ResolutionLodBiasDirectional", "r.Skinning.DefaultAnimationMinScreenSize",
 ]
 
 
