@@ -20,6 +20,14 @@ else
   measure_args=(-MeasureTree="$tree" -MeasureCount="$count")
   label="$tree-$count"
 fi
+# baseline.py splits the editor command line on whitespace, so a space in any of these would silently measure the
+# plain run into another directory.
+for name in MEASURE_LABEL MEASURE_POINTS MEASURE_HIDE; do
+  if [[ "${!name:-}" =~ [[:space:]] ]]; then echo "$name must not contain whitespace: '${!name}'" >&2; exit 2; fi
+done
+if [[ ! "${MEASURE_LABEL:-}" =~ ^[A-Za-z0-9_.-]*$ ]]; then
+  echo "MEASURE_LABEL may hold only letters, digits, '_', '.' and '-': '$MEASURE_LABEL'" >&2; exit 2
+fi
 out="$here/../../Forest/Saved/Measure/$(date +%Y%m%dT%H%M%S)-$label${MEASURE_LABEL:+-$MEASURE_LABEL}"
 mkdir -p "$out"
 out=$(cd "$out" && pwd)

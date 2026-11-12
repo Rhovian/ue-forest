@@ -96,8 +96,9 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   passes 60 GB is over budget even though the run completes, and the peak has to come down instead (#203).
 - Frame time is a separate budget from generation, and nothing above guards it (#205, measured with
   `scripts/measure/run.sh`, whose `MEASURE_HIDE` and `MEASURE_CMDS` variants switch one thing off). Megaplants with wind
-  are instanced skinned meshes whose components tick: 528,000 wood anemone cost 31 ms of game thread time at the
-  interior, and all 688,000 skinned instances 41 ms (#206). Everything that moves in the wind also has its virtual shadow
+  are instanced skinned meshes whose components tick: the 365,000 wood anemone loaded at the interior point (528,000 in
+  the level) cost 31 ms of game thread time there, and all 474,000 skinned instances loaded there (688,000 in the level)
+  41 ms (#206). Everything that moves in the wind also has its virtual shadow
   map pages redrawn every frame: 74 ms at the interior, 31 ms of it from under 7,000 trees and 17 ms from 760,000 ferns
   (#207). No placement sets a cull distance, a wind stop distance or shadow casting. Before adding a small plant by the
   hundred thousand, measure the route with and without it.
