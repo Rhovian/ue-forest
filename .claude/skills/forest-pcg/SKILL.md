@@ -107,7 +107,7 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   hundred thousand, measure the route with and without it.
 - Shadows on the route (#207, #214, #216): a static plant whose material sways it redraws its shadow pages every
   frame unless its component's shadow cache invalidation is Static; `UForestShadowCacheSubsystem` sets that in game
-  worlds on placed meshes up to 5 m in radius (not the static trees, not landscape grass). A skinned Megaplant redraws
+  worlds on every placed static mesh, the static trees included (#217), but not on landscape grass. A skinned Megaplant redraws
   its pages whenever it animates, whatever that setting says; shortening the animation distance bought 1 ms and was
   dropped (#215). The field beech and the hornbeams cost far more than their count (#217).
 

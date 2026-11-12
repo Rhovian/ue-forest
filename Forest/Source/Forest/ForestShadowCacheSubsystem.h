@@ -6,11 +6,12 @@
 class ULevel;
 class ULevelStreaming;
 
-/** Lets the small placed static plants keep their cached shadows in game worlds. Their materials sway them with World
+/** Lets the placed static plants keep their cached shadows in game worlds. Their materials sway them with World
  *  Position Offset, which by default invalidates every virtual shadow map page they touch, every frame: with 760,000
  *  ferns loaded that redraws the whole shadow map (#216). Set to Static, a plant still sways and still casts its shadow;
- *  the shadow no longer moves with it. Meshes larger than MaxRadius (the static trees) are left alone, because a still
- *  shadow under a moving crown shows. `Forest.CachedPlantShadows 0` restores the default for comparison. */
+ *  the shadow no longer moves with it. That includes the static trees (the field beech and the hornbeams, #217): about
+ *  one tree in twenty, whose shadows stand still among the moving shadows of the wind-animated trees.
+ *  `Forest.CachedPlantShadows 0` restores the default for comparison. */
 UCLASS()
 class UForestShadowCacheSubsystem : public UWorldSubsystem
 {
@@ -31,10 +32,6 @@ private:
 	void ApplyToLoadedLevels() const;
 	void OnLevelBeginMakingVisible(UWorld* World, const ULevelStreaming* Streaming, ULevel* Level);
 	void Apply(const ULevel* Level) const;
-
-	/** cm; bounding sphere radius of the mesh. Ferns, flowers, ivy columns, litter, rocks and logs are under it; the
-	 *  hornbeams (about 8 m) and the field beech (about 17 m) are over it. */
-	static constexpr float MaxRadius = 500.0f;
 
 	FDelegateHandle VisibleHandle;
 	FDelegateHandle BeginPlayHandle;
