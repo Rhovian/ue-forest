@@ -68,6 +68,9 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
 - The floor plants' lower edge (shore height + 150 cm) is set separately in each filter graph: `filter_graph()` and
   `damp_filter()` each had their own copy, and fading only the first left the damp-ground ferns on the old contour
   (#165). Change every graph that sets it (`fade_in()`, `PLANT_FADE`).
+- The general colonies are too sparse to break a sunlit apron: below a coastal bluff the 2-6 m of gentle ground before
+  the sand stayed one bright strip with fading alone (#188 review). The ferns' Foot patch (`FOOT`, `FOOT_SHARE`, on
+  `foot_graph`) adds ~76k ferns there and broke it near the camera; past ~40 m a thinner strip still reads.
 
 ## Counts do not scale smoothly
 

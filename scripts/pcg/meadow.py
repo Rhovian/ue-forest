@@ -11,12 +11,9 @@ cost density x the whole biome volume (deadwood_rocks.candidate_estimate): 120,0
 """
 
 import importlib
-import json
 import math
-from pathlib import Path
 
 import biome_variants
-import deadwood_rocks
 import unreal
 from deadwood_rocks import (
     ROOT,
@@ -25,6 +22,7 @@ from deadwood_rocks import (
     copy_asset,
     edge,
     entry,
+    foot_graph,
     generator,
     get,
     load,
@@ -65,38 +63,8 @@ def edge_graph():
 
 
 def sand_edge_graph():
-    """SAND_HEATHER_BAND ground within SAND_HEATHER_REACH of the forest foot (one Distance to all foot points)."""
-    foot = json.loads(Path(deadwood_rocks.__file__).with_name("forest_foot.json").read_text())
-    graph = copy_asset(ROOT + "PCG_TreesAboveShore", "PCG_HeatherSandEdge")
-    inp, out = graph.get_input_node(), graph.get_output_node()
-    for node in list(graph.get_editor_property("nodes")):
-        if node not in (inp, out):
-            graph.remove_node(node)
-    band = z_range(graph, *SAND_HEATHER_BAND)
-    edge(graph, inp, "In", band, "In")
-    mark, settings = graph.add_node_of_type(unreal.PCGCreatePointsSettings)
-    points = []
-    for x, y in foot["points_m"]:
-        point = unreal.PCGPoint()
-        point.set_editor_property("transform", unreal.Transform(location=unreal.Vector(x * 100, y * 100, foot["shore_cm"])))
-        points.append(point)
-    settings.set_editor_property("points_to_create", points)
-    settings.set_editor_property("coordinate_space", unreal.PCGCoordinateSpace.WORLD)
-    settings.set_editor_property("cull_points_outside_volume", False)
-    distance, settings = graph.add_node_of_type(unreal.PCGDistanceSettings)
-    settings.set_editor_property("set_density", True)
-    settings.set_editor_property("maximum_distance", SAND_HEATHER_REACH)
-    settings.set_editor_property("source_shape", unreal.PCGDistanceShape.CENTER)
-    settings.set_editor_property("target_shape", unreal.PCGDistanceShape.CENTER)
-    edge(graph, band, "InsideFilter", distance, "Source")
-    edge(graph, mark, "Out", distance, "Target")
-    near, settings = graph.add_node_of_type(unreal.PCGDensityFilterSettings)
-    settings.set_editor_property("lower_bound", 0)
-    settings.set_editor_property("upper_bound", 0.99)  # drop the saturated beyond-reach distance
-    edge(graph, distance, "Out", near, "In")
-    edge(graph, near, "Out", out, "Out")
-    save(graph)
-    return graph
+    """SAND_HEATHER_BAND ground within SAND_HEATHER_REACH of the forest foot."""
+    return foot_graph("PCG_HeatherSandEdge", *SAND_HEATHER_BAND, SAND_HEATHER_REACH)
 
 
 def meadow_graph():
