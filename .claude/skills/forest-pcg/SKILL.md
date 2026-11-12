@@ -105,6 +105,11 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   map pages redrawn every frame: 74 ms at the interior, 31 ms of it from under 7,000 trees and 17 ms from 760,000 ferns
   (#207). No placement sets a cull distance, a wind stop distance or shadow casting. Before adding a small plant by the
   hundred thousand, measure the route with and without it.
+- Shadows on the route (#207, #214, #216): a static plant whose material sways it redraws its shadow pages every
+  frame unless its component's shadow cache invalidation is Static; `UForestShadowCacheSubsystem` sets that in game
+  worlds on placed meshes up to 5 m in radius (not the static trees, not landscape grass). A skinned Megaplant redraws
+  its pages whenever it animates, whatever that setting says; shortening the animation distance bought 1 ms and was
+  dropped (#215). The field beech and the hornbeams cost far more than their count (#217).
 
 ## Counts do not scale smoothly
 
