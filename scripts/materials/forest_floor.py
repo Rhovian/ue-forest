@@ -50,6 +50,13 @@ SCALARS = {  # world units are cm; sea level is Z 0
     "TongueRise": 160.0,  # cm above the shore line at most: uncapped, the width carried sand metres up a 60 deg bluff face
     "TongueLow": 0.42,
     "TongueHigh": 0.57,
+    # Vertex normal Z between which the moss and litter colour changes from the top-down projection to a sideways one:
+    # every layer is sampled with world XY, which stretches it 1/cos(slope) down the fall line, 2x on the 60 deg coastal
+    # bluff, where pebbles stood twice as tall as wide (#195). Top-down above SideHigh (~40 deg), sideways below SideLow
+    # (~50 deg); at 45 deg either projection stretches 1.4x, the least a planar projection can do there.
+    "SideLow": 0.64,
+    "SideHigh": 0.77,
+    "SideNormalFade": 0.7,  # share of the (still top-down, stretched) normal detail faded out where the colour is sideways
     "SlopeMin": 0.05,  # the slope assumed on flat ground, so the interleave still has a width there
     "SlopeMax": 2.0,
     "LitterWidth": 400.0,  # cm out onto the sand that beech litter mixes in
@@ -208,7 +215,8 @@ def build():
 
     world = g.node(unreal.MaterialExpressionWorldPosition, 9)
     xy, z = g.mask(world, 8, "rg"), g.mask(world, 8, "b")
-    nz = g.mask(g.node(unreal.MaterialExpressionVertexNormalWS, 9), 8, "b")
+    vertex_normal = g.node(unreal.MaterialExpressionVertexNormalWS, 9)
+    nz = g.mask(vertex_normal, 8, "b")
 
     patch_uv = g.wire(unreal.MaterialExpressionDivide, 6, {"A": xy, "B": p["PatchTile"]})
     patches = g.sample(PATCHES, patch_uv, 5)
@@ -344,10 +352,20 @@ def build():
         lerp, 5, {"A": p["WetRoughness"], "B": g.node(unreal.MaterialExpressionConstant, 6, r=1.0), "Alpha": dryness}
     )
 
-    sets = {}
+    # Sideways projection for steep faces (SideLow/SideHigh): 1 where the colour comes from the vertical planes, and
+    # between those the share of the YZ plane, for faces whose normal points along X.
+    sideways = g.wire(unreal.MaterialExpressionOneMinus, 6, {"": g.wire(
+        unreal.MaterialExpressionSmoothStep, 7, {"Min": p["SideLow"], "Max": p["SideHigh"], "Value": nz})})
+    nx2, ny2 = (g.wire(unreal.MaterialExpressionMultiply, 7, {"A": g.mask(vertex_normal, 8, c), "B": g.mask(vertex_normal, 8, c)})
+                for c in "rg")
+    along_x = g.wire(unreal.MaterialExpressionDivide, 6, {"A": nx2, "B": g.wire(unreal.MaterialExpressionMax, 7, {
+        "A": g.wire(unreal.MaterialExpressionAdd, 8, {"A": nx2, "B": ny2}),
+        "B": g.node(unreal.MaterialExpressionConstant, 8, r=0.0001)})})
+    yz, xz = (g.wire(unreal.MaterialExpressionAppendVector, 8, {"A": g.mask(world, 9, c), "B": z}) for c in "gr")
+    sets, tiles = {}, {}
     for name, (prefix, tile, *suffixes) in LAYERS.items():
         suffix = suffixes[0] if suffixes else {kind: "_" + kind for kind in ("B", "N", "ORM")}
-        size = g.node(P, 7, parameter_name=f"{name}Tile", default_value=tile)
+        size = tiles[name] = g.node(P, 7, parameter_name=f"{name}Tile", default_value=tile)
         uv = g.wire(unreal.MaterialExpressionDivide, 6, {"A": xy, "B": size})
         detail = g.wire(unreal.MaterialExpressionMultiply, 7, {"A": size, "B": p["DetailScale"]})
         uv_detail = g.wire(unreal.MaterialExpressionDivide, 6, {"A": xy, "B": detail})
@@ -363,6 +381,15 @@ def build():
             )
             for kind in ("B", "N", "ORM")
         }
+
+    for name in ("Moss", "Leaves"):  # the forest floor's layers; the sand lies flat
+        prefix, _, *suffixes = LAYERS[name]
+        colour = prefix + (suffixes[0]["B"] if suffixes else "_B")
+        side = g.wire(lerp, 5, {
+            "A": g.sample(colour, g.wire(unreal.MaterialExpressionDivide, 6, {"A": xz, "B": tiles[name]}), 5),
+            "B": g.sample(colour, g.wire(unreal.MaterialExpressionDivide, 6, {"A": yz, "B": tiles[name]}), 5),
+            "Alpha": along_x})
+        sets[name]["B"] = g.wire(lerp, 4, {"A": sets[name]["B"], "B": side, "Alpha": sideways})
 
     # Moss albedo tint (#71 item 6, interior_01): the scanned moss reads dark grey-green under the canopy; the
     # reference floor is a bright yellow-green. A vector parameter, so MI_ForestFloor tunes it without a rebuild.
@@ -396,6 +423,9 @@ def build():
         {"A": color, "B": g.wire(lerp, 1, {"A": low_b, "B": high_b, "Alpha": macro})},
     )
     normal = blend(sets["Sand"]["N"], "N")
+    normal = g.wire(lerp, 1, {"A": normal, "B": g.node(unreal.MaterialExpressionConstant3Vector, 2,
+                                                       constant=unreal.LinearColor(0.0, 0.0, 1.0, 1.0)),
+                              "Alpha": g.wire(unreal.MaterialExpressionMultiply, 2, {"A": sideways, "B": p["SideNormalFade"]})})
     orm = blend(sets["Sand"]["ORM"], "ORM")
     sand_rough = g.wire(
         unreal.MaterialExpressionMultiply, 3, {"A": g.mask(sets["Sand"]["ORM"], 4, "g"), "B": wet_rough}

@@ -6,7 +6,9 @@ import unreal
 from poses import TIME_OF_DAY
 
 world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
-if world.get_path_name() == "/Game/L_vilm.L_vilm":
+if world is None:  # scripts/measure/run.sh opens the editor on its own map load: no world yet, and none to prepare
+    print("no editor world yet; nothing loaded")
+elif world.get_path_name() == "/Game/L_vilm.L_vilm":
     partition = unreal.WorldPartitionBlueprintLibrary
     descriptors = partition.get_actor_descs()
     partition.load_actors([desc.guid for desc in descriptors])
