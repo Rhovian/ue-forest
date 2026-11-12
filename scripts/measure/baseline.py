@@ -6,7 +6,11 @@
 #   -MeasureHide=Fern,Moss  hide instanced meshes (static and skinned) whose asset path contains one of these, at each
 #       point after warm-up
 #   <run dir>/commands.txt  console commands, one per line, run once PIE is up (run.sh writes it from MEASURE_CMDS)
+#   -MeasureSet=Fern:cast_shadow=False;/Tree_:shadow_cache_invalidation_behavior=STATIC  set a property on the
+#       instanced mesh components whose asset path contains the part before the colon, at each point after warm-up;
+#       the value is a Python literal or the name of a constant of the property's enum
 #   -MeasureShots  save a screenshot of the PIE view before and after each point's capture, as <point>_a.png and _b.png
+import ast
 import glob
 import json
 import math
@@ -31,7 +35,8 @@ CAPTURE_FRAMES = 600
 TRACE_DRAIN_FRAMES = 60  # after Trace.Stop, before the process exits
 SETTLE_FRAMES = 60  # after csvprofile stop, before the file is on disk
 HIDE_FRAMES = 120  # after hiding meshes, before the capture
-SHOT_FRAMES = 60  # for a screenshot to reach disk; it hitches, so it is taken outside the capture
+SHOT_FRAMES = 30  # between looks for a screenshot on disk; it hitches, so it is taken outside the capture
+SHOT_LOOKS = 20  # a screenshot can take several hundred frames to appear after a render state change
 CVARS = [
     "r.Lumen.HardwareRayTracing", "sg.GlobalIlluminationQuality", "r.ScreenPercentage",
     "r.AntiAliasingMethod", "r.Nanite", "r.Shadow.Virtual.Enable", "r.VSync", "t.MaxFPS",
@@ -74,6 +79,8 @@ class Run:
         self.csv_dir = os.path.join(unreal.Paths.project_saved_dir(), "Profiling", "CSV")
         self.hide = [part for part in arg("MeasureHide", "").split(",") if part]
         self.hidden = {}
+        self.settings = []
+        self.changed = {}
         self.shots = "-MeasureShots" in unreal.SystemLibrary.get_command_line().split()
         self.shot_dir = os.path.join(unreal.Paths.project_saved_dir(), "Screenshots")
         self.commands = []
@@ -99,11 +106,17 @@ class Run:
                 # Raising here would leave the editor open with nothing ticking, and run.sh waiting on it.
                 return [lambda: self.fail(f"-MeasurePoints names no route point: {unknown}")]
             self.points = [p for p in self.points if p[0] in names]
+        try:
+            self.settings = [self.setting(text) for text in arg("MeasureSet", "").split(";") if text]
+        except ValueError as error:
+            return [lambda message=str(error): self.fail(message)]  # `error` is unbound once this block ends
         steps += [self.run_commands]
         for point in self.points:
             steps += [lambda p=point: self.view(p)]
             if self.hide:
                 steps += [lambda p=point: self.hide_meshes(p)]
+            if self.settings:
+                steps += [lambda p=point: self.set_properties(p)]
             before = [self.shoot, lambda p=point: self.move_shot(p, "a")] if self.shots else []
             after = [self.shoot, lambda p=point: self.move_shot(p, "b")] if self.shots else []
             steps += [*before, lambda p=point: self.capture(p), lambda p=point: self.collect(p), *after]
@@ -158,20 +171,51 @@ class Run:
         for command in self.commands:
             console(command)
 
-    def hide_meshes(self, point):
-        # Streaming brings components in per point, so this runs at each one, after its warm-up.
-        hidden = 0
+    @staticmethod
+    def setting(text):
+        part, _, assignment = text.partition(":")
+        name, _, value = assignment.partition("=")
+        if not (part and name and value):
+            raise ValueError(f"-MeasureSet wants part:property=value, got {text!r}")
+        return part, name, value
+
+    @staticmethod
+    def placed_meshes():
+        """Every instanced mesh component in the PIE world with its asset path."""
         for actor in unreal.GameplayStatics.get_all_actors_of_class(world(), unreal.Actor):
             # Megaplants with wind are instanced skinned meshes; everything else placed is an instanced static mesh.
             for kind, asset in ((unreal.InstancedStaticMeshComponent, "static_mesh"),
                                 (unreal.InstancedSkinnedMeshComponent, "skinned_asset")):
                 for component in actor.get_components_by_class(kind):
                     mesh = component.get_editor_property(asset)
-                    if mesh and any(part in mesh.get_path_name() for part in self.hide):
-                        component.set_visibility(False)
-                        component.set_component_tick_enabled(False)  # skinned ones tick; hidden and ticking is half off
-                        hidden += component.get_instance_count()
+                    if mesh:
+                        yield component, mesh.get_path_name()
+
+    def hide_meshes(self, point):
+        # Streaming brings components in per point, so this runs at each one, after its warm-up.
+        hidden = 0
+        for component, path in self.placed_meshes():
+            if any(part in path for part in self.hide):
+                component.set_visibility(False)
+                component.set_component_tick_enabled(False)  # skinned ones tick; hidden and ticking is half off
+                hidden += component.get_instance_count()
         self.hidden[point[0]] = hidden
+        return HIDE_FRAMES
+
+    def set_properties(self, point):
+        changed = dict.fromkeys((f"{part}:{name}={value}" for part, name, value in self.settings), 0)
+        for component, path in self.placed_meshes():
+            for part, name, value in self.settings:
+                if part not in path:
+                    continue
+                current = component.get_editor_property(name)
+                try:
+                    new = ast.literal_eval(value)
+                except (ValueError, SyntaxError):
+                    new = getattr(type(current), value)  # an enum constant by name
+                component.set_editor_property(name, new)  # its PostEditChange re-creates the render state
+                changed[f"{part}:{name}={value}"] += component.get_instance_count()
+        self.changed[point[0]] = changed
         return HIDE_FRAMES
 
     def shoot(self):
@@ -182,11 +226,15 @@ class Run:
     def screenshots(self):
         return glob.glob(os.path.join(self.shot_dir, "**", "*.png"), recursive=True)
 
-    def move_shot(self, point, suffix):
+    def move_shot(self, point, suffix, looks=SHOT_LOOKS):
         new = [f for f in self.screenshots() if os.path.getmtime(f) > self.shot_after]
+        if not new and looks > 1:
+            self.steps.insert(0, lambda: self.move_shot(point, suffix, looks - 1))
+            return SHOT_FRAMES
         if len(new) != 1:
             raise RuntimeError(f"expected one new screenshot at {point[0]}, found {len(new)}")
         shutil.move(new[0], os.path.join(self.out, f"{point[0]}_{suffix}.png"))
+        return SHOT_FRAMES  # let the file move and the hitch pass before the next step
 
     def view(self, point):
         name = point[0]
@@ -228,6 +276,7 @@ class Run:
             "points": [p[0] for p in self.points],
             "cvars": {name: unreal.SystemLibrary.get_console_variable_float_value(name) for name in CVARS},
             "commands": self.commands, "hide": self.hide, "hidden_instances": self.hidden, "shots": self.shots,
+            "set": [f"{part}:{name}={value}" for part, name, value in self.settings], "set_instances": self.changed,
         }
         if self.map:
             manifest.update(map=self.map, route=[
