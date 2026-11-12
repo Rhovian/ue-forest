@@ -2,6 +2,10 @@
 # scripts/measure/run.sh (-ExecCmds="py ..."; -ExecutePythonScript would quit on return). Never saves assets. Arguments come from the editor command line:
 #   -MeasureTree=A|B|C|D  -MeasureCount=<instances, square grid>  -MeasureOut=<run dir>
 #   -MeasureMap=/Game/L_vilm  -MeasureOut=<run dir> for a fixed level route
+#   -MeasurePoints=interior,beach  only these route points
+#   -MeasureHide=Fern,Moss  hide instanced meshes (static and skinned) whose asset path contains one of these, at each
+#       point after warm-up
+#   <run dir>/commands.txt  console commands, one per line, run once PIE is up (run.sh writes it from MEASURE_CMDS)
 import glob
 import json
 import math
@@ -25,6 +29,7 @@ WARMUP_FRAMES = 300  # let Nanite streaming and Lumen settle at each point
 CAPTURE_FRAMES = 600
 TRACE_DRAIN_FRAMES = 60  # after Trace.Stop, before the process exits
 SETTLE_FRAMES = 60  # after csvprofile stop, before the file is on disk
+HIDE_FRAMES = 120  # after hiding meshes, before the capture
 CVARS = [
     "r.Lumen.HardwareRayTracing", "sg.GlobalIlluminationQuality", "r.ScreenPercentage",
     "r.AntiAliasingMethod", "r.Nanite", "r.Shadow.Virtual.Enable", "r.VSync", "t.MaxFPS",
@@ -65,6 +70,12 @@ class Run:
         self.out = arg("MeasureOut") or os.path.join(unreal.Paths.project_saved_dir(), "Measure", "manual")
         os.makedirs(self.out, exist_ok=True)
         self.csv_dir = os.path.join(unreal.Paths.project_saved_dir(), "Profiling", "CSV")
+        self.hide = [part for part in arg("MeasureHide", "").split(",") if part]
+        self.hidden = {}
+        self.commands = []
+        if os.path.exists(os.path.join(self.out, "commands.txt")):
+            with open(os.path.join(self.out, "commands.txt")) as f:
+                self.commands = [line.strip() for line in f if line.strip()]
         self.steps = self.plan()
         self.wait = 0
         self.handle = unreal.register_slate_post_tick_callback(self.tick)
@@ -76,8 +87,20 @@ class Run:
         if self.map:
             self.points = LEVEL_ROUTE
             steps += [self.freeze_sun]
+        wanted = arg("MeasurePoints")
+        if wanted:
+            names = wanted.split(",")
+            unknown = sorted(set(names) - {p[0] for p in self.points})
+            if unknown:
+                # Raising here would leave the editor open with nothing ticking, and run.sh waiting on it.
+                return [lambda: self.fail(f"-MeasurePoints names no route point: {unknown}")]
+            self.points = [p for p in self.points if p[0] in names]
+        steps += [self.run_commands]
         for point in self.points:
-            steps += [lambda p=point: self.view(p), lambda p=point: self.capture(p), lambda p=point: self.collect(p)]
+            steps += [lambda p=point: self.view(p)]
+            if self.hide:
+                steps += [lambda p=point: self.hide_meshes(p)]
+            steps += [lambda p=point: self.capture(p), lambda p=point: self.collect(p)]
         return steps + [self.finish]
 
     def tick(self, _delta):
@@ -119,6 +142,32 @@ class Run:
         console("Forest.Time 10")
         console("Forest.Pause")
 
+    def fail(self, message):
+        unreal.log_error(f"measure: {message}")
+        with open(os.path.join(self.out, "error.txt"), "w") as f:
+            f.write(message + "\n")
+        self.quit()
+
+    def run_commands(self):
+        for command in self.commands:
+            console(command)
+
+    def hide_meshes(self, point):
+        # Streaming brings components in per point, so this runs at each one, after its warm-up.
+        hidden = 0
+        for actor in unreal.GameplayStatics.get_all_actors_of_class(world(), unreal.Actor):
+            # Megaplants with wind are instanced skinned meshes; everything else placed is an instanced static mesh.
+            for kind, asset in ((unreal.InstancedStaticMeshComponent, "static_mesh"),
+                                (unreal.InstancedSkinnedMeshComponent, "skinned_asset")):
+                for component in actor.get_components_by_class(kind):
+                    mesh = component.get_editor_property(asset)
+                    if mesh and any(part in mesh.get_path_name() for part in self.hide):
+                        component.set_visibility(False)
+                        component.set_component_tick_enabled(False)  # skinned ones tick; hidden and ticking is half off
+                        hidden += component.get_instance_count()
+        self.hidden[point[0]] = hidden
+        return HIDE_FRAMES
+
     def view(self, point):
         name = point[0]
         pie = world()
@@ -158,6 +207,7 @@ class Run:
             "warmup_frames": WARMUP_FRAMES, "capture_frames": CAPTURE_FRAMES,
             "points": [p[0] for p in self.points],
             "cvars": {name: unreal.SystemLibrary.get_console_variable_float_value(name) for name in CVARS},
+            "commands": self.commands, "hide": self.hide, "hidden_instances": self.hidden,
         }
         if self.map:
             manifest.update(map=self.map, route=[
