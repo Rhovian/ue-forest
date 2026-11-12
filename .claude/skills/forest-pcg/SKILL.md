@@ -80,6 +80,19 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   (forest_floor.py `TongueWidth`, capped by `TongueRise`: a width alone becomes metres of height on a 60 deg face and
   carried sand up the bluff).
 
+- An exclusion corridor routed by distance alone ignores the ground under it: the footpath, 25 m in from the coast,
+  ran along the brink of the coastal bluff for a third of its length, a 3 m vegetation-free band across a 40-60 deg
+  face that read as a bare contour stripe between planted terraces (#186). Trace the slope under a corridor before
+  building it; `shore_path.off_steep_ground` moves the route inland to the first gentle ground. Check the corridor as
+  built, edges included, not the points the search looked at: the first version moved points with their neighbours and
+  smoothed them without rechecking, and left 50 deg ground under one corridor edge (`slope_check`, #197 review). After
+  moving any exclusion, rebake T_GroundcoverMask, regenerate, rerun `solid_keepout.py` (solids near it move) and
+  regenerate again.
+- The regenerate's memory peak varies by about 10 GB between runs of the same content: 52.7-54.9 GB in three runs
+  and six cancels at the 60 GB guard among them (#186). The guard reads resident memory, which also reads lower when the
+  machine is short of memory. A retry in the same editor session after a cancel starts higher: restart the editor for
+  every real attempt, and treat a run of cancels as the level being at the limit, not as bad luck.
+
 ## Counts do not scale smoothly
 
 - The template's spatial noise thins candidates heavily and nonlinearly: driftwood went from ~400 pieces at 1,800/ha to
@@ -159,6 +172,8 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   skinned instances (trees, saplings, anemones) are GPU-only and their transforms are not readable from Python.
   The points include each anchor's children: a heather drift is 19 points (anchor plus 18 plants), so 1,510 points were
   ~79 drifts, not 1,510 (#165). Divide by the children per anchor before judging spacing.
+- `get_generated_point_locations` can return each point twice from the one Core component (152 veteran points for 76
+  trees, #196): count unique positions, or count instances by mesh.
 - Edits through the editor's MCP toolsets (Niagara stack inputs, for example) change the loaded asset only: save it
   (`unreal.EditorAssetLibrary.save_loaded_asset`) and check `git status` shows it before committing.
 - Revert resaved graphs with `git checkout` only while the editor is closed: a loaded package reads its file lazily,

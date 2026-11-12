@@ -9,6 +9,7 @@ Closed Biome exclusion corridor affects every group. Regenerate Core and save le
 
 import argparse
 import importlib
+import itertools
 import json
 import math
 from pathlib import Path
@@ -32,6 +33,71 @@ def smooth(points):
         points = [points[0]] + [tuple((points[i - 1][axis] + 2 * points[i][axis] + points[i + 1][axis]) / 4
                                      for axis in (0, 1)) for i in range(1, len(points) - 1)] + [points[-1]]
     return points
+
+
+# The 25 m inset runs along the brink of the coastal bluff for a third of the route: a vegetation-free corridor across
+# a 40-60 deg face, which read as a bare contour stripe between planted terraces (#186). Where the ground under the
+# route is steeper than STEEP_DEG, the route moves further inland, in INLAND_STEP steps up to INLAND_MAX, to the first
+# ground that is gentle there and one step either side of it (the bluff top is 5-10 m in). The built corridor is then
+# checked against CORRIDOR_DEG at its centre and both edges, at every vertex and between them (slope_check).
+STEEP_DEG, INLAND_STEP, INLAND_MAX, SLOPE_SPAN, CORRIDOR_DEG = 20, 250, 4000, 200, 30
+
+
+def slopes(points):
+    """Ground slope in degrees at each point, from source heights SLOPE_SPAN either side in x and y."""
+    probes = [(x + dx, y + dy) for x, y in points
+              for dx, dy in ((-SLOPE_SPAN, 0), (SLOPE_SPAN, 0), (0, -SLOPE_SPAN), (0, SLOPE_SPAN))]
+    heights = iter(terrain_samples.sample(unreal.Paths.project_saved_dir(), probes))
+    return [math.degrees(math.atan(math.hypot(next(heights) - next(heights), next(heights) - next(heights))
+                                   / (2 * SLOPE_SPAN))) for _ in points]
+
+
+def off_steep_ground(coast, distances):
+    """`distances` with each inset raised until the corridor there lies on ground gentler than STEEP_DEG."""
+    sign = math.copysign(1, distances[0])
+    steps = range(-1, INLAND_MAX // INLAND_STEP + 2)  # one step seaward and one beyond the furthest inset, as margins
+    lines = [offset(coast, [d + sign * k * INLAND_STEP for d in distances], False) for k in steps]
+    flat = iter(slopes([point for line in lines for point in line]))
+    gentle = {k: [next(flat) < STEEP_DEG for _ in line] for k, line in zip(steps, lines)}
+
+    def clear(k, i):
+        """Gentle at step k and a step either side of it: 5 m of gentle ground under the 3 m corridor."""
+        return gentle[k - 1][i] and gentle[k][i] and gentle[k + 1][i]
+
+    def inset(i, least):
+        """The first clear step at or beyond `least` for point i; none within INLAND_MAX is an error."""
+        found = next((k for k in steps[1:-1] if k >= least and clear(k, i)), None)
+        if found is None:
+            raise RuntimeError(f"Footpath: no ground gentler than {STEEP_DEG} deg within {INLAND_MAX / 100:.0f} m "
+                               f"inland of route point {i} {coast[i]}; route needs adjustment")
+        return found
+
+    # Only a point whose corridor touches steep ground has to move.
+    first = [inset(i, 0) for i in range(len(coast))]
+    # A point moves with its neighbours, so the route does not zigzag between the brink and the top; where it moves, it
+    # goes to an inset checked for that point, not just to its neighbours' step.
+    extra = [inset(i, max(first[max(0, i - 2):i + 3])) for i in range(len(first))]
+    moved = sum(1 for k in extra if k)
+    print("Footpath inland steps per route point:", "".join(format(k, "x") for k in extra))
+    print(f"Footpath: {moved} of {len(extra)} route points moved inland off ground steeper than {STEEP_DEG} deg, "
+          f"by up to {max(extra) * INLAND_STEP / 100:.1f} m")
+    return [d + sign * k * INLAND_STEP for d, k in zip(distances, extra)]
+
+
+def slope_check(centre):
+    """Fail when the corridor to be built crosses ground steeper than CORRIDOR_DEG. It tests the centre line and the two
+    edges corridor() authors (the centre vertices offset 150 cm, joined by straight segments), each at its vertices and
+    midway along each segment: offsetting first, since a midpoint of the centre line offset sideways is not on an edge
+    at a bend. The search above works on the unsmoothed route; this checks the result."""
+    probes = []
+    for side in (-150, 0, 150):
+        line = offset(centre, [side] * len(centre), False)
+        probes += [(side, p) for a, b in itertools.pairwise(line) for p in (a, ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2))]
+        probes.append((side, line[-1]))
+    slope, (side, point) = max(zip(slopes([point for _, point in probes]), probes))
+    print(f"Footpath steepest corridor ground {slope:.0f} deg ({side:+d} cm line at {point})")
+    if slope > CORRIDOR_DEG:
+        raise RuntimeError(f"Footpath corridor crosses ground steeper than {CORRIDOR_DEG} deg; route needs adjustment")
 
 
 def corridor(points):
@@ -86,6 +152,7 @@ def route(actors):
     peak = max(2500, math.hypot(nearest.x - dense[middle][0], nearest.y - dense[middle][1]) - 1500)
     distances = [math.copysign(2500 + (peak - 2500) * math.sin(math.pi * j / (len(indices) - 1))**2, inward)
                  for j in range(len(indices))]
+    distances = off_steep_ground([dense[i] for i in indices], distances)
     centre = smooth(offset([dense[i] for i in indices], distances, False))
     # FGeomTools2D::IsPointInPolygon (UE 5.8 Engine/Public/GeomTools.h) has no Python binding.
     # Even/odd crossings validate this external route against the authored water exclusion polygons.
@@ -101,6 +168,7 @@ def route(actors):
     for side in (-150, 0, 150):
         if any(inside(x, y, polygon) for x, y in offset(centre, [side] * len(centre), False) for polygon in polygons):
             raise RuntimeError("Footpath crosses a water exclusion; route needs adjustment")
+    slope_check(centre)
     # Saved source samples work with unloaded WP cells; the imported surface still needs a PIE walk.
     heights = terrain_samples.sample(unreal.Paths.project_saved_dir(), centre)
     if min(heights) < 200:
@@ -138,7 +206,8 @@ def main():
         if actor.get_actor_label() == LABEL:
             destroy_managed(subsystem, actor)
     place(LABEL, outline, 1000)
-    print("Footpath built: 600 m shore arc nearest lake, 25 m inland with lake detour, 3 m wide. Regenerate ALL groups; save level")
+    print("Footpath built: 600 m shore arc nearest lake, 25 m inland (further where that is steep) with lake detour, "
+          "3 m wide. Regenerate ALL groups; save level")
 
 
 if __name__ == "__main__":
