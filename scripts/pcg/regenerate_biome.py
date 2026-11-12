@@ -120,7 +120,9 @@ def dirty_allowed(loaded, world):
     return {p.get_name(): p for p in dirty if p.get_name() in allowed or p.get_name().startswith("/Game/ForestBiome/")}
 
 
-MEMORY_LIMIT_GB = 60  # a full regenerate peaks at ~45 GB with grass off (#132); the 600,000/ha runaway went far past it
+# A full regenerate peaks at 52-60 GB and sometimes more (#198), on a 96 GB machine; the 600,000/ha runaway went far
+# past this. Raised from 60, which cancelled about half the runs. Do not raise it again: bring the peak down (#203).
+MEMORY_LIMIT_GB = 70
 
 
 def resident_gb():
