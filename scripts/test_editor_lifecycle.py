@@ -23,15 +23,17 @@ class LifecycleTests(unittest.TestCase):
             sock.bind(("127.0.0.1", 0))
             self.port = sock.getsockname()[1]
         self.env = dict(os.environ, EDITOR_PORT=str(self.port), EDITOR_UPROJECT=str(self.project),
-                        EDITOR_LOG=str(self.root / "editor.log"), EDITOR_OPEN_TIMEOUT="4", HOME=str(self.root),
+                        EDITOR_LOG=str(self.root / "editor.log"), EDITOR_OPEN_TIMEOUT="6", HOME=str(self.root),
                         PYTHONPATH=str(SCRIPTS))
         self.env["PATH"] = str(self.root) + os.pathsep + os.environ["PATH"]
         # No lifecycle command may discover or signal a real editor/reporter, even on a dirty machine.
         self.script("ps", '#!/bin/sh\ncase "$*" in *-axo*) exit 0;; *) exec /bin/ps "$@";; esac\n')
         self.script("pgrep", "#!/bin/sh\nexit 1\n")
         self.script("pkill", "#!/bin/sh\nexit 0\n")
-        for name in ("editor.sh", "editor-mcp"):
-            shutil.copy(SCRIPTS / name, self.root / name)
+        self.script("osascript", "#!/bin/sh\nexit 0\n")
+        for name in ("editor.sh", "editor-mcp", "editor_port.py", "editor_process.py"):
+            if (SCRIPTS / name).exists():
+                shutil.copy(SCRIPTS / name, self.root / name)
         self.script("editor-py", "#!/bin/sh\necho python-queue-ok\n")
         self.script("launch", '''#!/usr/bin/env python3
 import os, time
@@ -112,8 +114,15 @@ else:
         (self.root / "editor.log.prev").write_text("older launch")
         (self.root / "editor.log").write_text(f"HttpListener unable to bind to 127.0.0.1:{self.port}")
         self.env["LISTEN"] = "1"
+        self.env["EDITOR_OPEN_TIMEOUT"] = "8"
+        real_mcp = self.root / "editor-mcp-ready"
+        (self.root / "editor-mcp").rename(real_mcp)
+        pending = self.root / "startup-pending"
+        self.script("editor-mcp", f'#!/bin/sh\nif [ ! -f "{pending}" ]; then touch "{pending}"; '
+                    f'echo "startup-probe-not-ready" >&2; exit 1; fi\nexec "{real_mcp}" "$@"\n')
         output = self.run_editor("open", ok=True)
         self.assertIn("MCP up", output)
+        self.assertNotIn("startup-probe-not-ready", output)
         self.assertNotIn("done", output)
         self.assertEqual((self.root / "editor.log.prev").read_text(),
                          f"HttpListener unable to bind to 127.0.0.1:{self.port}")
@@ -154,11 +163,16 @@ else:
         self.env.update(LISTEN="1", HANG="tools/call")
         output = self.run_editor("open")
         self.assertIn("timed out", output)
+        self.assertEqual(output.count("last MCP readiness probe:"), 1)
+        self.assertIn("is still running", output)
         self.assertNotIn("MCP up", output)
 
     def test_fresh_log_bind_error_is_fatal(self):
         self.env["LOG_TEXT"] = f"HttpListener unable to bind to 127.0.0.1:{self.port}"
-        self.assertIn("could not bind", self.run_editor("open"))
+        output = self.run_editor("open")
+        self.assertIn("could not bind", output)
+        self.assertIn(f"pid {(self.root / 'pid').read_text()} is still running", output)
+        self.assertIn("editor.sh status", output)
 
     def test_status_checks_ownership_mcp_and_python_queue(self):
         self.env["LISTEN"] = "1"
@@ -190,20 +204,60 @@ else:
         self.assertIn("missing", output)
         self.assertFalse(queued.exists())
 
-    def test_time_wait_is_drained_before_open_close_or_kill_return(self):
+    def test_bind_gate_is_checked_before_open_close_or_kill_return(self):
         self.env["LISTEN"] = "1"
         real_launch = self.root / "launch-real"
         (self.root / "launch").rename(real_launch)
-        cleared, early = self.root / "clear", self.root / "early"
+        cleared, early, attempted = self.root / "clear", self.root / "early", self.root / "attempted"
         self.script("launch", f'#!/bin/sh\n[ -f "{cleared}" ] || touch "{early}"\nexec "{real_launch}" "$@"\n')
+        # Empty netstat must not bypass the bind check on macOS 27 (#192 R2-1).
+        self.script("netstat", "#!/bin/sh\nexit 0\n")
         for action in ("close", "kill", "open"):
             with self.subTest(action=action):
                 cleared.unlink(missing_ok=True)
-                self.script("netstat", f'#!/bin/sh\nif [ -f "{cleared}" ]; then echo "tcp4 0 0 127.0.0.1.1234 127.0.0.1.{self.port} TIME_WAIT"; exit 0; fi\n'
-                            f'touch "{cleared}"\necho "tcp4 0 0 127.0.0.1.{self.port} 127.0.0.1.1234 TIME_WAIT"\n')
+                attempted.unlink(missing_ok=True)
+                self.script("editor_port.py", f'#!/bin/sh\nif [ -f "{attempted}" ]; then touch "{cleared}"; exit 0; fi\n'
+                            f'touch "{attempted}"\necho "bind still busy" >&2\nexit 1\n')
                 self.run_editor(action, ok=True)
-                self.assertTrue(cleared.exists(), f"{action} never checked TIME_WAIT")
-                self.assertFalse(early.exists(), "launched before TIME_WAIT cleared")
+                self.assertTrue(cleared.exists(), f"{action} never checked bindability")
+                self.assertFalse(early.exists(), "launched before bind succeeded")
+
+    def test_kernel_bind_rejects_ownerless_time_wait_and_fin_wait(self):
+        self.script("netstat", "#!/bin/sh\nexit 0\n")
+        for state in ("TIME_WAIT", "FIN_WAIT_2"):
+            with self.subTest(state=state), socket.socket() as server, socket.socket() as client:
+                server.settimeout(2)
+                client.settimeout(2)
+                server.bind(("127.0.0.1", 0))
+                port = server.getsockname()[1]
+                server.listen()
+                client.connect(("127.0.0.1", port))
+                accepted, _ = server.accept()
+                accepted.shutdown(socket.SHUT_WR)
+                self.assertEqual(client.recv(1), b"")
+                accepted.close()
+                server.close()
+                if state == "TIME_WAIT":
+                    client.close()
+                self.env["EDITOR_PORT"] = str(port)
+                self.assertEqual(self.helper("holders").stdout, "")
+                result = self.helper('if port_clear; then exit 0; else code=$?; echo "$port_error" >&2; exit "$code"; fi')
+                self.assertNotEqual(result.returncode, 0, f"claimed {state} port bindable")
+                self.assertIn("bind", result.stderr)
+
+    def test_close_and_kill_grant_exiting_editor_a_socket_release_grace(self):
+        for action in ("close", "kill"):
+            with self.subTest(action=action):
+                child = subprocess.Popen(["sleep", "30"])
+                self.addCleanup(child.wait, 5)
+                self.addCleanup(child.kill)
+                seen, stale = self.root / "seen", self.root / "stale"
+                seen.unlink(missing_ok=True)
+                stale.unlink(missing_ok=True)
+                self.script("pgrep", f'#!/bin/sh\nif [ -f "{seen}" ]; then exit 1; fi\ntouch "{seen}"\necho {child.pid}\n')
+                self.script("lsof", f'#!/bin/sh\nif [ -f "{stale}" ]; then exit 1; fi\ntouch "{stale}"\necho {child.pid}\n')
+                output = self.run_editor(action, ok=True)
+                self.assertNotIn("held by", output)
 
     def test_open_and_kill_wait_for_cleaned_reporter_to_release_socket(self):
         self.env["LISTEN"] = "1"
@@ -235,33 +289,6 @@ else:
         result = self.helper("deadline=9999999999; mcp_probe .2 .1")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("timed out after .2s", result.stderr)
-
-    def test_timeout_stops_the_command_process_group_including_children(self):
-        pids = self.root / "tree-pids"
-        self.script("tree", f'''#!/usr/bin/env python3
-import os, subprocess, time
-from pathlib import Path
-child = subprocess.Popen(['sleep', '30'], stdin=subprocess.DEVNULL,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-Path({str(pids)!r}).write_text(f'{{os.getpid()}} {{child.pid}}')
-time.sleep(30)
-''')
-        def stop_tree():
-            if pids.exists():
-                try:
-                    os.killpg(int(pids.read_text().split()[0]), signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-        self.addCleanup(stop_tree)
-        result = self.helper('bounded .5 "$1"', str(self.root / "tree"))
-        self.assertEqual(result.returncode, 124, result.stderr)
-        self.assertIn("process group stopped", result.stderr)
-        self.assertIn("tree", result.stderr)
-        parent, child = map(int, pids.read_text().split())
-        for pid in (parent, child):
-            state = subprocess.run(["/bin/ps", "-p", str(pid), "-o", "stat="], check=False,
-                                   capture_output=True, text=True, timeout=2)
-            self.assertTrue(state.returncode == 1 or state.stdout.strip().startswith("Z"), state.stdout)
 
     def test_process_exit_during_inspection_or_cleanup_is_harmless(self):
         child = subprocess.Popen(["true"])

@@ -16,24 +16,8 @@ UPROJECT="$(cd "$(dirname "$UPROJECT")" && pwd)/$(basename "$UPROJECT")"
 PORT=${EDITOR_PORT:-8000}
 export EDITOR_MCP_URL="http://127.0.0.1:$PORT/mcp"
 
-# Popen's new session isolates timeout cleanup to the command we started, including its children.
-# https://docs.python.org/3/library/subprocess.html#subprocess.Popen
-bounded() {
-  python3 - "$@" <<'PYTHON'
-import os, signal, subprocess, sys
-process = subprocess.Popen(sys.argv[2:], start_new_session=True)
-try:
-    sys.exit(process.wait(timeout=float(sys.argv[1])))
-except subprocess.TimeoutExpired:
-    try:
-        os.killpg(process.pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
-    process.wait(timeout=5)
-    print(f"timed out after {sys.argv[1]}s waiting for {sys.argv[2:]} (process group stopped)", file=sys.stderr)
-    sys.exit(124)
-PYTHON
-}
+# The independent supervisor retains the deadline and stops the tree even when this caller is killed.
+bounded() { python3 "$HERE/editor_process.py" "$@"; }
 # Bracket the initial letter so the process query cannot match its own bounded wrapper argv.
 editor_pids() {
   local code=0
@@ -44,9 +28,8 @@ editor_pids() {
 running() { local pids; pids=$(editor_pids) || { echo "cannot query editor processes" >&2; exit 1; }; [[ -n "$pids" ]]; }
 LOG=${EDITOR_LOG:-"$HOME/Library/Logs/Unreal Engine/ForestEditor/Forest.log"}
 
-# lsof sees inherited listeners; netstat additionally sees ownerless TIME_WAIT sockets (#190, e98fe22f).
-command -v lsof >/dev/null && command -v netstat >/dev/null ||
-  { echo "lsof and netstat are required to inspect port $PORT" >&2; exit 1; }
+# lsof sees inherited listeners; the actual bind test also sees ownerless closing sockets.
+command -v lsof >/dev/null || { echo "lsof is required to inspect port $PORT" >&2; exit 1; }
 holders() {
   local pids code=0
   pids=$(bounded 5 lsof -b -w -nP -iTCP:$PORT -sTCP:LISTEN -t) || code=$?
@@ -61,25 +44,29 @@ show_holders() {
     echo "holder snapshot pid(s) $pids exited before process details were available"
 }
 port_clear() {
-  local pids sockets
+  local pids
   pids=$(holders) || return
   [[ -z "$pids" ]] || return 1
-  sockets=$(bounded 5 netstat -an -p tcp) || return
-  # netstat's local address is column 4; remote connections to this port must not delay our bind.
-  awk -v port="$PORT" '$4 ~ ("[.:]" port "$") && $6 == "TIME_WAIT" {busy=1} END {exit busy}' <<< "$sockets"
+  port_error=$(bounded 5 "$HERE/editor_port.py" "$PORT" 2>&1)
 }
 reporter_released() {
   local pids; pids=$(holders) || return
   ! echo "$pids" | grep -qx "$1"
 }
 await_port_free() {
-  local pids; pids=$(holders) || return
-  if [[ -n "$pids" ]]; then
-    echo "port $PORT held by:" >&2; show_holders "$pids" >&2; return 1
-  fi
-  if ! wait_for 60 "port $PORT to free (including TIME_WAIT)" port_clear; then
+  local pids pid allowed=${1:-}
+  pids=$(holders) || return
+  for pid in $pids; do
+    # Shutdown may lose the exiting editor's argv before its socket disappears; retain its original PID.
+    if ! echo "$allowed" | grep -qx "$pid"; then
+      echo "port $PORT held by:" >&2; show_holders "$pids" >&2; return 1
+    fi
+  done
+  port_error=""
+  if ! wait_for 60 "port $PORT to accept a fresh bind" port_clear; then
     pids=$(holders) || return
     show_holders "$pids" >&2
+    [[ -z "$port_error" ]] || echo "$port_error" >&2
     return 1
   fi
 }
@@ -133,7 +120,20 @@ mcp_up() {
   budget=$((probe_end - SECONDS))
   (( budget > 0 )) || return 1
   (( budget <= 6 )) || budget=6
-  [[ -f "$LOG" ]] && owned_listener && mcp_probe "$budget" 2 && owned_listener && ! bind_failed
+  [[ -f "$LOG" ]] && owned_listener || return 1
+  if last_probe_error=$(mcp_probe "$budget" 2 2>&1); then
+    owned_listener && ! bind_failed || return 1
+    echo "$last_probe_error"
+    last_probe_error=""
+  else
+    return 1
+  fi
+}
+open_exit() {
+  local result=$?
+  if (( result != 0 )) && [[ -n "${editor_pid:-}" ]] && kill -0 "$editor_pid" 2>/dev/null; then
+    echo "open failed; launched editor pid $editor_pid is still running. Run scripts/editor.sh status, inspect $LOG, then scripts/editor.sh close (or kill if unresponsive)." >&2
+  fi
 }
 
 # Checks receive their existing arguments followed by the explicit remaining budget in seconds.
@@ -168,6 +168,8 @@ case ${1:-} in
     [[ -f "$restore" ]] && mv -f "$restore" "$(mktemp "$restore.XXXXXX")"  # mktemp: a name no earlier backup has
     # Popen(start_new_session=True) supplies setsid; no custom fork/detach mechanism.
     # https://docs.python.org/3/library/subprocess.html#subprocess.Popen
+    editor_pid=""
+    trap open_exit EXIT
     editor_pid=$(python3 - "${EDITOR_LAUNCH:-$UE_ROOT/Engine/Binaries/Mac/UnrealEditor.app/Contents/MacOS/UnrealEditor}" \
       "$UPROJECT" -ModelContextProtocolStartServer -ModelContextProtocolPort=$PORT "$@" <<'PYTHON'
 import signal, subprocess, sys
@@ -176,14 +178,19 @@ print(subprocess.Popen(sys.argv[1:], start_new_session=True, stdin=subprocess.DE
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).pid)
 PYTHON
     )
-    wait_for "${EDITOR_OPEN_TIMEOUT:-900}" "MCP owned by pid $editor_pid on port $PORT (log: $LOG)" mcp_up
+    last_probe_error=""
+    if ! wait_for "${EDITOR_OPEN_TIMEOUT:-900}" "MCP owned by pid $editor_pid on port $PORT (log: $LOG)" mcp_up; then
+      [[ -z "$last_probe_error" ]] || echo "last MCP readiness probe: $last_probe_error" >&2
+      exit 1
+    fi
     echo "MCP up at http://127.0.0.1:$PORT/mcp"
     # A fresh editor loads no World Partition cells; load them all and set morning light (review/view_ready.py).
     "$(dirname "$0")/editor-py" "$(dirname "$0")/review/view_ready.py" ||
       { echo "editor is open, but loading L_vilm's cells failed (see above)" >&2; exit 1; }
     ;;
   close)
-    if ! running; then cleanup_crash_reporters; await_port_free; exit; fi
+    exiting_pids=$(editor_pids)
+    if [[ -z "$exiting_pids" ]]; then cleanup_crash_reporters; await_port_free; exit; fi
     # Save first, so quitting never stops on Unreal's unsaved-changes dialog: a modal blocks MCP and editor-py, and
     # the lead closes the editor unattended. The same request closes the queue (init_unreal.py), so nothing queued
     # after it can write before the quit. It refuses, leaving the editor open, when a regeneration is still running
@@ -208,13 +215,14 @@ PYTHON
       wait_for 30 "the editor to exit" stopped
     fi
     cleanup_crash_reporters
-    await_port_free
+    await_port_free "$exiting_pids"
     ;;
   kill)
+    exiting_pids=$(editor_pids)
     bounded 5 pkill -9 -f "[U]nrealEditor.*$UPROJECT" || true
     wait_for 30 "the editor to exit" stopped
     cleanup_crash_reporters
-    await_port_free
+    await_port_free "$exiting_pids"
     ;;
   status)
     status_end=$((SECONDS + 60))

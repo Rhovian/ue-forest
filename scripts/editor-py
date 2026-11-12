@@ -13,6 +13,7 @@ import atexit
 import json
 import os
 import sys
+import tempfile
 import time
 import uuid
 
@@ -48,7 +49,11 @@ while not os.path.isdir(os.path.join(ROOT, "in")):  # created by init_unreal.py 
         sys.exit(f"{ROOT}/in does not exist; is the editor open?")
     time.sleep(0.5)
 
-name = uuid.uuid4().hex
+# A probe owns its reply directory. Removing it prevents a late queue writer from publishing a result.
+# TemporaryDirectory handles recursive cleanup even if a reply temporary file was already opened.
+probe_reply = tempfile.TemporaryDirectory(prefix="probe-", dir=os.path.join(ROOT, "out")) if probe else None
+name = os.path.basename(probe_reply.name) if probe else uuid.uuid4().hex
+out = os.path.join(probe_reply.name, "result.json") if probe else os.path.join(ROOT, "out", name + ".json")
 # Existing callers remain synchronous. Scripts explicitly marked deferred may finish on later
 # editor ticks: init_unreal.py:_run otherwise returns as soon as their source finishes executing.
 deferred = "# editor-py: deferred\n" in source
@@ -59,18 +64,18 @@ tmp = os.path.join(ROOT, "in", name + ".tmp")
 if probe:
     # atexit preserves normal callers' queued work; only this read-only probe is disposable.
     def cancel_probe():
-        for path in (tmp, os.path.join(ROOT, "in", name + ".py"), os.path.join(ROOT, "out", name + ".json")):
+        for path in (tmp, os.path.join(ROOT, "in", name + ".py")):
             try:
                 os.remove(path)
             except FileNotFoundError:
                 pass
+        probe_reply.cleanup()
     atexit.register(cancel_probe)
 
 with open(tmp, "w") as f:
     f.write(source)
 os.replace(tmp, os.path.join(ROOT, "in", name + ".py"))  # the editor only picks up complete .py files
 
-out = os.path.join(ROOT, "out", name + ".json")
 while not os.path.exists(out):
     if time.time() > deadline:
         detail = "probe request removed" if probe else f"request left in {ROOT}/in"

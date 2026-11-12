@@ -22,9 +22,15 @@ _elapsed = 0.0
 
 def _run(name):
     path = os.path.join(_IN, name)
-    with open(path) as f:
-        source = f.read()
-    os.remove(path)
+    probe = name.startswith("probe-")
+    try:
+        with open(path) as f:
+            source = f.read()
+        os.remove(path)
+    except FileNotFoundError:
+        if probe:  # cancellation may race the directory scan or pickup
+            return
+        raise
     buffer, ok = io.StringIO(), True
     with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(buffer):
         try:
@@ -37,10 +43,17 @@ def _run(name):
         except Exception:  # noqa: BLE001 -- return any submitted script error to editor-py
             traceback.print_exc()
             ok = False
-    tmp = os.path.join(_OUT, name + ".tmp")
-    with open(tmp, "w") as f:
-        json.dump({"ok": ok, "output": buffer.getvalue()}, f)
-    os.replace(tmp, os.path.join(_OUT, name[:-3] + ".json"))
+    # editor-py --probe owns this directory; never recreate it after cancellation.
+    folder = os.path.join(_OUT, name[:-3]) if probe else _OUT
+    tmp = os.path.join(folder, "result.tmp" if probe else name + ".tmp")
+    out = os.path.join(folder, "result.json" if probe else name[:-3] + ".json")
+    try:
+        with open(tmp, "w") as f:
+            json.dump({"ok": ok, "output": buffer.getvalue()}, f)
+        os.replace(tmp, out)
+    except FileNotFoundError:
+        if not probe:
+            raise
 
 
 def _tick(delta):
