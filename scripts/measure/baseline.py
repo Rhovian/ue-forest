@@ -109,6 +109,9 @@ class Run:
         wanted = arg("MeasurePoints")
         if wanted:
             names = wanted.split(",")
+            if len(set(names)) != len(names):
+                # Captures are filed by point name; a second visit would overwrite the first and be reported twice.
+                return [lambda: self.fail(f"-MeasurePoints names a point twice: {names}")]
             unknown = sorted(set(names) - {p[0] for p in self.points})
             if unknown:
                 # Raising here would leave the editor open with nothing ticking, and run.sh waiting on it.

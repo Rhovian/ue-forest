@@ -29,6 +29,11 @@ fi
 for name in MEASURE_LABEL MEASURE_POINTS MEASURE_HIDE MEASURE_SET; do
   if [[ "${!name:-}" =~ [[:space:]] ]]; then echo "$name must not contain whitespace: '${!name}'" >&2; exit 2; fi
 done
+# MEASURE_HIDE and MEASURE_SET are applied once, to what is loaded at the point; a walk streams in components they
+# would not have reached, and the capture would mix the two.
+if [[ "${MEASURE_WALK:-0}" == 1 && -n "${MEASURE_HIDE:-}${MEASURE_SET:-}" ]]; then
+  echo "MEASURE_WALK cannot be combined with MEASURE_HIDE or MEASURE_SET" >&2; exit 2
+fi
 if [[ ! "${MEASURE_LABEL:-}" =~ ^[A-Za-z0-9_.-]*$ ]]; then
   echo "MEASURE_LABEL may hold only letters, digits, '_', '.' and '-': '$MEASURE_LABEL'" >&2; exit 2
 fi
