@@ -8,6 +8,7 @@
 #   MEASURE_CMDS=$'r.ScreenPercentage 50\nShowFlag.InstancedGrass 0'   console commands, run once PIE is up
 #   MEASURE_HIDE=Fern,Moss   hide instanced meshes, static and skinned, whose asset path contains one of these
 #   MEASURE_TRACE=0   no Unreal Insights trace (about 300 MB a run)
+#   MEASURE_SHOTS=1   a screenshot of the PIE view before and after each point's capture (<point>_a.png, _b.png)
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -34,6 +35,7 @@ out=$(cd "$out" && pwd)
 [[ -z "${MEASURE_CMDS:-}" ]] || printf '%s\n' "$MEASURE_CMDS" > "$out/commands.txt"
 [[ -z "${MEASURE_POINTS:-}" ]] || measure_args+=(-MeasurePoints="$MEASURE_POINTS")
 [[ -z "${MEASURE_HIDE:-}" ]] || measure_args+=(-MeasureHide="$MEASURE_HIDE")
+[[ "${MEASURE_SHOTS:-0}" != 1 ]] || measure_args+=(-MeasureShots)
 trace_args=(-trace=cpu,frame,gpu,bookmark,loadtime,file -tracefile="$out/trace.utrace")
 [[ "${MEASURE_TRACE:-1}" != 0 ]] || trace_args=()
 
