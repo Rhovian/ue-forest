@@ -38,6 +38,10 @@ def supervise(limit, command):
             os.killpg(process.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
+        except PermissionError:
+            # macOS may report EPERM for a group with only zombies after the command finished.
+            if process.poll() is None:
+                raise
         process.wait(timeout=5)
     if reason:
         print(f"{reason} {command} (process group stopped)", file=sys.stderr)
@@ -67,14 +71,19 @@ def run(limit, command):
             remaining = end - time.monotonic()
             if remaining <= 0:
                 print(f"supervisor did not finish waiting for {command}", file=sys.stderr)
-                return 124  # closing the pipe still leaves the independent deadline in force
+                break  # closing the pipe still leaves the independent deadline in force
             try:
                 supervisor.wait(timeout=min(.1, remaining))
             except subprocess.TimeoutExpired:
                 pass
-        return 128 + interrupted if interrupted else supervisor.returncode
+        code = supervisor.returncode if supervisor.returncode is not None else 124
     finally:
         supervisor.stdin.close()
+    if interrupted == signal.SIGINT:
+        # Bash's cooperative interrupt handling needs a signal death, not a normal exit(130).
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        signal.raise_signal(signal.SIGINT)
+    return 128 + interrupted if interrupted else code
 
 
 if __name__ == "__main__":

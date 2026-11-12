@@ -109,7 +109,7 @@ mcp_probe() {
   fi
 }
 mcp_up() {
-  local probe_end=$((SECONDS + $1)) pids budget
+  local probe_end=$((SECONDS + $1)) pids budget reply
   bind_failed && { echo "fresh editor log $LOG: MCP could not bind port $PORT" >&2; exit 1; }
   kill -0 "$editor_pid" 2>/dev/null || { echo "launched editor pid $editor_pid exited; see $LOG" >&2; exit 1; }
   pids=$(holders) || return
@@ -121,11 +121,17 @@ mcp_up() {
   (( budget > 0 )) || return 1
   (( budget <= 6 )) || budget=6
   [[ -f "$LOG" ]] && owned_listener || return 1
-  if last_probe_error=$(mcp_probe "$budget" 2 2>&1); then
-    owned_listener && ! bind_failed || return 1
-    echo "$last_probe_error"
+  if reply=$(mcp_probe "$budget" 2 2>&1); then
+    if ! owned_listener; then
+      last_probe_error="listener ownership changed after MCP round trip"; return 1
+    fi
+    if bind_failed; then
+      last_probe_error="MCP bind failed after round trip; see $LOG"; return 1
+    fi
+    echo "$reply"
     last_probe_error=""
   else
+    last_probe_error=$reply
     return 1
   fi
 }

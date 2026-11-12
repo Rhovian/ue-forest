@@ -1,5 +1,6 @@
 """Bounded command trees stop on timeout, terminal signals, and caller death; no editor involved."""
 import os
+import runpy
 import shutil
 import signal
 import socket
@@ -8,6 +9,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 SCRIPTS = Path(__file__).resolve().parent
 
@@ -54,8 +56,12 @@ time.sleep(30)
         if self.pids.exists() and self.active_pids():
             os.killpg(int(self.pids.read_text().split()[0]), signal.SIGKILL)
 
-    def caller(self, seconds):
-        caller = subprocess.Popen(["bash", "-c", 'source "$1"; bounded "$2" "$3"', "caller",
+    def caller(self, seconds, polling=False):
+        body = 'source "$1"; bounded "$2" "$3"'
+        if polling:
+            body = ('source "$1"; wait_for 1 "test polling command" bounded "$2" "$3" || true; '
+                    f'echo continued > "{self.root / "continued"}"')
+        caller = subprocess.Popen(["bash", "-c", body, "caller",
                                    str(self.root / "editor.sh"), str(seconds), str(self.tree)],
                                   env=self.env, start_new_session=True,
                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -103,6 +109,34 @@ time.sleep(30)
                     self.stop_tree()
                     caller.communicate(timeout=5)
                 self.assertNotEqual(caller.returncode, 0)
+
+    def test_sigint_stops_a_polling_shell_instead_of_being_swallowed(self):
+        caller = self.caller(30, polling=True)
+        os.killpg(caller.pid, signal.SIGINT)
+        output, error = caller.communicate(timeout=5)
+        self.assertEqual(caller.returncode, -signal.SIGINT, output + error)
+        self.assertFalse((self.root / "continued").exists(), "polling shell continued after Ctrl-C")
+        self.assert_tree_stopped()
+
+    def test_zombie_only_group_preserves_completed_command_status(self):
+        supervise = runpy.run_path(str(SCRIPTS / "editor_process.py"))["supervise"]
+        process = Mock(returncode=7)
+        process.poll.return_value = 7
+        with patch("signal.signal"), patch("subprocess.Popen", return_value=process), \
+                patch("select.select", return_value=([], [], [])), \
+                patch("os.killpg", side_effect=PermissionError("macOS zombie-only group")):
+            try:
+                code = supervise("1", ["fixture"])
+            except PermissionError:
+                self.fail("zombie-only group cleanup replaced the completed command's exit status")
+            self.assertEqual(code, 7)
+        # A permission error while the command is still live must remain an error.
+        process.poll.return_value = None
+        with patch("signal.signal"), patch("subprocess.Popen", return_value=process), \
+                patch("select.select", side_effect=[([], [], []), ([0], [], [])]), \
+                patch("os.read", return_value=b""), patch("os.killpg", side_effect=PermissionError), \
+                self.assertRaises(PermissionError):
+            supervise("1", ["fixture"])
 
     def test_killing_only_the_calling_shell_stops_the_tree(self):
         caller = self.caller(30)

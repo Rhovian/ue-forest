@@ -284,6 +284,22 @@ else:
         self.assertEqual(result.stdout, "", "process query matched its own timeout wrapper")
         self.assertIn("editor.sh restart", self.run_editor("unknown"))
 
+    def test_failed_postcheck_never_reports_a_successful_probe_as_the_error(self):
+        (self.root / "editor.log").write_text("fresh log")
+        for changed in ("ownership", "bind"):
+            with self.subTest(changed=changed):
+                body = ('editor_pid=$$; owner_checks=0; bind_checks=0; holders() { echo $$; }; '
+                        'mcp_probe() { echo "MCP round trip OK"; }; '
+                        f'owned_listener() {{ owner_checks=$((owner_checks + 1)); '
+                        f'[[ "{changed}" != ownership || "$owner_checks" == 1 ]]; }}; '
+                        f'bind_failed() {{ bind_checks=$((bind_checks + 1)); '
+                        f'[[ "{changed}" == bind && "$bind_checks" != 1 ]]; }}; '
+                        'if mcp_up 2; then exit 0; else echo "$last_probe_error"; exit 1; fi')
+                result = self.helper(body)
+                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertNotIn("MCP round trip OK", result.stdout)
+                self.assertIn(changed, result.stdout)
+
     def test_probe_budget_is_explicit_even_with_an_epoch_deadline(self):
         self.script("editor-mcp", "#!/bin/sh\nsleep 3\n")
         result = self.helper("deadline=9999999999; mcp_probe .2 .1")
