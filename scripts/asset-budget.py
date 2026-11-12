@@ -32,9 +32,54 @@ def blend_mode(material):
     return material.get_editor_property("blend_mode")
 
 
-SOLID_SCANS = importlib.reload(biome_variants).SOLID_SCANS
+def two_sided(material):
+    """Resolve instance overrides through the parent chain."""
+    seen = set()
+    while isinstance(material, unreal.MaterialInstance):
+        if material in seen:
+            raise RuntimeError("cyclic material parent chain")
+        seen.add(material)
+        overrides = material.get_editor_property("base_property_overrides")
+        if overrides.get_editor_property("override_two_sided"):
+            return overrides.get_editor_property("two_sided")
+        material = material.get_editor_property("parent")
+    if material is None:
+        raise RuntimeError("material parent did not load")
+    return material.get_editor_property("two_sided")
 
-TREE_HEIGHT_CM = 600  # skinned plants taller than this are trees: they need trunk collision
+
+def leafy(mesh):
+    """True for a static mesh that is a plant or a tree, judged by its materials rather than its folder.
+
+    A plant: every material is masked and two-sided (leaf, frond or needle cards). A tree: taller than
+    TREE_HEIGHT_CM with at least one such material beside its bark. The field beech and the hornbeams sat outside
+    /Megascans/Plants/ on Preserve Area and were never checked (#220). A low mesh with one such slot among solid ones
+    (a moss shell with tufts) is neither; Voxelize would be wrong for its solid part. Asked only of placed meshes
+    (PLACED): the packs hold hundreds of leafy meshes the level never uses.
+    """
+    materials = [slot.get_editor_property("material_interface") for slot in mesh.get_editor_property("static_materials")]
+    cards = [blend_mode(material) == unreal.BlendMode.BLEND_MASKED and two_sided(material)
+             for material in materials if material is not None]
+    tall = mesh.get_bounds().box_extent.z * 2 > TREE_HEIGHT_CM
+    return bool(cards) and (all(cards) or (tall and any(cards)))
+
+
+def game_paths(value):
+    """Every /Game path in a value of biome_variants: its lists hold paths, (path, weight) rows and nestings of both."""
+    if isinstance(value, str):
+        return {value} if value.startswith("/Game/") else set()
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return set().union(*(game_paths(item) for item in value))
+    if isinstance(value, dict):
+        return game_paths(list(value)) | game_paths(list(value.values()))
+    return set()
+
+
+biome_variants = importlib.reload(biome_variants)
+SOLID_SCANS = biome_variants.SOLID_SCANS
+TREE_HEIGHT_CM = 600  # plants taller than this are trees: skinned ones need trunk collision
+# Every mesh a variant list names, so every mesh a builder can place.
+PLACED = game_paths([value for name, value in vars(biome_variants).items() if name.isupper()])
 
 
 def referenced_by(data, word):
@@ -54,7 +99,8 @@ def violations(asset, data):
         settings = asset.get_editor_property("nanite_settings")
         if not settings.get_editor_property("enabled"):
             yield "Nanite enabled", False
-        foliage = isinstance(asset, unreal.SkeletalMesh) or "/Megascans/Plants/" in str(data.package_name)
+        foliage = (isinstance(asset, unreal.SkeletalMesh) or "/Megascans/Plants/" in str(data.package_name)
+                   or (isinstance(asset, unreal.StaticMesh) and str(data.package_name) in PLACED and leafy(asset)))
         shape = settings.get_editor_property("shape_preservation")
         if foliage and shape != unreal.NaniteShapePreservation.VOXELIZE:
             yield "foliage Nanite shape preservation must be Voxelize", shape
