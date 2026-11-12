@@ -34,6 +34,36 @@ def smooth(points):
     return points
 
 
+# The 25 m inset runs along the brink of the coastal bluff for a third of the route: a vegetation-free corridor across
+# a 40-60 deg face, which read as a bare contour stripe between planted terraces (#186). Where the ground under the
+# corridor is steeper than STEEP_DEG, the route moves further inland, in INLAND_STEP steps up to INLAND_MAX, to the
+# first ground that is gentle across the corridor and one step beyond it (the bluff top is 5-10 m in).
+STEEP_DEG, INLAND_STEP, INLAND_MAX, SLOPE_SPAN = 20, 250, 4000, 200
+
+
+def off_steep_ground(coast, distances):
+    """`distances` with each inset raised until the corridor there lies on ground gentler than STEEP_DEG."""
+    sign = math.copysign(1, distances[0])
+    steps = range(INLAND_MAX // INLAND_STEP + 2)
+    lines = [offset(coast, [d + sign * k * INLAND_STEP for d in distances], False) for k in steps]
+    probes = [(x + dx, y + dy) for line in lines for x, y in line
+              for dx, dy in ((-SLOPE_SPAN, 0), (SLOPE_SPAN, 0), (0, -SLOPE_SPAN), (0, SLOPE_SPAN))]
+    heights = iter(terrain_samples.sample(unreal.Paths.project_saved_dir(), probes))
+    limit = math.tan(math.radians(STEEP_DEG))
+    gentle = [[math.hypot(next(heights) - next(heights), next(heights) - next(heights)) / (2 * SLOPE_SPAN) < limit
+               for _ in line] for line in lines]
+    # Only a point that itself lies on steep ground moves, to the first inset that is gentle there and a step on.
+    extra = [0 if gentle[0][i] else next((k for k in steps[:-1] if gentle[k][i] and gentle[k + 1][i]), 0)
+             for i in range(len(coast))]
+    # A point moves with its neighbours, so the route does not zigzag between the brink and the top.
+    extra = [max(extra[max(0, i - 2):i + 3]) for i in range(len(extra))]
+    moved = sum(1 for k in extra if k)
+    print("Footpath inland steps per route point:", "".join(format(k, "x") for k in extra))
+    print(f"Footpath: {moved} of {len(extra)} route points moved inland off ground steeper than {STEEP_DEG} deg, "
+          f"by up to {max(extra) * INLAND_STEP / 100:.1f} m")
+    return [d + sign * k * INLAND_STEP for d, k in zip(distances, extra)]
+
+
 def corridor(points):
     outline = offset(points, [150] * len(points), False) + offset(points, [-150] * len(points), False)[::-1]
     # FGeomTools2D has no Python binding; reject strict non-adjacent segment crossings
@@ -86,6 +116,7 @@ def route(actors):
     peak = max(2500, math.hypot(nearest.x - dense[middle][0], nearest.y - dense[middle][1]) - 1500)
     distances = [math.copysign(2500 + (peak - 2500) * math.sin(math.pi * j / (len(indices) - 1))**2, inward)
                  for j in range(len(indices))]
+    distances = off_steep_ground([dense[i] for i in indices], distances)
     centre = smooth(offset([dense[i] for i in indices], distances, False))
     # FGeomTools2D::IsPointInPolygon (UE 5.8 Engine/Public/GeomTools.h) has no Python binding.
     # Even/odd crossings validate this external route against the authored water exclusion polygons.
@@ -138,7 +169,8 @@ def main():
         if actor.get_actor_label() == LABEL:
             destroy_managed(subsystem, actor)
     place(LABEL, outline, 1000)
-    print("Footpath built: 600 m shore arc nearest lake, 25 m inland with lake detour, 3 m wide. Regenerate ALL groups; save level")
+    print("Footpath built: 600 m shore arc nearest lake, 25 m inland (further where that is steep) with lake detour, "
+          "3 m wide. Regenerate ALL groups; save level")
 
 
 if __name__ == "__main__":
