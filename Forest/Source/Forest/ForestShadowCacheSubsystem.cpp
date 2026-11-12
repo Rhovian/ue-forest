@@ -1,7 +1,6 @@
 #include "ForestShadowCacheSubsystem.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/Level.h"
-#include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "HAL/IConsoleManager.h"
@@ -9,7 +8,7 @@
 
 static FAutoConsoleCommandWithWorldAndArgs CachedPlantShadowsCommand(
 	TEXT("Forest.CachedPlantShadows"),
-	TEXT("1 lets small placed static plants keep cached shadows (the default), 0 restores per-frame invalidation."),
+	TEXT("1 lets placed static plants keep cached shadows (the default), 0 restores per-frame invalidation."),
 	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 	{
 		if (!World || Args.Num() != 1 || !Args[0].IsNumeric()) return;
@@ -71,8 +70,6 @@ void UForestShadowCacheSubsystem::Apply(const ULevel* Level) const
 		if (!Actor) continue;
 		Actor->ForEachComponent<UInstancedStaticMeshComponent>(false, [Wanted](UInstancedStaticMeshComponent* Component)
 		{
-			const UStaticMesh* Mesh = Component->GetStaticMesh();
-			if (!Mesh || Mesh->GetBounds().SphereRadius > MaxRadius) return;
 			if (Component->ShadowCacheInvalidationBehavior == Wanted) return;
 			Component->ShadowCacheInvalidationBehavior = Wanted;
 			Component->MarkRenderStateDirty();  // a no-op before the component has registered
