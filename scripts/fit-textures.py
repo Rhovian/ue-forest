@@ -44,7 +44,7 @@ def downscale(texture):
         task.set_editor_property(key, value)
     if not unreal.Exporter.run_asset_export_task(task) or not os.path.exists(png):
         raise SystemExit(f"could not export {path}")
-    subprocess.run(["sips", "-Z", str(MAX), png], check=True, capture_output=True)
+    subprocess.run(["sips", "-Z", str(MAX), png], check=True, capture_output=True, timeout=60)
     task = unreal.AssetImportTask()
     for key, value in {"filename": png, "destination_path": folder, "destination_name": name, "replace_existing": True,
                        "automated": True, "save": False}.items():

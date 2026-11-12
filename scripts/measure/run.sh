@@ -23,6 +23,12 @@ trap 'pkill -9 -f "UnrealEditor.*Forest.uproject"' INT TERM
 "$here/../editor.sh" open -ExecCmds="py $here/baseline.py" \
   "${measure_args[@]}" -MeasureOut="$out" \
   -trace=cpu,frame,gpu,bookmark,loadtime,file -tracefile="$out/trace.utrace"
-while pgrep -f "UnrealEditor.*Forest.uproject" >/dev/null; do sleep 2; done
+deadline=$((SECONDS + 1800))
+while pgrep -f "UnrealEditor.*Forest.uproject" >/dev/null; do
+  if (( SECONDS >= deadline )); then
+    echo "timed out after 1800s waiting for measurement editor to quit" >&2; exit 1
+  fi
+  sleep 2
+done
 cp "$HOME/Library/Logs/Unreal Engine/ForestEditor/Forest.log" "$out/editor.log"  # rhi.DumpMemory output
 python3 "$here/summarize.py" "$out"

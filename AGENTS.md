@@ -5,6 +5,7 @@ UE 5.8 C++ project on one Mac, coordinated by Niles. Decisions behind these rule
 ## The editor
 
 - There is one UE editor, opened on the main checkout. **Only the Niles lead uses it**, over MCP at `http://127.0.0.1:8000/mcp` and by running Python in it with `scripts/editor-py` (a file queue under `Saved/EditorPy`, no network). The lead opens the editor itself when a task needs it (`scripts/editor.sh open`) and calls MCP with `scripts/editor-mcp`, which does not depend on the session's MCP client having connected at startup.
+- Diagnose a failed or hung editor call with `scripts/editor.sh status` and the editor log before anything else. Do not use a workaround until the cause is known.
 - Workers and reviewers may be of any family, including the lead's. The committed `.mcp.json` reaches the editor from any Claude checkout, so the next rule is what keeps workers off it.
 - Workers never open, drive or connect to the editor. Anything that needs the editor goes to the lead as a request.
 - Work that is judged in the editor (PCG tuning, placement, materials, lighting, anything judged by how it looks) is done by the lead directly, editing scripts and assets itself, in short change-and-look loops. It is not handed to a worker. The editor is single-threaded over MCP, so the lead is this project's main worker. Workers take only work they can verify without the editor, such as offline scripts or C++ with tests.

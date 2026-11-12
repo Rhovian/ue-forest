@@ -109,7 +109,7 @@ def render(capture, reference, targets, output):
         script.write_text("const data = " + json.dumps(data) + ";\n" + RENDER)
         images = [capture] if missing else [capture, reference]
         completed = subprocess.run(["sips", "--js", str(script), *map(str, images), "--out", tmp],
-                                   check=False, capture_output=True, text=True)
+                                   check=False, capture_output=True, text=True, timeout=60)
         result = Path(tmp) / output.name
         if completed.returncode or not result.is_file():
             raise ValueError(f"sips failed for capture {capture}, reference {reference} "
@@ -145,7 +145,7 @@ def main():
         args.out.mkdir(parents=True, exist_ok=True)
         for job in jobs:
             render(*job)
-    except (OSError, ValueError) as error:
+    except (OSError, ValueError, subprocess.TimeoutExpired) as error:
         parser.exit(1, f"compare: {error}\n")
 
 

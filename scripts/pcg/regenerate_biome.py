@@ -126,7 +126,7 @@ MEMORY_LIMIT_GB = 60  # a full regenerate peaks at ~45 GB with grass off (#132);
 def resident_gb():
     """The editor process's current resident memory (ps reports kilobytes)."""
     out = subprocess.run(["ps", "-o", "rss=", "-p", str(os.getpid())], check=False, capture_output=True,
-                         text=True).stdout
+                         text=True, timeout=5).stdout
     return int(out.strip() or 0) / 1e6
 
 
