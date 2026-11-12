@@ -10,21 +10,29 @@ COLUMNS = ["FrameTime", "GameThreadTime", "RenderThread", "GPUTime", "GPUSceneIn
            "TextureStreaming/StreamingPool", "RenderTargetPoolSize"]
 
 
-EMPTY_GPU_MS = 1.0  # mean GPU time below which a point rendered nothing
+EMPTY_GPU_MS = 1.0  # frames below this GPU time rendered nothing
 
 
-def numeric(value):
-    try:
-        float(value or 0)
-        return True
-    except (TypeError, ValueError):
-        return False
+def frames(path):
+    # The profiler grows columns and writes its full header before metadata; csv.reader only parses records:
+    # https://docs.python.org/3/library/csv.html#csv.reader
+    with path.open(newline="") as f:
+        rows = list(csv.reader(f))
+    header = rows.pop(0)
+    if rows and rows[-1] and rows[-1][0].startswith("["):
+        metadata = rows.pop()
+        if dict(zip(metadata[::2], metadata[1::2])).get("[HasHeaderRowAtEnd]") == "1":
+            header = rows.pop()
+    for line, row in enumerate(rows, start=2):
+        if len(row) > len(header):
+            raise ValueError(f"{path}: row {line} has {len(row)} cells, header has {len(header)}")
+    return [dict(zip(header, row)) for row in rows if row]
 
 
 def column(rows, name):
     if name == "RenderThread":
-        keys = [k for k in rows[0] if k.startswith("Exclusive/RenderThread/") and "/EventWait" not in k]
-        return [sum(float(row[k] or 0) for k in keys) for row in rows]
+        return [sum(float(v or 0) for k, v in row.items()
+                    if k.startswith("Exclusive/RenderThread/") and "/EventWait" not in k) for row in rows]
     return [float(row[name]) for row in rows if row.get(name) not in (None, "")]
 
 
@@ -32,22 +40,27 @@ def main(run):
     manifest = json.loads((run / "manifest.json").read_text())
     label = f"level {manifest['map']}" if "map" in manifest else f"tree {manifest['tree']} x{manifest['count']}"
     print(f"{label}  cvars {manifest['cvars']}")
-    print("| point | " + " | ".join(f"{c} mean / p95" for c in COLUMNS) + " |")
-    print("|---" * (len(COLUMNS) + 1) + "|")
+    print("| point | frames used / captured | " + " | ".join(f"{c} mean / p95" for c in COLUMNS) + " |")
+    print("|---" * (len(COLUMNS) + 2) + "|")
     for point in manifest["points"]:
-        with open(run / f"{point}.csv", newline="") as f:
-            # The CSV profiler appends metadata rows after the frames; keep only rows whose cells are all numeric.
-            rows = [row for row in csv.DictReader(f) if all(numeric(v) for v in row.values())]
+        captured = frames(run / f"{point}.csv")
+        rows = [row for row in captured if float(row.get("GPUTime") or 0) >= EMPTY_GPU_MS]
         cells = []
         for name in COLUMNS:
             values = column(rows, name)
-            cells.append(f"{statistics.mean(values):.2f} / {statistics.quantiles(values, n=20)[-1]:.2f}" if values else "n/a")
-        gpu = column(rows, "GPUTime")
-        # A PIE window macOS stops presenting (seemingly when covered) renders nothing: GPU time near zero. Such a
-        # point is no measurement, so say so rather than print its numbers (#179).
-        if gpu and statistics.mean(gpu) < EMPTY_GPU_MS:
-            cells = [f"no frames rendered (GPU {statistics.mean(gpu):.2f} ms)"] + ["-"] * (len(COLUMNS) - 1)
-        print(f"| {point} | " + " | ".join(cells) + " |")
+            if values:
+                p95 = statistics.quantiles(values, n=20)[-1] if len(values) > 1 else values[0]
+                cells.append(f"{statistics.mean(values):.2f} / {p95:.2f}")
+            else:
+                cells.append("n/a")
+        # A PIE window macOS stops presenting renders nothing: drop those frames (#179).
+        # Keep sparse samples' numbers, but mark points with fewer than half their frames rendered (#200).
+        if not rows:
+            cells = ["no frames rendered"] + ["-"] * (len(COLUMNS) - 1)
+        count = f"{len(rows)} / {len(captured)}"
+        if len(rows) * 2 < len(captured):
+            count += " (under half rendered)"
+        print(f"| {point} | {count} | " + " | ".join(cells) + " |")
 
 
 main(Path(sys.argv[1]))
