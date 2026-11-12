@@ -45,6 +45,10 @@ class CompareTests(unittest.TestCase):
                         self.tool["render"](capture, reference, "Targets", output)
                     for detail in (str(capture), str(reference), *details):
                         self.assertIn(detail, str(raised.exception))
+            with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(["sips"], 60)) as run:
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    self.tool["render"](capture, reference, "Targets", output)
+                self.assertEqual(run.call_args.kwargs["timeout"], 60)
             self.assertFalse(output.exists())
 
     def test_notes_do_not_use_prompt_or_template_targets(self):
