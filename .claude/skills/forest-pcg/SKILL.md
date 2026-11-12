@@ -98,7 +98,10 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   `scripts/measure/run.sh`, whose `MEASURE_HIDE` and `MEASURE_CMDS` variants switch one thing off). Megaplants with wind
   are instanced skinned meshes whose components tick: the 365,000 wood anemone loaded at the interior point (528,000 in
   the level) cost 31 ms of game thread time there, and all 474,000 skinned instances loaded there (688,000 in the level)
-  41 ms (#206). Everything that moves in the wind also has its virtual shadow
+  41 ms (#206). `UForestSkinnedTickSubsystem` now stops those ticks in game worlds (the wind runs on the GPU and does
+  not need them), which brought the game thread to 8-9 ms at every route point; `Forest.SkinnedTick 1` restores them
+  to measure against. A static copy is not a way out: Geometry Script's copy of a Megaplant's LOD 0 is bare stems,
+  because the leaves are attached parts. Everything that moves in the wind also has its virtual shadow
   map pages redrawn every frame: 74 ms at the interior, 31 ms of it from under 7,000 trees and 17 ms from 760,000 ferns
   (#207). No placement sets a cull distance, a wind stop distance or shadow casting. Before adding a small plant by the
   hundred thousand, measure the route with and without it.

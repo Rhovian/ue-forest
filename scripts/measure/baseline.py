@@ -6,6 +6,7 @@
 #   -MeasureHide=Fern,Moss  hide instanced meshes (static and skinned) whose asset path contains one of these, at each
 #       point after warm-up
 #   <run dir>/commands.txt  console commands, one per line, run once PIE is up (run.sh writes it from MEASURE_CMDS)
+#   -MeasureShots  save a screenshot of the PIE view before and after each point's capture, as <point>_a.png and _b.png
 import glob
 import json
 import math
@@ -30,6 +31,7 @@ CAPTURE_FRAMES = 600
 TRACE_DRAIN_FRAMES = 60  # after Trace.Stop, before the process exits
 SETTLE_FRAMES = 60  # after csvprofile stop, before the file is on disk
 HIDE_FRAMES = 120  # after hiding meshes, before the capture
+SHOT_FRAMES = 60  # for a screenshot to reach disk; it hitches, so it is taken outside the capture
 CVARS = [
     "r.Lumen.HardwareRayTracing", "sg.GlobalIlluminationQuality", "r.ScreenPercentage",
     "r.AntiAliasingMethod", "r.Nanite", "r.Shadow.Virtual.Enable", "r.VSync", "t.MaxFPS",
@@ -72,6 +74,8 @@ class Run:
         self.csv_dir = os.path.join(unreal.Paths.project_saved_dir(), "Profiling", "CSV")
         self.hide = [part for part in arg("MeasureHide", "").split(",") if part]
         self.hidden = {}
+        self.shots = "-MeasureShots" in unreal.SystemLibrary.get_command_line().split()
+        self.shot_dir = os.path.join(unreal.Paths.project_saved_dir(), "Screenshots")
         self.commands = []
         if os.path.exists(os.path.join(self.out, "commands.txt")):
             with open(os.path.join(self.out, "commands.txt")) as f:
@@ -100,7 +104,9 @@ class Run:
             steps += [lambda p=point: self.view(p)]
             if self.hide:
                 steps += [lambda p=point: self.hide_meshes(p)]
-            steps += [lambda p=point: self.capture(p), lambda p=point: self.collect(p)]
+            before = [self.shoot, lambda p=point: self.move_shot(p, "a")] if self.shots else []
+            after = [self.shoot, lambda p=point: self.move_shot(p, "b")] if self.shots else []
+            steps += [*before, lambda p=point: self.capture(p), lambda p=point: self.collect(p), *after]
         return steps + [self.finish]
 
     def tick(self, _delta):
@@ -168,6 +174,20 @@ class Run:
         self.hidden[point[0]] = hidden
         return HIDE_FRAMES
 
+    def shoot(self):
+        self.shot_after = max((os.path.getmtime(f) for f in self.screenshots()), default=0)
+        console("HighResShot 1")
+        return SHOT_FRAMES
+
+    def screenshots(self):
+        return glob.glob(os.path.join(self.shot_dir, "**", "*.png"), recursive=True)
+
+    def move_shot(self, point, suffix):
+        new = [f for f in self.screenshots() if os.path.getmtime(f) > self.shot_after]
+        if len(new) != 1:
+            raise RuntimeError(f"expected one new screenshot at {point[0]}, found {len(new)}")
+        shutil.move(new[0], os.path.join(self.out, f"{point[0]}_{suffix}.png"))
+
     def view(self, point):
         name = point[0]
         pie = world()
@@ -207,7 +227,7 @@ class Run:
             "warmup_frames": WARMUP_FRAMES, "capture_frames": CAPTURE_FRAMES,
             "points": [p[0] for p in self.points],
             "cvars": {name: unreal.SystemLibrary.get_console_variable_float_value(name) for name in CVARS},
-            "commands": self.commands, "hide": self.hide, "hidden_instances": self.hidden,
+            "commands": self.commands, "hide": self.hide, "hidden_instances": self.hidden, "shots": self.shots,
         }
         if self.map:
             manifest.update(map=self.map, route=[
