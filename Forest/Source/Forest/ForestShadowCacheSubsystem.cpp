@@ -31,17 +31,28 @@ void UForestShadowCacheSubsystem::Initialize(FSubsystemCollectionBase& Collectio
 	// their render state is first created and streaming a cell in costs nothing extra.
 	VisibleHandle = FLevelStreamingDelegates::OnLevelBeginMakingVisible.AddUObject(
 		this, &UForestShadowCacheSubsystem::OnLevelBeginMakingVisible);
+	// The persistent level, which also holds a cooked build's always-loaded actors, never passes through that
+	// delegate, and neither does a level that is already visible. Cover them now, and again once the world has begun
+	// play in case their components registered in between; a component already set is skipped.
+	ApplyToLoadedLevels();
+	BeginPlayHandle = GetWorld()->OnWorldBeginPlay.AddUObject(this, &UForestShadowCacheSubsystem::ApplyToLoadedLevels);
 }
 
 void UForestShadowCacheSubsystem::Deinitialize()
 {
 	FLevelStreamingDelegates::OnLevelBeginMakingVisible.Remove(VisibleHandle);
+	if (UWorld* World = GetWorld()) World->OnWorldBeginPlay.Remove(BeginPlayHandle);
 	Super::Deinitialize();
 }
 
 void UForestShadowCacheSubsystem::SetCached(const bool bEnabled)
 {
 	bCached = bEnabled;
+	ApplyToLoadedLevels();
+}
+
+void UForestShadowCacheSubsystem::ApplyToLoadedLevels() const
+{
 	for (const ULevel* Level : GetWorld()->GetLevels()) Apply(Level);
 }
 

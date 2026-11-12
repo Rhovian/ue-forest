@@ -28,6 +28,7 @@ protected:
 	virtual bool DoesSupportWorldType(EWorldType::Type WorldType) const override;
 
 private:
+	void ApplyToLoadedLevels() const;
 	void OnLevelBeginMakingVisible(UWorld* World, const ULevelStreaming* Streaming, ULevel* Level);
 	void Apply(const ULevel* Level) const;
 
@@ -36,5 +37,6 @@ private:
 	static constexpr float MaxRadius = 500.0f;
 
 	FDelegateHandle VisibleHandle;
+	FDelegateHandle BeginPlayHandle;
 	bool bCached = true;
 };
