@@ -131,7 +131,9 @@ class Run:
         try:
             self.wait = self.steps.pop(0)() or 0
         except Exception as error:  # noqa: BLE001 -- tear down PIE after any measurement failure
-            unreal.log_error(f"measure: {error!r}")
+            # Finish, so what was captured is kept, but leave error.txt: run.sh fails the run on it. Without it a
+            # screenshot lost after the last CSV, or a mistyped setting, ended as a successful run.
+            self.record_error(repr(error))
             self.steps = [self.finish]
 
     def build_scene(self):
@@ -161,11 +163,19 @@ class Run:
         console("Forest.Time 10")
         console("Forest.Pause")
 
-    def fail(self, message):
+    def record_error(self, message):
         unreal.log_error(f"measure: {message}")
-        with open(os.path.join(self.out, "error.txt"), "w") as f:
+        with open(os.path.join(self.out, "error.txt"), "a") as f:
             f.write(message + "\n")
+
+    def fail(self, message):
+        self.record_error(message)
         self.quit()
+
+    @staticmethod
+    def viewport_size():
+        size = unreal.WidgetLayoutLibrary.get_viewport_size(world())
+        return [round(size.x), round(size.y)]
 
     def run_commands(self):
         for command in self.commands:
@@ -271,7 +281,9 @@ class Run:
 
     def finish(self):
         manifest = {
-            "pie_window": RES,
+            # The window asked for, and the viewport it got: a window larger than the display is clamped (1680 x 876
+            # on the 1680 x 1050 display), and the frame times are of the viewport.
+            "pie_window": RES, "viewport": self.viewport_size(),
             "warmup_frames": WARMUP_FRAMES, "capture_frames": CAPTURE_FRAMES,
             "points": [p[0] for p in self.points],
             "cvars": {name: unreal.SystemLibrary.get_console_variable_float_value(name) for name in CVARS},
