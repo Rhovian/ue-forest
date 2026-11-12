@@ -27,7 +27,8 @@ class Hung(BaseHTTPRequestHandler):
                 self.wfile.flush()
                 time.sleep(0.2)
             return
-        reply = b"" if "id" not in body else json.dumps({"jsonrpc": "2.0", "id": 1, "result": {}}).encode()
+        result = {"content": [{"type": "text", "text": "done"}]} if body["method"] == "tools/call" else {}
+        reply = b"" if "id" not in body else json.dumps({"jsonrpc": "2.0", "id": 1, "result": result}).encode()
         self.send_response(200 if reply else 202)
         self.send_header("Content-Type", "application/json")
         self.send_header("Mcp-Session-Id", "test")
@@ -40,7 +41,7 @@ class Hung(BaseHTTPRequestHandler):
 
 
 class EditorMcpTimeoutTests(unittest.TestCase):
-    def editor_mcp(self, hang, timeout="1"):
+    def editor_mcp(self, hang, timeout="1", ok=False):
         server = ThreadingHTTPServer(("127.0.0.1", 0), Hung)
         server.hang, server.closing = hang, False
         threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -52,8 +53,11 @@ class EditorMcpTimeoutTests(unittest.TestCase):
         result = subprocess.run([EDITOR_MCP, "Toolset", "Tool", "{}"], check=False, env=env, capture_output=True,
                                 text=True, timeout=30)
         self.assertLess(time.monotonic() - start, 10)
-        self.assertNotEqual(result.returncode, 0)
-        return result.stderr
+        self.assertEqual(result.returncode == 0, ok, result.stderr)
+        return result.stdout if ok else result.stderr
+
+    def test_a_server_that_answers_every_request_completes(self):
+        self.assertEqual(self.editor_mcp(None, ok=True), "done\n")
 
     def test_each_request_on_a_trickling_server_times_out(self):
         for method in ("initialize", "notifications/initialized", "tools/call"):
