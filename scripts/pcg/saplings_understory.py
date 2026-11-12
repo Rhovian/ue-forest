@@ -59,9 +59,12 @@ STEEP = 30
 STEEP_SHARE = {"Ferns": 5}
 # The forest foot along the coast (#165): the gentle apron between a bluff and the sand stayed a bright continuous strip
 # with the general colonies alone (#188 review). An extra Foot patch, x the kind's base density, on ground FOOT
-# (low cm, high cm above the sea, reach cm from forest_foot.json's foot points).
-FOOT = (100, 400, 800)
-FOOT_SHARE = {"Ferns": 6}  # 3 (~38k ferns island-wide) still left the apron a bright band past ~30 m
+# (low cm, high cm above the floor material's shore height, reach cm from forest_foot.json's foot points). It starts
+# at the moss's lower edge: from 25 cm above it, the 3-5 m of moss nearest the sand stayed bare. It has no colony
+# noise: with it, at 6x, drifts bunched (10 per 10 m of foot) and left 20 m stretches with one. At 2x without,
+# ~1,800 drifts island-wide (30,700 points), 1-5 per 10 m of foot.
+FOOT = (5, 325, 800)
+FOOT_SHARE = {"Ferns": 2}
 SHAPES = 4  # drift outlines per kind; each variant's weight is split across them, so neighbouring drifts differ
 # Colony noise floor per kind (default 0.3, see `colonies` in main): a lower floor keeps more of the noise field, so
 # drifts touch into connected runs instead of separate patches (#101: "still just patches in the interior").
@@ -310,7 +313,8 @@ def main():
     from deadwood_rocks import filter_graph
     plain = filter_graph("PCG_PlantsAboveShore", fade=PLANT_FADE)
     damp = damp_filter() if args.group == "understory" else None
-    foot = foot_graph("PCG_UnderstoryFoot", *FOOT) if args.group == "understory" else None
+    foot = foot_graph("PCG_UnderstoryFoot", shore_height() + FOOT[0], shore_height() + FOOT[1], FOOT[2]
+                      ) if args.group == "understory" else None
     banks = [(band, bank_filter(band, inner, outer), shares) for band, inner, outer, shares in BANKS
              ] if args.group == "understory" else []
     entries = []
@@ -344,9 +348,9 @@ def main():
             doubles, bools = colonies if damp is not None else (None, None)
             if doubles and kind in COLONY_LOW:
                 doubles = {**doubles, "SpatialDensityLow": COLONY_LOW[kind]}
-            if patch == "Canopy":
+            if patch in ("Canopy", "Foot"):
                 doubles, bools = {"SpatialDensityLow": 1.0}, {"EnableSpatialNoise": False}
-            elif patch.startswith("Bank") or patch == "Foot":  # the colony noise still breaks it into runs, keeping more
+            elif patch.startswith("Bank"):  # the colony noise still breaks it into runs, keeping more
                 doubles = {**doubles, "SpatialDensityLow": 0.0}
             elif patch == "Steep":  # SlopeMaskHigh below 1 keeps only ground steeper than STEEP
                 doubles = {**doubles, "SpatialDensityLow": 0.0, "SlopeMaskHigh": math.cos(math.radians(STEEP))}

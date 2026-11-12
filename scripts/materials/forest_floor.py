@@ -43,6 +43,13 @@ SCALARS = {  # world units are cm; sea level is Z 0
     # of it from the patch texture, flat moss blotches lay metres out on the sand like stickers (#165).
     "ShoreWidth": 250.0,
     "ShorePatchShare": 0.4,  # share of that width from the moss-patch texture: ragged edges, sand pockets in moss
+    # cm inland, horizontally, that tongues of sand reach past the shore line, where the tongue noise passes TongueLow
+    # (full at TongueHigh). Below a coastal bluff the mossy apron between the bank and the sand read as one continuous
+    # bright strip from above, however many ferns stood on it (#188 review): the tongues cut it into stretches.
+    "TongueWidth": 500.0,
+    "TongueRise": 160.0,  # cm above the shore line at most: uncapped, the width carried sand metres up a 60 deg bluff face
+    "TongueLow": 0.42,
+    "TongueHigh": 0.57,
     "SlopeMin": 0.05,  # the slope assumed on flat ground, so the interleave still has a width there
     "SlopeMax": 2.0,
     "LitterWidth": 400.0,  # cm out onto the sand that beech litter mixes in
@@ -80,6 +87,7 @@ MOSS_VARIANT_NOISE_CM = matgraph.FLOOR_VARIANT_NOISE_CM
 MOSS_NOISE_CM = 2000.0  # feature size of the noise that places moss
 MACRO_NOISE_CM = matgraph.FLOOR_MACRO_NOISE_CM
 SHORE_NOISE_CM = 350.0  # feature size of the shore line's tongues and islands
+TONGUE_NOISE_CM = 1200.0  # feature size of the sand tongues that reach inland (TongueWidth)
 LITTER_NOISE_CM = 120.0  # feature size of the litter patches on sand
 # Groundcover (#100): ankle-high tufts and rosettes (biome_variants.GROUNDCOVER_VARIANTS, #98) as Landscape Grass, which
 # spawns only around the camera. As PCG children the density that reads as a continuous layer (~15/m2 in the #98
@@ -236,11 +244,18 @@ def build():
     rise = g.wire(unreal.MaterialExpressionMultiply, 5, {"A": p["ShoreWidth"], "B": tangent})
     one = g.node(unreal.MaterialExpressionConstant, 7, r=1.0)
     noise_share = g.wire(unreal.MaterialExpressionSubtract, 6, {"A": one, "B": p["ShorePatchShare"]})
+    tongue = g.wire(unreal.MaterialExpressionSmoothStep, 6, {"Min": p["TongueLow"], "Max": p["TongueHigh"],
+                                                             "Value": g.noise(7, TONGUE_NOISE_CM)})
+    tongue_rise = g.wire(unreal.MaterialExpressionMultiply, 5, {
+        "A": g.wire(unreal.MaterialExpressionMin, 6, {
+            "A": g.wire(unreal.MaterialExpressionMultiply, 6, {"A": p["TongueWidth"], "B": tangent}),
+            "B": p["TongueRise"]}),
+        "B": tongue})
     shore_z = g.wire(
         unreal.MaterialExpressionAdd,
         6,
         {
-            "A": z,
+            "A": g.wire(unreal.MaterialExpressionSubtract, 6, {"A": z, "B": tongue_rise}),
             "B": g.wire(
                 unreal.MaterialExpressionMultiply,
                 5,

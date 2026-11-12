@@ -70,7 +70,15 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   (#165). Change every graph that sets it (`fade_in()`, `PLANT_FADE`).
 - The general colonies are too sparse to break a sunlit apron: below a coastal bluff the 2-6 m of gentle ground before
   the sand stayed one bright strip with fading alone (#188 review). The ferns' Foot patch (`FOOT`, `FOOT_SHARE`, on
-  `foot_graph`, 6x the fern density; 3x was ~38k ferns island-wide) broke it near the camera; past ~40 m a thinner strip still reads.
+  `foot_graph`) fills it, but two things kept it from working at first. Its band began 25 cm above the floor
+  material's shore height (MI_ForestFloor `ShoreHeight` is 75 cm, not the script default of 150), so the 3-5 m of moss
+  nearest the sand got no ferns: trace the ground and read the instance before choosing a height band. And the shared
+  colony noise bunched the drifts, 10 per 10 m of foot in places and one per 10 m for 20 m elsewhere: a patch meant
+  to cover a narrow strip evenly takes no spatial noise (as the Canopy patch does).
+- Plants alone do not break a bright ground strip seen from above: with 1-5 fern drifts per 10 m on it, the sunlit
+  moss still read as one band from the bluff top. The floor material now sends sand tongues across it
+  (forest_floor.py `TongueWidth`, capped by `TongueRise`: a width alone becomes metres of height on a 60 deg face and
+  carried sand up the bluff).
 
 ## Counts do not scale smoothly
 
