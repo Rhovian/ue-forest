@@ -34,13 +34,15 @@ from saplings_understory import drift_points, openings_filter
 from trees_above_shore import shore_height, z_range
 
 # (x m, y m, radius m) per meadow stretch: the coastal meadow at the clearing view, and grassland on the north-west lobe.
-MEADOWS = [(190, -690, 70), (-815, 734, 70)]
+# The north-west stretch reaches 100 m (#229): at 70 m the open low ground between it and the sparse trees to the south
+# stayed forest-floor moss with nothing on it, which from the 40 m aerial was the empty lawn.
+MEADOWS = [(190, -690, 70), (-815, 734, 100)]
 TOP = 300  # cm above the sea: low coastal ground, below the forest understory (plants start at 2.25 m)
 ANCHORS_PER_HA = 2000  # anchor clumps; cheap island-wide, only the meadow ground keeps them
 PATCH = 40  # child clumps per anchor, spread over PATCH_RADIUS
 PATCH_RADIUS = 300  # cm
 # Heather (#82): violet drifts on the sunny meadow ground; anchors survive about as the logs do (~10%).
-HEATHER_PER_HA = 300  # drift anchors
+HEATHER_PER_HA = 600  # drift anchors; 300 left too few violet patches to read from the 40 m aerial (#229)
 HEATHER_DRIFT = (18, 450, 300)  # (plants, length cm, width cm) per drift
 # Coastal forest edge (#82): low ground in the open edge openings all round the island (canopy_gaps.py), at a lower
 # density with the template's spatial noise, so heather lies in separate patches, not a pink line.
