@@ -36,9 +36,9 @@ SPACING = 1000.0  # cm between trees
 RES = (1920, 1080)
 WARMUP_FRAMES = 300  # let Nanite streaming and Lumen settle at each point
 # A level point is captured only once it has settled (#212): World Partition reports its streaming complete and the
-# counts of actors, instanced mesh components and their instances have held for SETTLE_STABLE looks, SETTLE_LOOK_FRAMES
-# apart. Landscape grass arrives for many seconds: first as empty components, then as instances when each component's
-# asynchronous build is accepted. A point that has not settled by SETTLE_MAX_FRAMES fails the run; nothing is captured
+# counts of actors, instanced mesh components and their render instances have held for SETTLE_STABLE looks,
+# SETTLE_LOOK_FRAMES apart. Landscape grass arrives for many seconds: first as empty components, then as render
+# instances when each component's asynchronous build is accepted. A point that has not settled by SETTLE_MAX_FRAMES fails the run; nothing is captured
 # from a level that is still loading.
 SETTLE_LOOK_FRAMES = 60
 SETTLE_STABLE = 4
@@ -235,21 +235,17 @@ class Run:
                     if mesh:
                         yield component, mesh.get_path_name()
 
-    @staticmethod
-    def loaded():
-        """What streaming and the landscape's grass have brought in: (actors, instanced mesh components, instances)."""
-        actors = unreal.GameplayStatics.get_all_actors_of_class(world(), unreal.Actor)
-        components = [component for actor in actors
-                      for kind in (unreal.InstancedStaticMeshComponent, unreal.InstancedSkinnedMeshComponent)
-                      for component in actor.get_components_by_class(kind)]
-        return len(actors), len(components), sum(component.get_instance_count() for component in components)
-
     def settle(self, point, waited=WARMUP_FRAMES, seen=None, stable=0):
-        now = self.loaded()
+        # (actors, instanced mesh components, render instances); counted in C++ because a grass component's built
+        # instances are not in the instance count Python can read.
+        now = tuple(unreal.MeasureLibrary.count_loaded(world()))
         streamed = unreal.MeasureLibrary.is_streaming_completed(world())
         stable = stable + 1 if streamed and now == seen else 0
+        # Every look, so the manifest shows what was still arriving and when it stopped.
+        looks = self.settled.setdefault(point[0], {"looks": []})["looks"]
+        looks.append([waited, streamed, *now])
         if stable >= SETTLE_STABLE:
-            self.settled[point[0]] = {"frames": waited, "actors": now[0], "components": now[1], "instances": now[2]}
+            self.settled[point[0]].update(frames=waited, actors=now[0], components=now[1], render_instances=now[2])
             return 0
         if waited >= int(arg("MeasureSettleMax", SETTLE_MAX_FRAMES)):
             raise RuntimeError(f"{point[0]} had not settled after {waited} frames: streaming complete {streamed}, "
