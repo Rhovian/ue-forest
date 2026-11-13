@@ -113,6 +113,14 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   Measure walking as well as standing (`MEASURE_WALK=1`): Static on the landscape grass looked 1-3 ms better standing
   and was 5-7 ms worse walking on open ground, because the landscape keeps adding grass components and each one
   invalidates cached static pages (#222, dropped). The same point also reads differently by what was visited before it.
+  A walking figure is also not repeatable to better than about 7 ms: the same build read 57.2 and 64.0 ms on the high
+  point walk hours apart, differing only in the last third of the walk, where cells stream in (#212). Standing figures
+  repeat to about 0.5 ms once past the first point. And the first run after a mesh asset changes is not a measurement:
+  the meshes are still compiling and may not be drawn at all (#220).
+- Nanite Voxelize on static foliage was tried on all 197 placed meshes and dropped (#220): crowns of the static trees
+  go dark and bulky from 60 m, the hornbeams and static ferns gain nothing, and switching a mesh also saves its
+  material instances and makes the editor re-save every level actor that holds it on close. Compare far captures at
+  full size: at half size the dark crowns were not visible.
 
 ## Counts do not scale smoothly
 

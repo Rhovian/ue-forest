@@ -263,9 +263,13 @@ class Run:
         if not new and looks > 1:
             self.steps.insert(0, lambda: self.move_shot(point, suffix, looks - 1))
             return SHOT_FRAMES
-        if len(new) != 1:
-            raise RuntimeError(f"expected one new screenshot at {point[0]}, found {len(new)}")
-        shutil.move(new[0], os.path.join(self.out, f"{point[0]}_{suffix}.png"))
+        if not new:
+            raise RuntimeError(f"no screenshot appeared at {point[0]}")
+        # One command has produced two files (seen once, while new shaders were compiling); keep the last written.
+        new.sort(key=os.path.getmtime)
+        for extra in new[:-1]:
+            os.remove(extra)
+        shutil.move(new[-1], os.path.join(self.out, f"{point[0]}_{suffix}.png"))
         return SHOT_FRAMES  # let the file move and the hitch pass before the next step
 
     def view(self, point):
