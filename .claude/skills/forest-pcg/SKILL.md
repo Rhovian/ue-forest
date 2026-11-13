@@ -125,6 +125,14 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   go dark and bulky from 60 m, the hornbeams and static ferns gain nothing, and switching a mesh also saves its
   material instances and makes the editor re-save every level actor that holds it on close. Compare far captures at
   full size: at half size the dark crowns were not visible.
+- Driftwood (#230): a band of height cannot draw a wrack line. The broad north-west sand lies between 36 and 68 cm, so
+  40-70 cm took in all of it, and 54-72 cm with trunks above 45 cm left the low, narrow beach of the beach view with
+  no driftwood at all. Distance from the forest foot (`foot_graph`) does: a narrow beach is covered as before, a broad
+  flat keeps a line along its vegetation edge and bare sand beyond. Piles of one size at one spacing read as a pattern
+  from 40 m; `PILES` runs from 10 to 70 pieces.
+- When solids move (logs, trunks, rocks), the order is regenerate, `solid_keepout.py`, regenerate again. Computing the
+  keep-outs before the first regenerate uses the old positions, and the placement graphs it rewrites are real changes
+  to commit, not incidental re-saves.
 
 ## Counts do not scale smoothly
 
