@@ -34,6 +34,12 @@ LEVEL_ROUTE = [
 SPACING = 1000.0  # cm between trees
 RES = (1920, 1080)
 WARMUP_FRAMES = 300  # let Nanite streaming and Lumen settle at each point
+# A level point is captured only once it has settled (#212): World Partition reports its streaming complete and the
+# count of actors and instanced mesh components (landscape grass arrives as components for many seconds) has held for
+# SETTLE_STABLE looks, SETTLE_LOOK_FRAMES apart. After SETTLE_MAX_FRAMES it is captured anyway and marked unsettled.
+SETTLE_LOOK_FRAMES = 60
+SETTLE_STABLE = 4
+SETTLE_MAX_FRAMES = 6000
 CAPTURE_FRAMES = 600
 TRACE_DRAIN_FRAMES = 60  # after Trace.Stop, before the process exits
 SETTLE_FRAMES = 60  # after csvprofile stop, before the file is on disk
@@ -84,6 +90,7 @@ class Run:
         self.csv_dir = os.path.join(unreal.Paths.project_saved_dir(), "Profiling", "CSV")
         self.hide = [part for part in arg("MeasureHide", "").split(",") if part]
         self.hidden = {}
+        self.settled = {}
         self.settings = []
         self.changed = {}
         self.shots = "-MeasureShots" in unreal.SystemLibrary.get_command_line().split()
@@ -127,6 +134,8 @@ class Run:
         steps += [self.run_commands]
         for point in self.points:
             steps += [lambda p=point: self.view(p)]
+            if self.map:
+                steps += [lambda p=point: self.settle(p)]
             if self.hide:
                 steps += [lambda p=point: self.hide_meshes(p)]
             if self.settings:
@@ -222,6 +231,25 @@ class Run:
                     mesh = component.get_editor_property(asset)
                     if mesh:
                         yield component, mesh.get_path_name()
+
+    @staticmethod
+    def loaded():
+        """What streaming and the landscape's grass have brought in: (actors, instanced mesh components)."""
+        actors = unreal.GameplayStatics.get_all_actors_of_class(world(), unreal.Actor)
+        components = sum(len(actor.get_components_by_class(unreal.InstancedStaticMeshComponent))
+                         + len(actor.get_components_by_class(unreal.InstancedSkinnedMeshComponent)) for actor in actors)
+        return len(actors), components
+
+    def settle(self, point, waited=WARMUP_FRAMES, seen=None, stable=0):
+        now = self.loaded()
+        streamed = unreal.MeasureLibrary.is_streaming_completed(world())
+        stable = stable + 1 if streamed and now == seen else 0
+        if stable >= SETTLE_STABLE or waited >= SETTLE_MAX_FRAMES:
+            self.settled[point[0]] = {"frames": waited, "settled": stable >= SETTLE_STABLE,
+                                      "actors": now[0], "components": now[1]}
+            return 0
+        self.steps.insert(0, lambda: self.settle(point, waited + SETTLE_LOOK_FRAMES, now, stable))
+        return SETTLE_LOOK_FRAMES
 
     def hide_meshes(self, point):
         # Streaming brings components in per point, so this runs at each one, after its warm-up.
@@ -323,7 +351,7 @@ class Run:
             "pie_window": RES, "viewport": self.viewport_size(),
             "warmup_frames": WARMUP_FRAMES, "capture_frames": CAPTURE_FRAMES,
             "points": [name for p in self.points for name in ([p[0], f"{p[0]}_walk"] if self.walks and self.map else [p[0]])],
-            "walk_seconds": WALK_SECONDS, "walked_m": self.walked,
+            "walk_seconds": WALK_SECONDS, "walked_m": self.walked, "settled": self.settled,
             "cvars": {name: unreal.SystemLibrary.get_console_variable_float_value(name) for name in CVARS},
             "commands": self.commands, "hide": self.hide, "hidden_instances": self.hidden, "shots": self.shots,
             "set": [f"{part}:{name}={value}" for part, name, value in self.settings], "set_instances": self.changed,

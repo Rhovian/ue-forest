@@ -45,6 +45,23 @@ class SummarizeTests(unittest.TestCase):
             with self.subTest(point=point):
                 self.assertIn(f"| {point} | {cells} |", result.stdout.splitlines())
 
+    def test_a_point_captured_unsettled_is_marked(self):
+        rows = "FrameTime,GPUTime\n12,2\n14,2\n[HasHeaderRowAtEnd],0\n"
+        settled = {"waited": {"frames": 6000, "settled": False}, "calm": {"frames": 540, "settled": True}}
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp)
+            (run / "manifest.json").write_text(json.dumps(
+                {"map": "test", "cvars": {}, "points": ["waited", "calm", "calm_walk"], "settled": settled}))
+            for point in ("waited", "calm", "calm_walk"):
+                (run / f"{point}.csv").write_text(rows)
+            result = subprocess.run([sys.executable, str(Path(__file__).with_name("summarize.py")), tmp],
+                                    capture_output=True, text=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        lines = result.stdout.splitlines()
+        self.assertTrue(any(line.startswith("| waited | 2 / 2 (not settled) |") for line in lines), result.stdout)
+        self.assertTrue(any(line.startswith("| calm | 2 / 2 |") for line in lines), result.stdout)
+        self.assertTrue(any(line.startswith("| calm_walk | 2 / 2 |") for line in lines), result.stdout)
+
     def test_row_wider_than_available_header_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             run = Path(tmp)
