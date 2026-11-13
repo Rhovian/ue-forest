@@ -60,9 +60,6 @@ def main(run):
         count = f"{len(rows)} / {len(captured)}"
         if len(rows) * 2 < len(captured):
             count += " (under half rendered)"
-        # Captured after the settle limit with the level still streaming in or growing grass (#212).
-        if manifest.get("settled", {}).get(point, {}).get("settled") is False:
-            count += " (not settled)"
         print(f"| {point} | {count} | " + " | ".join(cells) + " |")
 
 

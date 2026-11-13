@@ -11,6 +11,7 @@
 #       the value is a Python literal or the name of a constant of the property's enum
 #   -MeasureWalk  after each point's capture, walk the pawn forward along the point's yaw for WALK_SECONDS and capture
 #       that as <point>_walk: standing still hides what streaming, grass and shadow caches cost in motion
+#   -MeasureSettleMax=6000  frames a level point may take to settle before the run fails
 #   -MeasureShots  save a screenshot of the PIE view before and after each point's capture, as <point>_a.png and _b.png
 import ast
 import glob
@@ -35,11 +36,13 @@ SPACING = 1000.0  # cm between trees
 RES = (1920, 1080)
 WARMUP_FRAMES = 300  # let Nanite streaming and Lumen settle at each point
 # A level point is captured only once it has settled (#212): World Partition reports its streaming complete and the
-# count of actors and instanced mesh components (landscape grass arrives as components for many seconds) has held for
-# SETTLE_STABLE looks, SETTLE_LOOK_FRAMES apart. After SETTLE_MAX_FRAMES it is captured anyway and marked unsettled.
+# counts of actors, instanced mesh components and their instances have held for SETTLE_STABLE looks, SETTLE_LOOK_FRAMES
+# apart. Landscape grass arrives for many seconds: first as empty components, then as instances when each component's
+# asynchronous build is accepted. A point that has not settled by SETTLE_MAX_FRAMES fails the run; nothing is captured
+# from a level that is still loading.
 SETTLE_LOOK_FRAMES = 60
 SETTLE_STABLE = 4
-SETTLE_MAX_FRAMES = 6000
+SETTLE_MAX_FRAMES = 6000  # -MeasureSettleMax=<frames> overrides it
 CAPTURE_FRAMES = 600
 TRACE_DRAIN_FRAMES = 60  # after Trace.Stop, before the process exits
 SETTLE_FRAMES = 60  # after csvprofile stop, before the file is on disk
@@ -234,20 +237,23 @@ class Run:
 
     @staticmethod
     def loaded():
-        """What streaming and the landscape's grass have brought in: (actors, instanced mesh components)."""
+        """What streaming and the landscape's grass have brought in: (actors, instanced mesh components, instances)."""
         actors = unreal.GameplayStatics.get_all_actors_of_class(world(), unreal.Actor)
-        components = sum(len(actor.get_components_by_class(unreal.InstancedStaticMeshComponent))
-                         + len(actor.get_components_by_class(unreal.InstancedSkinnedMeshComponent)) for actor in actors)
-        return len(actors), components
+        components = [component for actor in actors
+                      for kind in (unreal.InstancedStaticMeshComponent, unreal.InstancedSkinnedMeshComponent)
+                      for component in actor.get_components_by_class(kind)]
+        return len(actors), len(components), sum(component.get_instance_count() for component in components)
 
     def settle(self, point, waited=WARMUP_FRAMES, seen=None, stable=0):
         now = self.loaded()
         streamed = unreal.MeasureLibrary.is_streaming_completed(world())
         stable = stable + 1 if streamed and now == seen else 0
-        if stable >= SETTLE_STABLE or waited >= SETTLE_MAX_FRAMES:
-            self.settled[point[0]] = {"frames": waited, "settled": stable >= SETTLE_STABLE,
-                                      "actors": now[0], "components": now[1]}
+        if stable >= SETTLE_STABLE:
+            self.settled[point[0]] = {"frames": waited, "actors": now[0], "components": now[1], "instances": now[2]}
             return 0
+        if waited >= int(arg("MeasureSettleMax", SETTLE_MAX_FRAMES)):
+            raise RuntimeError(f"{point[0]} had not settled after {waited} frames: streaming complete {streamed}, "
+                               f"actors, components, instances {now}")
         self.steps.insert(0, lambda: self.settle(point, waited + SETTLE_LOOK_FRAMES, now, stable))
         return SETTLE_LOOK_FRAMES
 
