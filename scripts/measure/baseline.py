@@ -11,6 +11,7 @@
 #       the value is a Python literal or the name of a constant of the property's enum
 #   -MeasureWalk  after each point's capture, walk the pawn forward along the point's yaw for WALK_SECONDS and capture
 #       that as <point>_walk: standing still hides what streaming, grass and shadow caches cost in motion
+#   -MeasureSettleMax=6000  frames a level point may take to settle before the run fails
 #   -MeasureShots  save a screenshot of the PIE view before and after each point's capture, as <point>_a.png and _b.png
 import ast
 import glob
@@ -34,6 +35,14 @@ LEVEL_ROUTE = [
 SPACING = 1000.0  # cm between trees
 RES = (1920, 1080)
 WARMUP_FRAMES = 300  # let Nanite streaming and Lumen settle at each point
+# A level point is captured only once it has settled (#212): World Partition reports its streaming complete and the
+# counts of actors, instanced mesh components and their render instances have held for SETTLE_STABLE looks,
+# SETTLE_LOOK_FRAMES apart. Landscape grass arrives for many seconds: first as empty components, then as render
+# instances when each component's asynchronous build is accepted. A point that has not settled by SETTLE_MAX_FRAMES fails the run; nothing is captured
+# from a level that is still loading.
+SETTLE_LOOK_FRAMES = 60
+SETTLE_STABLE = 4
+SETTLE_MAX_FRAMES = 6000  # -MeasureSettleMax=<frames> overrides it
 CAPTURE_FRAMES = 600
 TRACE_DRAIN_FRAMES = 60  # after Trace.Stop, before the process exits
 SETTLE_FRAMES = 60  # after csvprofile stop, before the file is on disk
@@ -84,6 +93,7 @@ class Run:
         self.csv_dir = os.path.join(unreal.Paths.project_saved_dir(), "Profiling", "CSV")
         self.hide = [part for part in arg("MeasureHide", "").split(",") if part]
         self.hidden = {}
+        self.settled = {}
         self.settings = []
         self.changed = {}
         self.shots = "-MeasureShots" in unreal.SystemLibrary.get_command_line().split()
@@ -127,6 +137,8 @@ class Run:
         steps += [self.run_commands]
         for point in self.points:
             steps += [lambda p=point: self.view(p)]
+            if self.map:
+                steps += [lambda p=point: self.settle(p)]
             if self.hide:
                 steps += [lambda p=point: self.hide_meshes(p)]
             if self.settings:
@@ -222,6 +234,24 @@ class Run:
                     mesh = component.get_editor_property(asset)
                     if mesh:
                         yield component, mesh.get_path_name()
+
+    def settle(self, point, waited=WARMUP_FRAMES, seen=None, stable=0):
+        # (actors, instanced mesh components, render instances); counted in C++ because a grass component's built
+        # instances are not in the instance count Python can read.
+        now = tuple(unreal.MeasureLibrary.count_loaded(world()))
+        streamed = unreal.MeasureLibrary.is_streaming_completed(world())
+        stable = stable + 1 if streamed and now == seen else 0
+        # Every look, so the manifest shows what was still arriving and when it stopped.
+        looks = self.settled.setdefault(point[0], {"looks": []})["looks"]
+        looks.append([waited, streamed, *now])
+        if stable >= SETTLE_STABLE:
+            self.settled[point[0]].update(frames=waited, actors=now[0], components=now[1], render_instances=now[2])
+            return 0
+        if waited >= int(arg("MeasureSettleMax", SETTLE_MAX_FRAMES)):
+            raise RuntimeError(f"{point[0]} had not settled after {waited} frames: streaming complete {streamed}, "
+                               f"actors, components, instances {now}")
+        self.steps.insert(0, lambda: self.settle(point, waited + SETTLE_LOOK_FRAMES, now, stable))
+        return SETTLE_LOOK_FRAMES
 
     def hide_meshes(self, point):
         # Streaming brings components in per point, so this runs at each one, after its warm-up.
@@ -323,7 +353,7 @@ class Run:
             "pie_window": RES, "viewport": self.viewport_size(),
             "warmup_frames": WARMUP_FRAMES, "capture_frames": CAPTURE_FRAMES,
             "points": [name for p in self.points for name in ([p[0], f"{p[0]}_walk"] if self.walks and self.map else [p[0]])],
-            "walk_seconds": WALK_SECONDS, "walked_m": self.walked,
+            "walk_seconds": WALK_SECONDS, "walked_m": self.walked, "settled": self.settled,
             "cvars": {name: unreal.SystemLibrary.get_console_variable_float_value(name) for name in CVARS},
             "commands": self.commands, "hide": self.hide, "hidden_instances": self.hidden, "shots": self.shots,
             "set": [f"{part}:{name}={value}" for part, name, value in self.settings], "set_instances": self.changed,

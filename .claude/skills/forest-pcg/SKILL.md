@@ -116,7 +116,9 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   A walking figure also depends on what the run loaded before the walk: the same build read 57.2 ms on the high point
   walk in a five-point run and 64.0 ms in a two-point run, the same for the first half of the walk and apart from then
   on, where cells stream in (#212). Compare walks only between runs with the same points in the same order; how well
-  such runs repeat has not been measured. Standing figures repeat to about 0.5 ms once past the first point. And the
+  such runs repeat has not been measured. Standing figures repeat to about 0.5 ms in any order of points, now that
+  the harness waits for streaming and the grass to settle before each capture (#212; before it, the first point read
+  up to 12 ms high). And the
   first run after a mesh asset changes is not a measurement: the meshes are still compiling and may not be drawn at
   all (#220).
 - Nanite Voxelize on static foliage was tried on all 197 placed meshes and dropped (#220): crowns of the static trees

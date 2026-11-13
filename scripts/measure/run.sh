@@ -11,6 +11,7 @@
 #       instanced mesh components whose asset path contains the part before the colon
 #   MEASURE_TRACE=0   no Unreal Insights trace (about 300 MB a run)
 #   MEASURE_WALK=1   after each point, walk forward for 30 s and capture that as <point>_walk
+#   MEASURE_SETTLE_MAX=6000   frames a point may take to settle before the run fails
 #   MEASURE_SHOTS=1   a screenshot of the PIE view before and after each point's capture (<point>_a.png, _b.png)
 set -euo pipefail
 
@@ -45,6 +46,10 @@ out=$(cd "$out" && pwd)
 [[ -z "${MEASURE_HIDE:-}" ]] || measure_args+=(-MeasureHide="$MEASURE_HIDE")
 [[ -z "${MEASURE_SET:-}" ]] || measure_args+=(-MeasureSet="$MEASURE_SET")
 [[ "${MEASURE_SHOTS:-0}" != 1 ]] || measure_args+=(-MeasureShots)
+if [[ -n "${MEASURE_SETTLE_MAX:-}" ]]; then
+  [[ "$MEASURE_SETTLE_MAX" =~ ^[0-9]+$ ]] || { echo "MEASURE_SETTLE_MAX must be a number of frames" >&2; exit 2; }
+  measure_args+=(-MeasureSettleMax="$MEASURE_SETTLE_MAX")
+fi
 [[ "${MEASURE_WALK:-0}" != 1 ]] || measure_args+=(-MeasureWalk)
 trace_args=(-trace=cpu,frame,gpu,bookmark,loadtime,file -tracefile="$out/trace.utrace")
 [[ "${MEASURE_TRACE:-1}" != 0 ]] || trace_args=()
