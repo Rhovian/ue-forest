@@ -1,13 +1,15 @@
 # editor-py: fresh-siblings
-"""Build the Forest Biome Debris group: driftwood scattered over the beach (#38).
+"""Build the Forest Biome Debris group: driftwood on the beach (#38, #230).
 
     scripts/editor-py scripts/pcg/debris_band.py
 
-Operator ruling (#38): some driftwood is fine, a distinct line between sand and forest is not. So debris is scattered
-over the whole beach sand (SAND_FROM up to the shore height), not banded by distance from the forest foot. Small
-pieces (DRIFTWOOD_VARIANTS) lie in small piles, each placed stick the anchor of PILE more around it (now and then a
-weathered log among them), with bare sand between piles; large trunks (LOG_VARIANTS with a
-bleached, moss-free child of each log's material; MossAmount 0 is bare, moss_coating.py) lie apart. Saves assets and attaches the group; the lead regenerates Core and saves the level.
+Operator ruling (#38): some driftwood is fine, a distinct line between sand and forest is not. Operator decision
+(#167): seen from above, driftwood lies in irregular clusters along a wrack line, with bare sand between. So debris
+lies on the beach sand (SAND_FROM up to the shore height) within reach of the forest foot, broken up, not as a
+continuous band: small pieces (DRIFTWOOD_VARIANTS) in piles of uneven size (PILES), each placed stick the anchor of
+more around it (now and then a weathered log among them), with bare sand between piles; large trunks (LOG_VARIANTS
+with a bleached, moss-free child of each log's material; MossAmount 0 is bare, moss_coating.py) lie apart, a little
+further out. Saves assets and attaches the group; the lead regenerates Core and saves the level.
 """
 
 import importlib
@@ -38,7 +40,7 @@ SAND_FROM = 3  # cm above the sea
 # Candidates/ha, without spatial noise, so counts scale with density: trunks 12 -> 4, 60 -> 21, 800 -> 266 island-wide.
 # At 12/ha (4 trunks) the beach read as bare sand with twigs (operator: "dont see any driftwood on the sand at all").
 # A generator samples the whole biome volume for this thin strip of sand: five stick generators at 2,500/ha each passed
-# the 60 GB regenerate limit, so the count comes from children (PILE per anchor), which cost no volume sampling.
+# the 60 GB regenerate limit, so the count comes from children (PILES per anchor), which cost no volume sampling.
 # One generator for all anchors (#92 review) did not behave like five sparse ones: at 5,000/ha logs walled the beach,
 # at 2,000/ha the beach view was bare with ~9,300 anchors island-wide and almost no children spawned. Hence one
 # generator per anchor variant, densities nudged 5% apart (equal densities share every point, deadwood_rocks.py).
