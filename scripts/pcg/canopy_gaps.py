@@ -120,9 +120,9 @@ def envelope(heights):
 
 
 def generated_locations(tag):
-    """Unique exact XYZ in metres across loaded components, preserving first-seen order.
+    """Unique root XYZ in metres across loaded components, preserving first-seen order.
 
-    The C++ hook deduplicates within one component; dict.fromkeys also removes overlap between components.
+    The C++ hook selects roots and deduplicates within one component; dict.fromkeys removes overlap between components.
     """
     return list(dict.fromkeys((p.x / 100, p.y / 100, p.z / 100)
                              for actor in unreal.EditorLevelLibrary.get_all_level_actors()

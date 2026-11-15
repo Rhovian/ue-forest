@@ -209,15 +209,16 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
 
 ## Verification
 
-- Generated points are readable with `unreal.ForestPCGLibrary.get_generated_point_locations(component, "GEN:<group>")`;
+- Root locations are readable with `unreal.ForestPCGLibrary.get_generated_point_locations(component, "GEN:<group>")`;
   skinned instances (trees, saplings, anemones) are GPU-only and their transforms are not readable from Python.
-  The points include each anchor's children: a heather drift is 19 points (anchor plus 18 plants), so 1,510 points were
-  ~79 drifts, not 1,510 (#165). Divide by the children per anchor before judging spacing.
-- Core's `GeneratedPoints` can contain distinct point-data objects with overlapping positions (#196): veterans had
-  76 + 76 points, Trees 6,822 + 1,382, ShoreTrees 4 + 4; concatenating these inflated counts. UE 5.8 stores each tagged
-  output separately, so deduplicating data-object pointers is insufficient. `get_generated_point_locations` now returns
-  unique exact XYZ per component; canopy_gaps.py also deduplicates across components. Children at different locations
-  still count: these are unique positions, not a mesh instance count.
+  The hook returns unique exact XYZ from `Root` outputs only, in first-seen order; canopy_gaps.py also deduplicates
+  across components. Do not divide this hook's count by the children per anchor: children are excluded.
+- Biome Core's raw `GeneratedPoints` includes `Root` and `Child` arrays sharing the parent's `GEN:` tag (#196,
+  confirmed by the editor tags probe): veterans had 76 roots + 76 children, Trees 6,822 + 1,382, ShoreTrees 4 + 4.
+  Moss/ivy children sit at their host's transform (`shell_layout` / `ivy_layout`), causing the apparent doubling.
+  Deduplicating XYZ alone hides those children but still counts offset children as trunks: filter for `Root` first.
+  A raw heather drift has 19 points (anchor plus 18 plants), so the historical raw count of 1,510 was ~79 drifts
+  (#165); the root-only hook now counts drift anchors directly. Count mesh instances separately when needed.
 - Edits through the editor's MCP toolsets (Niagara stack inputs, for example) change the loaded asset only: save it
   (`unreal.EditorAssetLibrary.save_loaded_asset`) and check `git status` shows it before committing.
 - Revert resaved graphs with `git checkout` only while the editor is closed: a loaded package reads its file lazily,
