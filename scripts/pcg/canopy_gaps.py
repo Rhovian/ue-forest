@@ -119,15 +119,22 @@ def envelope(heights):
     return math.floor(min(heights) * 10) / 10, math.ceil(max(heights) * 10) / 10
 
 
+def generated_locations(tag):
+    """Unique root XYZ in metres across loaded components, preserving first-seen order.
+
+    The C++ hook selects roots and deduplicates within one component; dict.fromkeys removes overlap between components.
+    """
+    return list(dict.fromkeys((p.x / 100, p.y / 100, p.z / 100)
+                             for actor in unreal.EditorLevelLibrary.get_all_level_actors()
+                             for component in actor.get_components_by_class(unreal.PCGComponent)
+                             for p in unreal.ForestPCGLibrary.get_generated_point_locations(component, tag)))
+
+
 def main():
-    trunks = [(p.x / 100, p.y / 100, p.z / 100) for actor in unreal.EditorLevelLibrary.get_all_level_actors()
-              for component in actor.get_components_by_class(unreal.PCGComponent)
-              for p in unreal.ForestPCGLibrary.get_generated_point_locations(component, "GEN:Trees")]
+    trunks = generated_locations("GEN:Trees")
     if not trunks:
         raise RuntimeError("No generated Trees points: load all cells and regenerate the biome first")
-    veterans = [(p.x / 100, p.y / 100, p.z / 100) for actor in unreal.EditorLevelLibrary.get_all_level_actors()
-                for component in actor.get_components_by_class(unreal.PCGComponent)
-                for p in unreal.ForestPCGLibrary.get_generated_point_locations(component, "GEN:Veterans")]
+    veterans = generated_locations("GEN:Veterans")
     trees = len(trunks)
     trunks = with_veterans(trunks, veterans)  # canopy from both tree roles (#96 review)
     exclusions = []
