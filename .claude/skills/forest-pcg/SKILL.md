@@ -94,6 +94,16 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   every real attempt, and treat a run of cancels as the level being at the limit, not as bad luck.
   The guard went from 60 to 70 GB for this (#198). That is the last raise on the 96 GB machine: content whose peak
   passes 60 GB is over budget even though the run completes, and the peak has to come down instead (#203).
+- Most of that spread was the reading (#203). The guard reads `ps` RSS, which leaves out compressed and swapped pages.
+  The editor's physical footprint (`footprint -p <pid>`, `vmmap --summary`) peaked at 72-75 GB in every full run
+  while RSS read 53-60 GB; the idle editor is ~28 GB. `footprint` files the heap under "IOAccelerator" (mimalloc's
+  8 MB segments): it is CPU memory. The peak is the unpartitioned Local stage (`PCG_LocalBiomeCore` on the volume,
+  0-116 s, 26 -> ~71 GB); the partitioned Core after it adds ~1 GB. Within Local it is the Understory: every other
+  group alone peaks at 29-32 GB. The 14 Bank generators cost ~11 GB for 2% of its instances, and HerbsBankNear
+  (~2.8M anchors island-wide) places nothing. Cache budget, periodic flushes, one PCG thread, mimalloc reset and the
+  system allocator each left the peak at 70-75 GB; `pcg.Cache.Editor.Enabled 0` crashes the editor (SIGSEGV in
+  FPCGDistanceElement), and a partitioned Local was slower and as high. Changing a group or generator list in
+  memory triggers an automatic refresh that the forced regenerate overlaps: only the first hump measures the change.
 - Frame time is a separate budget from generation, and nothing above guards it (#205, measured with
   `scripts/measure/run.sh`, whose `MEASURE_HIDE` and `MEASURE_CMDS` variants switch one thing off). Megaplants with wind
   are instanced skinned meshes whose components tick: the 365,000 wood anemone loaded at the interior point (528,000 in
