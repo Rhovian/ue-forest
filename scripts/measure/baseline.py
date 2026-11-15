@@ -31,6 +31,8 @@ LEVEL_ROUTE = [
     ("canopy_up", (486, -512, 22.8), (60, 0)),
     ("lake_shore", (800, -390, 14.3), (0, -48)),
     ("high_point", (606, -580, 37.5), (0, 136)),
+    # The north-west meadow (#229), last so the five points before it keep their history.
+    ("meadow", (-749, 695, 2.7), (0, 131)),
 ]  # name, location in metres (ground + 1.2 m), (pitch, yaw)
 SPACING = 1000.0  # cm between trees
 RES = (1920, 1080)

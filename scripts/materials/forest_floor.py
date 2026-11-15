@@ -148,6 +148,16 @@ WATERLINE_GAP_CM = 3000.0
 WATERLINE_GAPS = (0.45, 0.6)  # no stones where the gap noise is below the first value, all above the second
 SAND_LITTER_ABOVE_CM = 30.0  # cm above the sea over which sand litter fades in
 SAND_LITTER_NOISE_CM = 600.0  # feature size of the litter patches on the upper sand
+# Meadow ground (#229): the meadow stretches lay on the forest floor's moss, which from 40 m read as a lawn however many
+# plants stood on it. Their ground is now mottled: dry straw-coloured patches (the leaf litter, tinted) among darker
+# green (the moss, tinted), MEADOW_PATCH_CM across, with a finer brightness mottle over both. No grass ground scan is
+# installed; this is the fallback until one is (docs/art-direction.md).
+MEADOW_PATCH_CM = 900.0
+MEADOW_PATCH = (0.44, 0.56)  # noise range over which green turns to straw
+MEADOW_FINE_CM = 250.0
+MEADOW_FINE = (0.8, 1.2)  # brightness range of the fine mottle
+MEADOW_DRY_TINT = (2.1, 3.2, 3.8)  # the litter is orange-brown; this turns it to pale straw
+MEADOW_GREEN_TINT = (0.6, 0.8, 0.5)
 MEADOW_BLEND_CM = 1000.0  # the further layers fade out over this inside each meadow stretch's edge (meadow.MEADOWS)
 GRASS_NOISE_CM = 900.0  # feature size of the runs and openings
 # No groundcover in water or on the footpath: groundcover_mask.py's 1 m grid over the island's bounds (forest_foot.json).
@@ -569,6 +579,23 @@ def build():
     for name, (layer, _) in weights.items():
         if not mel.connect_material_expressions(layer, "", output, name):
             raise SystemExit(f"could not connect the {name} weight")
+
+    # Meadow ground (#229), over the floor's colour on the meadow stretches' low ground.
+    tints = {name: g.node(unreal.MaterialExpressionVectorParameter, 5, parameter_name=name,
+                          default_value=unreal.LinearColor(*value, 1.0))
+             for name, value in (("MeadowDryTint", MEADOW_DRY_TINT), ("MeadowGreenTint", MEADOW_GREEN_TINT))}
+    straw = g.wire(unreal.MaterialExpressionMultiply, 4, {"A": sets["Leaves"]["B"], "B": tints["MeadowDryTint"]})
+    green = g.wire(unreal.MaterialExpressionMultiply, 4, {"A": sets["Moss"]["B"], "B": tints["MeadowGreenTint"]})
+    patches = g.wire(unreal.MaterialExpressionSmoothStep, 4, {
+        "Min": const(MEADOW_PATCH[0]), "Max": const(MEADOW_PATCH[1]), "Value": g.noise(5, MEADOW_PATCH_CM)})
+    mottle = g.wire(lerp, 3, {"A": const(MEADOW_FINE[0]), "B": const(MEADOW_FINE[1]), "Alpha": g.noise(4, MEADOW_FINE_CM)})
+    meadow_color = g.wire(unreal.MaterialExpressionMultiply, 2, {
+        "A": g.wire(lerp, 3, {"A": green, "B": straw, "Alpha": patches}), "B": mottle})
+    # Not on the sand: a stretch's circle reaches out over the beach, and `low` only says below TOP.
+    on_meadow = g.wire(unreal.MaterialExpressionMultiply, 2, {
+        "A": g.wire(unreal.MaterialExpressionMultiply, 3, {"A": meadow, "B": low}),
+        "B": g.wire(unreal.MaterialExpressionOneMinus, 3, {"": sand_mask})})
+    color = g.wire(lerp, 1, {"A": color, "B": meadow_color, "Alpha": on_meadow})
 
     # The bed's own ground under the water, keeping some of the moss's green (#141).
     bed_uv = g.wire(unreal.MaterialExpressionDivide, 2, {"A": xy, "B": const(BED[1])})
