@@ -213,6 +213,10 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   skinned instances (trees, saplings, anemones) are GPU-only and their transforms are not readable from Python.
   The hook returns unique exact XYZ from `Root` outputs only, in first-seen order; canopy_gaps.py also deduplicates
   across components. Do not divide this hook's count by the children per anchor: children are excluded.
+  These are position counts, not an audit of coincident placements; count mesh instances for that.
+- The #196 loaded-level probe found `Root` / `RecursionLevel:-1` for all 61 `GEN:` tags, including childless
+  `DebrisTrunks`, `IvyDamp`, `IvyGaps`, `SaplingsCanopy`, `SaplingsGaps` and the three heather groups
+  (`EdgeHeather`, `MeadowHeather`, `SandHeather`); no output lacked both `Root` and `Child`.
 - Biome Core's raw `GeneratedPoints` includes `Root` and `Child` arrays sharing the parent's `GEN:` tag (#196,
   confirmed by the editor tags probe): veterans had 76 roots + 76 children, Trees 6,822 + 1,382, ShoreTrees 4 + 4.
   Moss/ivy children sit at their host's transform (`shell_layout` / `ivy_layout`), causing the apparent doubling.

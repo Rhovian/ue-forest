@@ -24,7 +24,6 @@ TArray<FVector> UForestPCGLibrary::GetGeneratedPointLocations(const UPCGComponen
 	}
 	// Biome Core emits Root and Child outputs under the same GEN tag (#196, editor tags probe).
 	// Children include moss at the host transform and can have offsets: only Root outputs are trunks.
-	// UE 5.8 PCGData.h::GetTaggedInputs filters a single tag; it does not union root positions.
 	TSet<FVector> Seen;
 	for (const FPCGTaggedData& Tagged : Component->GetGeneratedGraphOutput().TaggedData)
 	{
