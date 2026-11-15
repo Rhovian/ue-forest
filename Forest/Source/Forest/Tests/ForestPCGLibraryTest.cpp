@@ -1,4 +1,4 @@
-#include "ForestPCGLibrary.h"
+#include "../ForestPCGLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Data/PCGPointArrayData.h"
