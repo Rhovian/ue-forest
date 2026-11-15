@@ -213,8 +213,11 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   skinned instances (trees, saplings, anemones) are GPU-only and their transforms are not readable from Python.
   The points include each anchor's children: a heather drift is 19 points (anchor plus 18 plants), so 1,510 points were
   ~79 drifts, not 1,510 (#165). Divide by the children per anchor before judging spacing.
-- `get_generated_point_locations` can return each point twice from the one Core component (152 veteran points for 76
-  trees, #196): count unique positions, or count instances by mesh.
+- Core's `GeneratedPoints` can contain distinct point-data objects with overlapping positions (#196): veterans had
+  76 + 76 points, Trees 6,822 + 1,382, ShoreTrees 4 + 4; concatenating these inflated counts. UE 5.8 stores each tagged
+  output separately, so deduplicating data-object pointers is insufficient. `get_generated_point_locations` now returns
+  unique exact XYZ per component; canopy_gaps.py also deduplicates across components. Children at different locations
+  still count: these are unique positions, not a mesh instance count.
 - Edits through the editor's MCP toolsets (Niagara stack inputs, for example) change the loaded asset only: save it
   (`unreal.EditorAssetLibrary.save_loaded_asset`) and check `git status` shows it before committing.
 - Revert resaved graphs with `git checkout` only while the editor is closed: a loaded package reads its file lazily,

@@ -1,7 +1,9 @@
+import io
+import json
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 sys.modules.setdefault("unreal", MagicMock())
 sys.path.insert(0, str(Path(__file__).parent))
@@ -23,6 +25,29 @@ def forest(hole=None, size=120, spacing=4):
 
 
 class CanopyGapTests(unittest.TestCase):
+    def test_main_counts_unique_positions_across_components(self):
+        actor = MagicMock()
+        actor.tags = ["PCG_BiomeExclusion"]
+        actor.get_components_by_class.return_value = [MagicMock(), MagicMock()]
+        def point(x, z=1000):
+            return MagicMock(x=x, y=2000, z=z)
+
+        trees, veterans = [point(100), point(100), point(100.001), point(100, 1100)], [point(300)] * 2
+        api = canopy_gaps.unreal.ForestPCGLibrary.get_generated_point_locations
+        with (patch.object(canopy_gaps.unreal.EditorLevelLibrary, "get_all_level_actors", return_value=[actor]),
+              patch.object(api, "side_effect", lambda component, tag: trees if tag == "GEN:Trees" else veterans),
+              patch.object(canopy_gaps, "OUT") as output,
+              patch.object(canopy_gaps, "gaps", return_value=[]) as find_gaps,
+              patch.object(canopy_gaps.meadow, "shore_height", return_value=0),
+              patch("sys.stdout", new_callable=io.StringIO) as printed):
+            canopy_gaps.main()
+        saved = json.loads(output.write_text.call_args.args[0])
+        self.assertEqual((saved["trees"], saved["veterans"]), (3, 1))
+        self.assertIn("from 3 trees and 1 veterans", printed.getvalue())
+        unique_trees = [(1, 20, 10), (1.00001, 20, 10), (1, 20, 11)]
+        self.assertEqual(find_gaps.call_args_list[0].args[0],
+                         canopy_gaps.with_veterans(unique_trees, [(3, 20, 10)]))
+
     def test_closed_forest_has_no_gaps(self):
         self.assertEqual(canopy_gaps.gaps(forest(), [(0, 0)]), [])
 

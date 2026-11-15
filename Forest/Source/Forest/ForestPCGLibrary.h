@@ -18,7 +18,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Forest PCG")
 	static bool CancelAllPCGGeneration();
 
-	/** World locations of the points a PCG component generated under every output tagged Tag (Biome Core tags each
+	/** Unique world locations (exact XYZ, first-seen order) across all outputs tagged Tag (Biome Core tags each
 	 *  group's GeneratedPoints "GEN:<group>", e.g. "GEN:Trees"). Python cannot read PCG point data or GPU-only skinned
 	 *  instances; scripts/pcg/canopy_gaps.py finds canopy gaps from the trees' points. */
 	UFUNCTION(BlueprintCallable, Category = "Forest PCG")
