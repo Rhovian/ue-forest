@@ -33,7 +33,7 @@ UE 5.8 C++ project on one Mac, coordinated by Niles. Decisions behind these rule
 - Captures go to `Forest/Saved/Reviews/<issue>/<view>_{before,after}.png` (local, not committed) so any agent can read them.
 - Before a visible change is reported ready, a reviewer of another family compares the after captures with the references and their Targets. Reading PNGs is not using the editor, so any worker can do it.
 - Captures use the existing level and the existing time-of-day controls (`Forest.Time`, `Forest.Pause`); no separate test maps.
-- Where the gate on a visible change is the lead's own reading of captures, the change is not accepted until the operator has looked. The lead still captures, measures and gets the cross-family review, then leaves the PR open and the issue open. Parts that rebuild the same level assets are stacked, each branch on the last, and looked at together.
+- Where the gate on a visible change is the lead's own reading of captures, the change is not accepted until the operator has looked (operator, 2026-11-15). The lead captures, measures, gets the cross-family review and merges, then labels the issue `awaiting-look` and leaves it open; the operator looks at the live level on main, in the editor at the review poses, and closes or rules. What the operator rejects becomes a follow-up issue on its own branch. PRs are not held open or stacked for the look: the level's LFS assets cannot be merged across branches.
 
 ## Code changes
 
