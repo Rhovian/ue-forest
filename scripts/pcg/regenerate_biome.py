@@ -13,10 +13,10 @@ four approved fern/ivy material instances with UE-added shader usage flags.
 import argparse
 import builtins
 import contextlib
+import ctypes
 import io
 import json
 import os
-import subprocess
 import time
 import traceback
 
@@ -120,16 +120,21 @@ def dirty_allowed(loaded, world):
     return {p.get_name(): p for p in dirty if p.get_name() in allowed or p.get_name().startswith("/Game/ForestBiome/")}
 
 
-# A full regenerate peaks at 52-60 GB and sometimes more (#198), on a 96 GB machine; the 600,000/ha runaway went far
-# past this. Raised from 60, which cancelled about half the runs. Do not raise it again: bring the peak down (#203).
-MEMORY_LIMIT_GB = 70
+# Physical footprint, not resident memory: RSS leaves out compressed and swapped pages, and a run that reached a 317 GB
+# footprint never passed a 70 GB RSS limit (#203). A full regenerate's footprint peaks at 71-72 GB on a 96 GB machine;
+# 75 until #247 brings the peak down (operator, 2026-11-16).
+MEMORY_LIMIT_GB = 75
+RUSAGE_INFO_V4 = 4
+PHYS_FOOTPRINT = slice(72, 80)  # ri_phys_footprint in rusage_info_v4 (sys/resource.h), little-endian uint64
+LIBPROC = ctypes.CDLL("/usr/lib/libproc.dylib")
 
 
-def resident_gb():
-    """The editor process's current resident memory (ps reports kilobytes)."""
-    out = subprocess.run(["ps", "-o", "rss=", "-p", str(os.getpid())], check=False, capture_output=True,
-                         text=True, timeout=5).stdout
-    return int(out.strip() or 0) / 1e6
+def footprint_gb():
+    """The editor process's physical footprint, as `footprint -p` and Activity Monitor report it."""
+    buffer = ctypes.create_string_buffer(512)  # larger than rusage_info_v4; a struct too small for it segfaults
+    if LIBPROC.proc_pid_rusage(os.getpid(), RUSAGE_INFO_V4, buffer):
+        raise RuntimeError("proc_pid_rusage failed; cannot guard editor memory")
+    return int.from_bytes(buffer.raw[PHYS_FOOTPRINT], "little") / 2**30  # GiB, the unit footprint(1) prints
 
 
 class Regeneration:
@@ -238,8 +243,12 @@ class Regeneration:
             self.error = (f"Engine frame {frame} has not advanced for 10 s; likely a modal dialog "
                           "(such as unsaved changes). Dismiss it before retrying; nothing saved")
         now = time.monotonic()
-        if now - self.memory_at >= 2:  # ps is a process spawn; sample every 2 s, not every frame
-            self.memory_at, self.memory = now, resident_gb()
+        if now - self.memory_at >= 2:  # sample every 2 s, not every frame
+            self.memory_at = now
+            try:
+                self.memory = footprint_gb()
+            except RuntimeError as error:  # unguarded generation must not continue: cancel through the error path below
+                self.error = self.error or f"{error}; all PCG generation cancelled, nothing saved"
             self.peak = max(self.peak, self.memory)
         if not self.error and self.memory > MEMORY_LIMIT_GB:
             self.error = (f"Editor memory passed {MEMORY_LIMIT_GB} GB during generation; all PCG generation cancelled,"
