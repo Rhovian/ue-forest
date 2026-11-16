@@ -21,6 +21,7 @@ from pathlib import Path
 import unreal
 
 sys.path.insert(0, str(Path(unreal.Paths.project_dir()) / "../scripts/materials"))
+from beach_lift import lift_cm
 from groundcover_mask import CELL, bounds, import_texture
 
 NAME = "T_ScanSandMask"
@@ -76,7 +77,9 @@ def distances(sand, width, height):
 
 def main():
     x0, y0, width, height = bounds()
-    z = heights(x0, y0, width, height)
+    lift = lift_cm()  # beyond the beach strip the ground counts LIFT_CM higher (#240), as in the floor material
+    z = [h if h is None else h + lift(x0 + (k % width + 0.5) * CELL, y0 + (k // width + 0.5) * CELL)
+         for k, h in enumerate(heights(x0, y0, width, height))]
     sand = [h is None or h < SAND_BELOW_CM for h in z]  # no landscape: open sea
     pixels = bytearray(min(255, max(0, round(255 * (d * CELL - SETBACK_CM) / FADE_CM)))
                        for d in distances(sand, width, height))

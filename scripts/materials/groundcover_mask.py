@@ -66,13 +66,18 @@ def import_texture(pixels, width, height, name):
     folder = tempfile.mkdtemp()
     png = os.path.join(folder, name + ".png")
     write_png(png, pixels, width, height)
+    import_png(png, name)
+    os.remove(png)
+    os.rmdir(folder)
+
+
+def import_png(png, name):
+    """Import an 8-bit mask PNG as FOLDER/name: linear, clamped, no mips, saved."""
     task = unreal.AssetImportTask()
     for key, value in {"filename": png, "destination_path": FOLDER, "destination_name": name, "replace_existing": True,
                        "automated": True, "save": False}.items():
         task.set_editor_property(key, value)
     unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([task])
-    os.remove(png)
-    os.rmdir(folder)
     texture = unreal.load_asset(f"{FOLDER}/{name}")
     if texture is None:
         raise SystemExit("mask import failed")

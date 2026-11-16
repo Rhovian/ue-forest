@@ -16,6 +16,7 @@ import json
 import sys
 from pathlib import Path
 
+import beach_lift
 import matgraph
 import unreal
 
@@ -24,6 +25,7 @@ import biome_variants
 from meadow import MEADOWS, TOP
 
 importlib.reload(matgraph)  # the editor keeps imported modules between runs
+importlib.reload(beach_lift)
 mel = matgraph.mel
 Graph = matgraph.Graph
 
@@ -225,6 +227,16 @@ def build():
 
     world = g.node(unreal.MaterialExpressionWorldPosition, 9)
     xy, z = g.mask(world, 8, "rg"), g.mask(world, 8, "b")
+    # Beyond the beach strip the ground counts LIFT_CM higher for the shore and wet band (#240): the sand stays a strip
+    # by the sea on low flats. Texture sampling and the meadow's TOP keep the true height.
+    half = beach_lift.HALF_CM
+    lift_uv = g.wire(unreal.MaterialExpressionDivide, 7, {
+        "A": g.wire(unreal.MaterialExpressionAdd, 8, {"A": xy, "B": g.node(
+            unreal.MaterialExpressionConstant2Vector, 9, r=half, g=half)}),
+        "B": g.node(unreal.MaterialExpressionConstant2Vector, 8, r=2 * half, g=2 * half)})
+    land_z = g.wire(unreal.MaterialExpressionAdd, 7, {"A": z, "B": g.wire(unreal.MaterialExpressionMultiply, 7, {
+        "A": g.mask(g.sample(f"{FOLDER}/{beach_lift.NAME}", lift_uv, 7), 7, "r"),
+        "B": g.node(unreal.MaterialExpressionConstant, 8, r=float(beach_lift.LIFT_CM))})})
     vertex_normal = g.node(unreal.MaterialExpressionVertexNormalWS, 9)
     nz = g.mask(vertex_normal, 8, "b")
 
@@ -277,7 +289,7 @@ def build():
         unreal.MaterialExpressionAdd,
         6,
         {
-            "A": g.wire(unreal.MaterialExpressionSubtract, 6, {"A": z, "B": tongue_rise}),
+            "A": g.wire(unreal.MaterialExpressionSubtract, 6, {"A": land_z, "B": tongue_rise}),
             "B": g.wire(
                 unreal.MaterialExpressionMultiply,
                 5,
@@ -355,7 +367,7 @@ def build():
     moss_mask = g.wire(unreal.MaterialExpressionSaturate, 3, {"": moss_sum})
     macro = g.noise(6, MACRO_NOISE_CM)
     dryness = g.wire(
-        unreal.MaterialExpressionSmoothStep, 6, {"Min": p["WetBandTop"], "Max": p["ShoreHeight"], "Value": z}
+        unreal.MaterialExpressionSmoothStep, 6, {"Min": p["WetBandTop"], "Max": p["ShoreHeight"], "Value": land_z}
     )
     tint = g.wire(lerp, 5, {"A": p["WetDarkening"], "B": p["DryBrightening"], "Alpha": dryness})
     wet_rough = g.wire(
