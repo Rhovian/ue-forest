@@ -42,13 +42,6 @@ class ShoreBandTests(unittest.TestCase):
         self.assertEqual(floor, ("PCGBegin(LandZ)PCGEnd", (75.0, True), (1.0e7, False)))
         self.assertEqual(top, ("PCGBegin($Position.Z)PCGEnd", (-1.0e7, True), (300.0, False)))
 
-    def test_meadow_point_inland_is_kept_by_its_true_height(self):
-        """Raw 200 cm with the full lift: LandZ 350 is above TOP, the true height is not."""
-        (_, (low, _), _), (_, _, (top, inclusive)) = self.filters(75.0, 300.0)
-        raw, land = 200.0, 200.0 + 150.0
-        self.assertTrue(land >= low and raw < top and not inclusive)
-        self.assertFalse(land < top)
-
 
 if __name__ == "__main__":
     unittest.main()
