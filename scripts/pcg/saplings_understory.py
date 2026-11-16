@@ -36,7 +36,7 @@ from deadwood_rocks import (
     save,
 )
 from shore_path import LABEL
-from trees_above_shore import shore_height, z_range
+from trees_above_shore import land_z, shore_band, shore_height, z_range
 
 # Colonies (#71, lush-forest-placement.md §8.1): instead of single plants evenly spread, a sparse anchor carries a
 # drift of plants as ground-projected children, so plants read as masses with moss between. (count, length cm, width cm)
@@ -146,8 +146,8 @@ def openings_filter(name, key, low, high):
     for node in list(graph.get_editor_property("nodes")):
         if node not in (inp, out):
             graph.remove_node(node)
-    band = z_range(graph, low, high)
-    edge(graph, inp, "In", band, "In")
+    first, band = shore_band(graph, low, high)
+    edge(graph, land_z(graph, inp, "In"), "Out", first, "In")
     merge, _ = graph.add_node_of_type(unreal.PCGMergeSettings)
     for radius, centres in sorted(groups.items()):
         mark, settings = graph.add_node_of_type(unreal.PCGCreatePointsSettings)
@@ -228,7 +228,7 @@ def bank_filter(band, inner, outer):
         if node not in (inp, out):
             graph.remove_node(node)
     shore = z_range(graph, shore_height() + 150, 1.0e7)
-    edge(graph, inp, "In", shore, "In")
+    edge(graph, land_z(graph, inp, "In"), "Out", shore, "In")
     near, pin = water_near(graph, shore, "InsideFilter", outer, band_lower(inner, outer))
     edge(graph, near, pin, out, "Out")
     save(graph)
@@ -243,11 +243,11 @@ def damp_filter():
             graph.remove_node(node)
     floor = shore_height() + 150
     shore = z_range(graph, floor, 1.0e7)
-    edge(graph, inp, "In", shore, "In")
+    edge(graph, land_z(graph, inp, "In"), "Out", shore, "In")
     above = fade_in(graph, shore, "OutsideFilter", floor, PLANT_FADE)  # the same ragged lower edge as the Gaps (#165)
     edge(graph, shore, "InsideFilter", above, "In")
-    low = z_range(graph, shore_height(), 1200)
-    edge(graph, above, "Out", low, "In")
+    first, low = shore_band(graph, shore_height(), 1200)
+    edge(graph, above, "Out", first, "In")
     merge, _ = graph.add_node_of_type(unreal.PCGMergeSettings)
     edge(graph, low, "InsideFilter", merge, "In")
     near, pin = water_near(graph, low, "OutsideFilter", 3000)

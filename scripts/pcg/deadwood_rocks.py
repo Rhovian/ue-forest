@@ -19,7 +19,7 @@ import biome_variants
 import unreal
 from child_layouts import along_sides, along_top, base_ring, build_points_graph, surface_hits
 from long_log_keepout import water_keepout
-from trees_above_shore import shore_height, z_range
+from trees_above_shore import land_z, shore_height, z_range
 
 ROOT = "/Game/ForestBiome/"
 VARIANTS = importlib.reload(biome_variants)  # pick up one-line palette edits in the running editor
@@ -111,7 +111,7 @@ def foot_graph(name, low, high, reach):
         if node not in (inp, out):
             graph.remove_node(node)
     band = z_range(graph, low, high)
-    edge(graph, inp, "In", band, "In")
+    edge(graph, land_z(graph, inp, "In"), "Out", band, "In")
     mark, settings = graph.add_node_of_type(unreal.PCGCreatePointsSettings)
     points = []
     for x, y in foot["points_m"]:
@@ -147,7 +147,7 @@ def filter_graph(name, reach=0, slope=0, sink=None, fade=None):
             graph.remove_node(node)
     floor = shore_height() + 150 + reach * math.sin(math.radians(slope))
     band = z_range(graph, floor, 1.0e7)
-    edge(graph, inp, "In", band, "In")
+    edge(graph, land_z(graph, inp, "In"), "Out", band, "In")
     last, pin = band, "InsideFilter"
     if fade:
         merge = fade_in(graph, band, "OutsideFilter", floor, fade)
