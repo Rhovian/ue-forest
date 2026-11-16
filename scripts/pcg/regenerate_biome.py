@@ -244,7 +244,11 @@ class Regeneration:
                           "(such as unsaved changes). Dismiss it before retrying; nothing saved")
         now = time.monotonic()
         if now - self.memory_at >= 2:  # sample every 2 s, not every frame
-            self.memory_at, self.memory = now, footprint_gb()
+            self.memory_at = now
+            try:
+                self.memory = footprint_gb()
+            except RuntimeError as error:  # unguarded generation must not continue: cancel through the error path below
+                self.error = self.error or f"{error}; all PCG generation cancelled, nothing saved"
             self.peak = max(self.peak, self.memory)
         if not self.error and self.memory > MEMORY_LIMIT_GB:
             self.error = (f"Editor memory passed {MEMORY_LIMIT_GB} GB during generation; all PCG generation cancelled,"
