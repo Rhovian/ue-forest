@@ -7,6 +7,9 @@ footprint, one for the vertex interpolation (a 2 m cell is one vertex step).
 """
 
 import math
+import struct
+import zlib
+from pathlib import Path
 
 DILATE = 2
 
@@ -56,3 +59,36 @@ def bilinear(pixels, width, height, x, y):
     top = at(i, j) * (1 - tx) + at(i + 1, j) * tx
     bottom = at(i, j + 1) * (1 - tx) + at(i + 1, j + 1) * tx
     return top * (1 - ty) + bottom * ty
+
+
+def read_gray(path):
+    """(width, height, pixels) of an 8-bit grayscale PNG, rows top to bottom, undoing the per-row filters
+    (PNG spec 9.2)."""
+    data = Path(path).read_bytes()
+    width, height, depth, colour = struct.unpack(">IIBB", data[16:26])
+    if (depth, colour) != (8, 0):
+        raise SystemExit(f"{path}: expected 8-bit grayscale, got depth {depth} colour type {colour}")
+    chunks, at = [], 8
+    while at < len(data):
+        length, kind = struct.unpack(">I4s", data[at:at + 8])
+        if kind == b"IDAT":
+            chunks.append(data[at + 8:at + 8 + length])
+        at += length + 12
+    raw, rows, prior = zlib.decompress(b"".join(chunks)), [], bytes(width)
+    for r in range(height):
+        kind, line = raw[r * (width + 1)], bytearray(raw[r * (width + 1) + 1:(r + 1) * (width + 1)])
+        for i in range(width):
+            left, up, corner = (line[i - 1] if i else 0), prior[i], (prior[i - 1] if i else 0)
+            if kind == 1:
+                line[i] = (line[i] + left) & 255
+            elif kind == 2:
+                line[i] = (line[i] + up) & 255
+            elif kind == 3:
+                line[i] = (line[i] + (left + up) // 2) & 255
+            elif kind == 4:
+                p = left + up - corner
+                pa, pb, pc = abs(p - left), abs(p - up), abs(p - corner)
+                line[i] = (line[i] + (left if pa <= pb and pa <= pc else up if pb <= pc else corner)) & 255
+        rows.append(bytes(line))
+        prior = rows[-1]
+    return width, height, b"".join(rows)
