@@ -21,8 +21,14 @@ namespace ForestPCGAreaSampler
 	struct FContext : FPCGContext
 	{
 		const UPCGSpatialData* Region = nullptr;
-		const UPCGSpatialData* Bounds = nullptr;
+		TObjectPtr<const UPCGSpatialData> Bounds = nullptr;
 		TArray<FIteration> Iterations;
+		virtual void AddExtraStructReferencedObjects(FReferenceCollector& Collector) override
+		{
+			// UE 5.8 PCGContext.h:245-250 exposes this GC hook; TrackObject belongs only
+			// to TPCGTimeSlicedContext (Elements/PCGTimeSlicedElementBase.h:107,169-172).
+			Collector.AddReferencedObject(Bounds);
+		}
 	};
 
 	// UE 5.8 PCGSurfaceSampler.cpp:116-158,239-256 enumerates/allocates a whole rectangle;
@@ -161,7 +167,6 @@ namespace ForestPCGAreaSampler
 			{
 				bool bUnionCreated;
 				Context->Bounds = PCGSettingsHelpers::ComputeBoundingShape(Context, PCGSurfaceSamplerConstants::BoundingShapeLabel, bUnionCreated);
-				if (bUnionCreated) { Context->TrackObject(Context->Bounds); }
 				if (Context->Bounds) { Bounds = Context->Bounds->GetBounds(); }
 				if (!Bounds.IsValid) { return true; }
 			}
