@@ -13,13 +13,14 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FForestAreaSamplerIdentityTest, "Forest.PCG.Are
 
 bool FForestAreaSamplerIdentityTest::RunTest(const FString& Parameters)
 {
+	const FPCGAttributeIdentifier SurfaceKind(TEXT("SurfaceKind"), PCGMetadataDomainID::Data);
 	// No existing project sampler test: UniqueGeneratedLocations covers only output collection.
 	// Each mode needs full and cropped comparisons: cropping changes Ratio only in legacy mode.
 	for (const bool bLegacy : {false, true})
 	{
 		UForestPCGAreaSamplerTestSurface* Surface = NewObject<UForestPCGAreaSamplerTestSurface>();
 		Surface->Metadata->CreateAttribute<double>(TEXT("Elevation"), -1, false, false);
-		Surface->Metadata->CreateAttribute<int32>(TEXT("SurfaceKind"), 247, false, false);
+		Surface->Metadata->CreateAttribute<int32>(SurfaceKind, 247, false, false);
 		UForestPCGAreaSamplerTestBounds* Bounds = NewObject<UForestPCGAreaSamplerTestBounds>();
 		Bounds->Initialize(Surface->Bounds);
 		UPCGSurfaceSamplerSettings* StockSettings = NewObject<UPCGSurfaceSamplerSettings>();
@@ -62,6 +63,12 @@ bool FForestAreaSamplerIdentityTest::RunTest(const FString& Parameters)
 		const UPCGSpatialData* StockSpatial = CastChecked<UPCGSpatialData>(Stock->OutputData.TaggedData[0].Data);
 		if (!StockPoints) { StockPoints = StockSpatial->ToPointData(Stock.Get()); }
 		UTEST_NOT_NULL("Stock points", StockPoints);
+		// UE 5.8 PCGSpatialData.cpp:85 / PCGBasePointData.cpp:532: surface defaults to Data,
+		// points to Elements. InitializeTargetMetadata preserves domains without remapping.
+		const auto* StockInherited = StockPoints->Metadata->GetConstTypedAttribute<int32>(SurfaceKind);
+		UTEST_NOT_NULL("Stock inherited surface attribute in Data domain", StockInherited);
+		UTEST_EQUAL("Stock inherited default value", StockInherited->GetValueFromItemKey(PCGInvalidEntryKey), 247);
+		UTEST_NULL("Stock surface attribute is not point metadata", StockPoints->Metadata->GetConstTypedAttribute<int32>(TEXT("SurfaceKind")));
 		TestTrue(TEXT("Non-empty reference"), StockPoints->GetPoints().Num() > 10);
 		const int32 FullProjections = Surface->Projections;
 
@@ -112,9 +119,9 @@ bool FForestAreaSamplerIdentityTest::RunTest(const FString& Parameters)
 			const auto* AreaAttribute = Actual->Metadata->GetConstTypedAttribute<double>(TEXT("Elevation"));
 			UTEST_NOT_NULL("Stock attribute", StockAttribute);
 			UTEST_NOT_NULL("Area attribute", AreaAttribute);
-			const auto* Inherited = Actual->Metadata->GetConstTypedAttribute<int32>(TEXT("SurfaceKind"));
-			UTEST_NOT_NULL("Inherited surface attribute", Inherited);
-			TestEqual(TEXT("Inherited default value"), Inherited->GetValueFromItemKey(PCGInvalidEntryKey), 247);
+			const auto* Inherited = Actual->Metadata->GetConstTypedAttribute<int32>(SurfaceKind);
+			UTEST_NOT_NULL("Inherited surface attribute in Data domain", Inherited);
+			TestEqual(TEXT("Inherited default value matches stock"), Inherited->GetValueFromItemKey(PCGInvalidEntryKey), StockInherited->GetValueFromItemKey(PCGInvalidEntryKey));
 			for (int32 I = 0; I < Expected.Num(); ++I)
 			{
 				const FPCGPoint& A = Actual->GetPoints()[I];
