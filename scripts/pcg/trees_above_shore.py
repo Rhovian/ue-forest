@@ -11,11 +11,14 @@ abrupt living edge (#9 edge ruling, edge_in_01: closed forest within ~5-10 m of 
 """
 
 import argparse
+import sys
+from pathlib import Path
 
 import unreal
 
 GRAPH = "/Game/ForestBiome/PCG_TreesAboveShore"
 FLOOR = "/Game/ForestBiome/MI_ForestFloor"
+LAND_Z = "LandZ"
 NUMBER = (
     "(bInclusive={inc},bUseConstantThreshold=True,ThresholdAttribute=PCGBegin($Density)PCGEnd,"
     "bUseSpatialQuery=False,bFilterEachInputWithEachFilterDataRespectively=False,"
@@ -32,11 +35,78 @@ def shore_height():
     return 150.0
 
 
-def z_range(graph, low, high):
-    """A node keeping points with low <= Z < high on InsideFilter, the rest on OutsideFilter."""
+def land_z(graph, source, pin):
+    """Points from (source, pin) with LAND_Z: ground height plus the beach lift (#241), T_BeachLift's one baked line,
+    which the floor material (forest_floor.py) and the forest foot (landheight.py) also read. Returns the node whose
+    "Out" carries them. Samples a copy, so the points' own density and colour are untouched."""
+    # Imported here, not at module load: offline tests import this module with a mocked unreal (test_budget.py).
+    sys.path.insert(0, str(Path(unreal.Paths.project_dir()) / "../scripts/materials"))
+    import beach_lift
+    texture, settings = graph.add_node_of_type(unreal.PCGTextureSamplerSettings)  # "Get Texture Data"
+    for name, value in {"texture": unreal.load_asset(f"/Game/ForestBiome/{beach_lift.NAME}"), "use_absolute_transform": True,
+                        # Texture data spans local -1..1: the 1513 vertex samples cover +-HALF_CM (beach_lift.py).
+                        "transform": unreal.Transform(scale=unreal.Vector(beach_lift.HALF_CM, beach_lift.HALF_CM, 1)),
+                        "color_channel": unreal.PCGTextureColorChannel.RED, "use_density_source_channel": True,
+                        "keep_zero_density_points": True, "filter": unreal.PCGTextureFilter.BILINEAR,
+                        "force_editor_only_cpu_sampling": True}.items():
+        settings.set_editor_property(name, value)
+    sample, _ = graph.add_node_of_type(unreal.PCGSampleTextureSettings)  # density := lift on the copy
+    link(graph, source, pin, sample, "Point")
+    link(graph, texture, "Out", sample, "BaseTexture")
+    lift = selector_node(graph, unreal.PCGCopyAttributesSettings, "$Density", "BeachLift", "input_source", "output_target")
+    link(graph, sample, "Out", lift, "Source")
+    link(graph, source, pin, lift, "Target")
+    remap = selector_node(graph, unreal.PCGAttributeRemapSettings, "BeachLift", "BeachLiftCm", "input_source",
+                          "output_target", range_min=0.0, range_max=1.0, out_range_min=0.0, out_range_max=float(beach_lift.LIFT_CM))
+    link(graph, lift, "Out", remap, "In")
+    total = selector_node(graph, unreal.PCGMetadataMathsSettings, "$Position.Z", LAND_Z, "input_source1",
+                          "output_target", operation=unreal.PCGMetadataMathsOperation.ADD)
+    second = unreal.PCGAttributePropertyInputSelector()
+    second.import_text("PCGBegin(BeachLiftCm)PCGEnd")
+    total.get_settings().set_editor_property("input_source2", second)
+    for operand in ("InA", "InB"):  # each maths operand reads the data on its own pin
+        link(graph, remap, "Out", total, operand)
+    return total
+
+
+def link(graph, source, source_pin, target, target_pin):
+    """add_edge, failing loudly: UE 5.8 PCGGraph.cpp AddEdge returns the target node even when no edge was made."""
+    def count():
+        return sum(len(p.get_editor_property("edges")) for p in target.get_editor_property("input_pins"))
+    before = count()
+    graph.add_edge(source, source_pin, target, target_pin)
+    if count() != before + 1:
+        raise RuntimeError(f"PCG connection failed: {source_pin} -> {target_pin}")
+
+
+def selector_node(graph, settings_class, source, target, source_name, target_name, **values):
+    node, settings = graph.add_node_of_type(settings_class)
+    selector, output = unreal.PCGAttributePropertyInputSelector(), unreal.PCGAttributePropertyOutputSelector()
+    selector.import_text(f"PCGBegin({source})PCGEnd")
+    output.import_text(f"PCGBegin({target})PCGEnd")
+    settings.set_editor_property(source_name, selector)
+    settings.set_editor_property(target_name, output)
+    for name, value in values.items():
+        settings.set_editor_property(name, value)
+    return node
+
+
+def shore_band(graph, low, high):
+    """(first, last): LAND_Z >= low, then the true height below high, for bands whose top is not a shore line (the
+    meadow's TOP, the damp ground's cap, the canopy gaps' ground): the lift is 1 across the whole interior, so lifting
+    those tops would move them island-wide. Feed first's "In"; read last's InsideFilter and OutsideFilter."""
+    first = z_range(graph, low, 1.0e7)
+    last = z_range(graph, -1.0e7, high, "$Position.Z")
+    link(graph, first, "InsideFilter", last, "In")
+    return first, last
+
+
+def z_range(graph, low, high, attribute=None):
+    """A node keeping points with low <= LAND_Z (or attribute) < high on InsideFilter, the rest on OutsideFilter. The
+    points must come through land_z."""
     node, settings = graph.add_node_of_type(unreal.PCGAttributeFilteringRangeSettings)
     selector = unreal.PCGAttributePropertyInputSelector()
-    selector.import_text("PCGBegin($Position.Z)PCGEnd")
+    selector.import_text(f"PCGBegin({attribute or LAND_Z})PCGEnd")
     settings.set_editor_property("target_attribute", selector)
     for name, value, inclusive in (("min_threshold", low, True), ("max_threshold", high, False)):
         threshold = unreal.PCGAttributeFilterThresholdSettings()
@@ -61,7 +131,7 @@ def main():
     merge, _ = graph.add_node_of_type(unreal.PCGMergeSettings)
 
     above = z_range(graph, shore, 1.0e7)
-    graph.add_edge(inp, "In", above, "In")
+    link(graph, land_z(graph, inp, "In"), "Out", above, "In")
     remaining, pin = above, "InsideFilter"
     for i, (top, keep) in enumerate(bands):
         band = z_range(graph, shore, shore + top)

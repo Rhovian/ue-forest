@@ -17,7 +17,7 @@ import importlib
 import biome_variants
 import unreal
 from deadwood_rocks import ROOT, asset_list, copy_asset, edge, generator, get, load, load_forest_actors, put, save
-from trees_above_shore import shore_height, z_range
+from trees_above_shore import land_z, shore_height, z_range
 
 PER_HA = 200  # candidates/ha island-wide; only sand near a headland survives: about one tree per headland
 # Core differences generator point sets by priority before the sand filter runs; the Trees group (priority 0) must
@@ -48,7 +48,7 @@ def main():
         if node not in (inp, out):
             graph.remove_node(node)
     sand = z_range(graph, SAND_FROM, shore_height())
-    edge(graph, inp, "In", sand, "In")
+    edge(graph, land_z(graph, inp, "In"), "Out", sand, "In")
     marks, settings = graph.add_node_of_type(unreal.PCGCreatePointsSettings)
     created = []
     for x, y in HEADLANDS:

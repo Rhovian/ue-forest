@@ -31,7 +31,7 @@ from deadwood_rocks import (
     save,
 )
 from saplings_understory import drift_points, openings_filter
-from trees_above_shore import shore_height, z_range
+from trees_above_shore import land_z, shore_band, shore_height
 
 # (x m, y m, radius m) per meadow stretch: the coastal meadow at the clearing view, and grassland on the north-west lobe.
 # The north-west stretch reaches 100 m (#229): at 70 m the open low ground between it and the sparse trees to the south
@@ -76,8 +76,8 @@ def meadow_graph():
     for node in list(graph.get_editor_property("nodes")):
         if node not in (inp, out):
             graph.remove_node(node)
-    low = z_range(graph, shore_height(), TOP)
-    edge(graph, inp, "In", low, "In")
+    first, low = shore_band(graph, shore_height(), TOP)
+    edge(graph, land_z(graph, inp, "In"), "Out", first, "In")
     merge, _ = graph.add_node_of_type(unreal.PCGMergeSettings)
     # One native Distance + Density Filter per stretch (shore_trees.py's pattern), so each keeps its own radius.
     for x, y, radius in MEADOWS:
