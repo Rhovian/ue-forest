@@ -4,10 +4,14 @@
 """
 
 import math
+import os
 import random
+import struct
+import tempfile
 import unittest
+import zlib
 
-from mask_raster import bilinear, dilate, fill
+from mask_raster import bilinear, dilate, fill, read_gray
 
 W = H = 40
 OFFSETS = [k / 4 - 1 for k in range(9)]  # -1 .. 1 cell
@@ -68,6 +72,38 @@ class NoWeightInside(unittest.TestCase):
     def test_far_ground_stays_open(self):
         pixels = mask(corridor(5.3, 10.6, 30.7, 10.6, 0.75))
         self.assertEqual(bilinear(pixels, W, H, 18.0, 25.0), 255)
+
+
+def gray_png(path, rows, filters):
+    """Write 8-bit grayscale rows, each encoded with its own PNG filter type (0 None .. 4 Paeth)."""
+    def paeth(a, b, c):
+        p = a + b - c
+        pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+        return a if pa <= pb and pa <= pc else b if pb <= pc else c
+    width, raw, prior = len(rows[0]), b"", bytes(len(rows[0]))
+    for row, kind in zip(rows, filters):
+        out = bytearray()
+        for i, x in enumerate(row):
+            a, b, c = (row[i - 1] if i else 0), prior[i], (prior[i - 1] if i else 0)
+            out.append((x - (0, a, b, (a + b) // 2, paeth(a, b, c))[kind]) & 255)
+        raw += bytes([kind]) + out
+        prior = row
+    chunk = lambda kind, data: struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+    with open(path, "wb") as f:
+        f.write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, len(rows), 8, 0, 0, 0, 0))
+                + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+
+
+class ReadGrayTests(unittest.TestCase):
+    """beach_lift.py decodes the baked lift with read_gray (#240 review): every PNG row filter must round-trip."""
+
+    def test_every_row_filter_round_trips(self):
+        rng = random.Random(240)
+        rows = [bytes(rng.randrange(256) for _ in range(17)) for _ in range(10)]
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "lift.png")
+            gray_png(path, rows, [0, 1, 2, 3, 4, 4, 3, 2, 1, 0])
+            self.assertEqual(read_gray(path), (17, 10, b"".join(rows)))
 
 
 if __name__ == "__main__":

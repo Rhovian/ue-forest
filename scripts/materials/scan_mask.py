@@ -14,6 +14,7 @@ just before the edge, so it is not abrupt): on beach sand (EDGE_ABOVE_CM to EDGE
 edge fading to black EDGE_CM out; the sea and everything else black.
 """
 
+import importlib
 import sys
 from collections import deque
 from pathlib import Path
@@ -21,7 +22,12 @@ from pathlib import Path
 import unreal
 
 sys.path.insert(0, str(Path(unreal.Paths.project_dir()) / "../scripts/materials"))
+import beach_lift
+import mask_raster
 from groundcover_mask import CELL, bounds, import_texture
+
+importlib.reload(mask_raster)  # the editor keeps imported modules between runs
+importlib.reload(beach_lift)
 
 NAME = "T_ScanSandMask"
 SAND_BELOW_CM = 120.0  # MI_ForestFloor's ShoreHeight (75) plus its noisy interleave on flat ground
@@ -76,7 +82,9 @@ def distances(sand, width, height):
 
 def main():
     x0, y0, width, height = bounds()
-    z = heights(x0, y0, width, height)
+    lift = beach_lift.lift_cm()  # beyond the beach strip the ground counts LIFT_CM higher (#240), as in the floor material
+    z = [h if h is None else h + lift(x0 + (k % width + 0.5) * CELL, y0 + (k // width + 0.5) * CELL)
+         for k, h in enumerate(heights(x0, y0, width, height))]
     sand = [h is None or h < SAND_BELOW_CM for h in z]  # no landscape: open sea
     pixels = bytearray(min(255, max(0, round(255 * (d * CELL - SETBACK_CM) / FADE_CM)))
                        for d in distances(sand, width, height))
