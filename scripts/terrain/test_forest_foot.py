@@ -3,6 +3,7 @@ import unittest
 import numpy as np
 
 from scripts.terrain.forest_foot import STEP, foot_and_bounds
+from scripts.terrain.landheight import effective
 
 
 class ForestFootTests(unittest.TestCase):
@@ -21,6 +22,21 @@ class ForestFootTests(unittest.TestCase):
         self.assertTrue(points)
         self.assertTrue(all(x == 14 - half for x, _ in points))
         self.assertEqual(len(points), len({(y + half) // STEP for _, y in points}))
+
+    def test_low_flat_foot_follows_the_strips_inner_edge(self):
+        height = np.full((121, 121), 0.5)
+        height[:, :10] = -1.0
+        height[:, 100:] = 3.0  # the old rule has a foot here, far behind the future strip
+        points, bounds = foot_and_bounds(height, 0.75, 1.0)
+        raised = effective(height, 1.0)
+        self.assertTrue(points)
+        for x, y in points:
+            r, c = y + 60, x + 60
+            self.assertGreaterEqual(raised[r, c], 0.75)
+            self.assertTrue(any(raised[rr, cc] < 0.75 for rr, cc in
+                                ((r, c - 1), (max(0, r - 1), c), (min(120, r + 1), c))))
+            self.assertTrue(12 <= c - 9 <= 30)
+        self.assertEqual(bounds, [-50, 60, -60, 60])
 
 
 if __name__ == "__main__":
