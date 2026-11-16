@@ -16,12 +16,8 @@ from pathlib import Path
 
 import unreal
 
-sys.path.insert(0, str(Path(unreal.Paths.project_dir()) / "../scripts/materials"))
-import beach_lift
-
 GRAPH = "/Game/ForestBiome/PCG_TreesAboveShore"
 FLOOR = "/Game/ForestBiome/MI_ForestFloor"
-LIFT_TEXTURE = f"/Game/ForestBiome/{beach_lift.NAME}"
 LAND_Z = "LandZ"
 NUMBER = (
     "(bInclusive={inc},bUseConstantThreshold=True,ThresholdAttribute=PCGBegin($Density)PCGEnd,"
@@ -43,8 +39,11 @@ def land_z(graph, source, pin):
     """Points from (source, pin) with LAND_Z: ground height plus the beach lift (#241), T_BeachLift's one baked line,
     which the floor material (forest_floor.py) and the forest foot (landheight.py) also read. Returns the node whose
     "Out" carries them. Samples a copy, so the points' own density and colour are untouched."""
+    # Imported here, not at module load: offline tests import this module with a mocked unreal (test_budget.py).
+    sys.path.insert(0, str(Path(unreal.Paths.project_dir()) / "../scripts/materials"))
+    import beach_lift
     texture, settings = graph.add_node_of_type(unreal.PCGTextureSamplerSettings)  # "Get Texture Data"
-    for name, value in {"texture": unreal.load_asset(LIFT_TEXTURE), "use_absolute_transform": True,
+    for name, value in {"texture": unreal.load_asset(f"/Game/ForestBiome/{beach_lift.NAME}"), "use_absolute_transform": True,
                         # Texture data spans local -1..1: the 1513 vertex samples cover +-HALF_CM (beach_lift.py).
                         "transform": unreal.Transform(scale=unreal.Vector(beach_lift.HALF_CM, beach_lift.HALF_CM, 1)),
                         "color_channel": unreal.PCGTextureColorChannel.RED, "use_density_source_channel": True,
@@ -72,7 +71,8 @@ def land_z(graph, source, pin):
 
 def link(graph, source, source_pin, target, target_pin):
     """add_edge, failing loudly: UE 5.8 PCGGraph.cpp AddEdge returns the target node even when no edge was made."""
-    count = lambda: sum(len(p.get_editor_property("edges")) for p in target.get_editor_property("input_pins"))
+    def count():
+        return sum(len(p.get_editor_property("edges")) for p in target.get_editor_property("input_pins"))
     before = count()
     graph.add_edge(source, source_pin, target, target_pin)
     if count() != before + 1:
