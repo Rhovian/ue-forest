@@ -24,11 +24,23 @@ class UForestPCGAreaSamplerSettings : public UPCGSettings
 public:
 	UForestPCGAreaSamplerSettings();
 #if WITH_EDITOR
-	virtual FName GetDefaultNodeName() const override { return TEXT("ForestAreaSampler"); }
-	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("Forest", "AreaSampler", "Forest Area Sampler"); }
-	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Sampler; }
+	virtual FName GetDefaultNodeName() const override
+	{
+		return TEXT("ForestAreaSampler");
+	}
+	virtual FText GetDefaultNodeTitle() const override
+	{
+		return NSLOCTEXT("Forest", "AreaSampler", "Forest Area Sampler");
+	}
+	virtual EPCGSettingsType GetType() const override
+	{
+		return EPCGSettingsType::Sampler;
+	}
 #endif
-	virtual bool UseSeed() const override { return true; }
+	virtual bool UseSeed() const override
+	{
+		return true;
+	}
 
 	// Match UPCGSurfaceSamplerSettings, including script property names. Its non-exported constructor
 	// prevents subclassing outside PCG (UE 5.8 Public/Elements/PCGSurfaceSampler.h, MinimalAPI).
