@@ -35,7 +35,10 @@ def sea_mask(height):
 
 
 def strip_width(shape, metres):
-    """Seeded, smooth value noise on a BEACH_FEATURE_M lattice in centred world metres."""
+    """Seeded, smooth value noise on a BEACH_FEATURE_M lattice in centred world metres.
+
+    The RNG lattice depends on shape; consumers at other extents must sample the baked mask.
+    """
     coords = [(np.arange(n) - (n - 1) / 2) * metres / BEACH_FEATURE_M for n in shape]
     origin = [int(np.floor(axis.min())) for axis in coords]
     size = [int(np.floor(axis.max())) - start + 2 for axis, start in zip(coords, origin)]
@@ -45,8 +48,7 @@ def strip_width(shape, metres):
         base = np.floor(axis)
         t = axis - base
         axes.append(base - start + t * t * (3 - 2 * t))
-    # SciPy 1.18.1 map_coordinates supplies the bilinear interpolation; only the
-    # value-noise lattice and smoothstep coordinates are ours (scipy/ndimage/_interpolation.py).
+    # Bilinear interpolation of the smoothstep-warped lattice gives smoothly drifting widths (#239).
     noise = map_coordinates(values, np.meshgrid(*axes, indexing="ij"), order=1, prefilter=False)
     return BEACH_STRIP_M + BEACH_VARY_M * noise
 
@@ -70,8 +72,7 @@ def cell_points(mask, metres, cell_m=CELL_M):
     pixels = np.argwhere(mask)
     if not len(pixels):
         return []
-    # NumPy 2.5.5 unique(return_index=True, axis=0) supplies first-per-cell grouping
-    # (numpy/lib/_arraysetops_impl.py); no custom thinning/parity rule.
+    # First pixel per occupied cell preserves diagonal stretches that parity can miss (#62).
     _, first = np.unique(np.floor(pixels * metres / cell_m), axis=0, return_index=True)
     world = (pixels[first] - (np.array(mask.shape) - 1) / 2) * metres
     return sorted((round(x), round(y)) for y, x in world)

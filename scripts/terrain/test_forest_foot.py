@@ -27,6 +27,8 @@ class ForestFootTests(unittest.TestCase):
         height = np.full((121, 121), 0.5)
         height[:, :10] = -1.0
         height[:, 100:] = 3.0  # the old rule has a foot here, far behind the future strip
+        # This enclosed hollow becomes land; raw-height bounds would include label 0 and expand into the sea.
+        height[40:60, 59:65] = -0.1
         points, bounds = foot_and_bounds(height, 0.75, 1.0)
         raised = effective(height, 1.0)
         self.assertTrue(points)
