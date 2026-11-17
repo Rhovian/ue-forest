@@ -18,7 +18,7 @@ from pathlib import Path
 import unreal
 
 sys.path.insert(0, str(Path(unreal.Paths.project_dir()) / "../scripts/materials"))
-from groundcover_mask import CELL, bounds, import_texture
+from groundcover_mask import CELL, bounds, import_texture, landscape_z
 
 PREFIX = "ForestExclusion_"
 # cm the outline lies outside the visible water's edge, at water_exclusions.py's defaults (rerun both if those change):
@@ -95,14 +95,13 @@ def bake_stream(points, x0, y0, width, height):
             x, y = x0 + (i + 0.5) * CELL, y0 + (j + 0.5) * CELL
             if signed_distance(points, x, y) < -STREAM_REACH:
                 continue
-            hit = unreal.SystemLibrary.line_trace_single(
-                world, unreal.Vector(x, y, 100000), unreal.Vector(x, y, -50000), unreal.TraceTypeQuery.TRACE_TYPE_QUERY1,
-                False, [river], unreal.DrawDebugTrace.NONE, True).to_tuple()
-            if not hit or not hit[0] or "Landscape" not in type(hit[9]).__name__:
+            # Through the river and any log or rock over the bank: a cell left at 0 would read as dry ground (#158 review).
+            ground = landscape_z(world, x, y, [river])
+            if ground is None:
                 continue
             # The query is 3D and the stream falls 21 m: ask at the ground, which is within a metre of the water here.
-            surface = spline.find_location_closest_to_world_location(unreal.Vector(x, y, hit[4].z), space).z
-            depth = surface - hit[4].z
+            surface = spline.find_location_closest_to_world_location(unreal.Vector(x, y, ground), space).z
+            depth = surface - ground
             pixels[j * width + i] = max(1, min(255, round(128 + depth)))
             wet += depth > 0
     import_texture(pixels, width, height, STREAM_NAME)

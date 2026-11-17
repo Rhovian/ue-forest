@@ -173,7 +173,7 @@ SCAN_MASK = f"{FOLDER}/T_ScanSandMask"
 LOG_MASK = f"{FOLDER}/T_LogMask"  # log_mask.py: the tall cover thinned on and beside fallen logs (#117)
 # Layers of rocks and slabs, which must not grow through a log at all (#160: a lake stone stood through a shore log):
 # none where T_LogMask marks a log (ON_LOG, 0.3), all where it is clear (1).
-SOLID_KINDS = ("patches", "lake", "waterline", "dry sand")
+SOLID_KINDS = ("patches", "lake", "waterline", "dry sand", "stream stones")
 CLEAR_OF_LOGS = (0.35, 0.6)
 # The lake and stream bed (water_bed_mask.py, #141): their own ground under the water, with some of the moss's green.
 WATER_BED, LAKE_BED = f"{FOLDER}/T_WaterBedMask", f"{FOLDER}/T_LakeMask"
