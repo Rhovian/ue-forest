@@ -75,7 +75,10 @@ def leaves(points, surface):
     paths, weights = zip(*biome_variants.LAKE_LEAF_VARIANTS)
     mats = set()
     for path in paths:
-        box = unreal.load_asset(path).get_bounding_box()
+        mesh = unreal.load_asset(path)
+        if mesh is None:
+            raise SystemExit(f"{path} is missing: import it before placing leaves")
+        box = mesh.get_bounding_box()
         if box.max.x - box.min.x > MAT_CM:
             mats.add(path)
     xs, ys = [p[0] for p in points], [p[1] for p in points]
@@ -105,9 +108,7 @@ def leaves(points, surface):
 def main():
     actors_sub = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
     all_actors = actors_sub.get_all_level_actors()
-    for actor in all_actors:
-        if actor.get_actor_label() == LABEL:
-            actors_sub.destroy_actor(actor)
+    old = [a for a in all_actors if a.get_actor_label() == LABEL]
     placed = leaves(*water(all_actors))
 
     actor = actors_sub.spawn_actor_from_class(unreal.Actor, unreal.Vector(0, 0, 0))
@@ -122,12 +123,15 @@ def main():
         handle, failure = subobjects.add_new_subobject(unreal.AddNewSubobjectParams(
             parent_handle=root, new_class=unreal.InstancedStaticMeshComponent))
         if not failure.is_empty():
+            actors_sub.destroy_actor(actor)  # the old placement stays until a whole new one is built (#159 review)
             raise SystemExit(f"could not add a component for {path}: {failure}")
         component = library.get_object(library.get_data(handle))
         component.set_static_mesh(unreal.load_asset(path))
         component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
         component.set_editor_property("cast_shadow", False)
         component.add_instances(transforms, False, True)
+    for previous in old:
+        actors_sub.destroy_actor(previous)
     print(f"{LABEL}: {len(placed)} leaves in {len(by_mesh)} components")
 
 
