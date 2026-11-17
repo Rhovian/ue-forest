@@ -137,6 +137,9 @@ GRASS_LAYERS = {
     # #141: stones over the lake bed in patches and plants in its shallows (water_bed_mask.py), not the stream.
     "LakeStones": (f"{FOLDER}/DA_LakeStones", "LAKE_STONE_VARIANTS", 20.0, 5000, (1.0, 2.5), "lake"),
     "LakePlants": (f"{FOLDER}/DA_LakePlants", "LAKE_PLANT_VARIANTS", 12.0, 5000, (0.7, 1.2), "shallows"),
+    # #158: stones half out of the water and caught sticks along the stream's waterline, in patches.
+    "StreamStones": (f"{FOLDER}/DA_StreamStones", "STREAM_STONE_VARIANTS", 120.0, 4000, (1.5, 3.0), "stream stones"),
+    "StreamDebris": (f"{FOLDER}/DA_StreamDebris", "STREAM_DEBRIS_VARIANTS", 60.0, 3000, (1.2, 2.0), "stream debris"),
 }
 UNDERGROWTH_NOISE_CM = 1500.0  # feature size of the undergrowth colonies
 SCAN_NOISE_CM = 700.0  # feature size of the scan patches
@@ -176,6 +179,19 @@ CLEAR_OF_LOGS = (0.35, 0.6)
 WATER_BED, LAKE_BED = f"{FOLDER}/T_WaterBedMask", f"{FOLDER}/T_LakeMask"
 BED_SCALE = 8.0  # cm per texture step (water_bed_mask.SCALE)
 BED_EDGE_CM = (-40.0, 80.0)  # the bed fades in from just above the water's edge to under it
+# The stream's margin (#158): its bed is whole at the waterline and runs up the bank as wet gravel and soil, so the moss
+# stops short of the water instead of showing through the shallows. The lake keeps BED_EDGE_CM.
+# Keyed on the stream's water depth (water_bed_mask.py's T_StreamWaterline: surface less ground, cm, positive in the
+# water), not the corridor: the surface spills 0.75-2 m past the corridor onto the gentle banks.
+STREAM_LINE = f"{FOLDER}/T_StreamWaterline"
+STREAM_BED_DEPTH_CM = (-15.0, 5.0)  # gravel from this high above the water to just under it
+STREAM_WET_DEPTH_CM = (-25.0, -3.0)  # wet, darker ground from this high above the water to the waterline
+STREAM_WET_DARKEN = 0.55  # colour kept on fully wet ground
+STREAM_WET_ROUGHNESS = 0.35
+# Stones and sticks: fade in, full, full, fade out around the waterline. Grass weights are sampled at the landscape's
+# 2 m vertices, so a band of 40 cm of depth fell between them and placed nothing; the bed is ~45 cm deep.
+STREAM_EDGE_DEPTH_CM = (-30.0, -15.0, 15.0, 35.0)
+STREAM_DEBRIS_NOISE_CM = 500.0
 SHALLOWS_CM = 400.0  # the lake's shallow plants grow within this of its edge
 # Lake stones (#162; operator 2026-11-09: a few that break the surface are the effect, the fully submerged ones should be
 # very few): full density within STONE_EDGE_CM of the lake's edge, where the bed is shallow enough for them to show
@@ -544,7 +560,18 @@ def build():
             "A": value, "B": const(128 / 255)}), "B": const(255 * BED_SCALE)})
 
     in_water, in_lake = edge_cm(WATER_BED), edge_cm(LAKE_BED)
-    bed = g.wire(smooth, 2, {"Min": const(BED_EDGE_CM[0]), "Max": const(BED_EDGE_CM[1]), "Value": in_water})
+    # The stream's depth (cm, 1 per step around 128); 0 away from it reads as 128 cm above the water, so dry.
+    depth = g.wire(unreal.MaterialExpressionMultiply, 2, {"A": g.wire(unreal.MaterialExpressionSubtract, 3, {
+        "A": g.mask(g.sample(STREAM_LINE, mask_uv, 3), 3, "r"), "B": const(128 / 255)}), "B": const(255.0)})
+    bed = g.wire(unreal.MaterialExpressionMax, 2, {
+        "A": g.wire(smooth, 2, {"Min": const(BED_EDGE_CM[0]), "Max": const(BED_EDGE_CM[1]), "Value": in_water}),
+        "B": g.wire(smooth, 2, {"Min": const(STREAM_BED_DEPTH_CM[0]), "Max": const(STREAM_BED_DEPTH_CM[1]),
+                                "Value": depth})})
+    wet = g.wire(smooth, 2, {"Min": const(STREAM_WET_DEPTH_CM[0]), "Max": const(STREAM_WET_DEPTH_CM[1]), "Value": depth})
+    e0, e1, e2, e3 = STREAM_EDGE_DEPTH_CM
+    stream_edge = g.wire(unreal.MaterialExpressionMultiply, 2, {
+        "A": g.wire(smooth, 2, {"Min": const(e0), "Max": const(e1), "Value": depth}),
+        "B": g.wire(smooth, 2, {"Min": const(e3), "Max": const(e2), "Value": depth})})
     lake = g.wire(smooth, 2, {"Min": const(40.0), "Max": const(120.0), "Value": in_lake})
     shallows = g.wire(unreal.MaterialExpressionMultiply, 2, {"A": lake, "B": g.wire(
         smooth, 3, {"Min": const(SHALLOWS_CM + 200), "Max": const(SHALLOWS_CM), "Value": in_lake})})
@@ -557,6 +584,9 @@ def build():
     lake_stones = g.wire(unreal.MaterialExpressionMultiply, 1, {
         "A": g.wire(unreal.MaterialExpressionMultiply, 1, {"A": lake, "B": stone_share}), "B": lake_patches})
     lake_plants = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": shallows, "B": lake_patches})
+    stream_stones = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": stream_edge, "B": lake_patches})
+    stream_debris = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": stream_edge, "B": g.wire(
+        smooth, 3, {"Min": p["GrassRunLow"], "Max": p["GrassRunHigh"], "Value": g.noise(4, STREAM_DEBRIS_NOISE_CM)})})
     # On the sand within a few metres of the forest edge (scan_mask.py's T_SandEdgeMask), in patches (#38).
     edge_patches = g.wire(smooth, 3, {"Min": p["GrassRunLow"], "Max": p["GrassRunHigh"],
                                       "Value": g.noise(4, SAND_EDGE_NOISE_CM)})
@@ -572,9 +602,11 @@ def build():
             unreal.MaterialExpressionMultiply, 3, {"A": meadow, "B": low})})})
     weights = {"Groundcover": (weight, grass_type())}
     for name, (asset, variants, density, cull, scale, kind) in GRASS_LAYERS.items():
-        if kind in ("sand", "waterline", "dry sand", "lake", "shallows", "sand edge", "clearing"):
+        if kind in ("sand", "waterline", "dry sand", "lake", "shallows", "sand edge", "clearing", "stream stones",
+                    "stream debris"):
             layer = {"sand": sand_litter, "waterline": waterline, "dry sand": dry_sand, "lake": lake_stones,
-                     "shallows": lake_plants, "sand edge": sand_edge, "clearing": clearing}[kind]
+                     "shallows": lake_plants, "sand edge": sand_edge, "clearing": clearing,
+                     "stream stones": stream_stones, "stream debris": stream_debris}[kind]
         else:
             layer = floor if kind == "all" else g.wire(unreal.MaterialExpressionMultiply, 1, {"A": floor, "B": where[kind]})
         if kind in SOLID_KINDS:
@@ -616,6 +648,10 @@ def build():
     color = g.wire(lerp, 0, {"A": color, "B": bed_color, "Alpha": bed})
     normal = g.wire(lerp, 0, {"A": normal, "B": g.sample(f"{BED[0]}_N", bed_uv, 2), "Alpha": bed})
     rough = g.wire(lerp, 0, {"A": rough, "B": g.mask(g.sample(f"{BED[0]}_AoRDp", bed_uv, 2), 1, "g"), "Alpha": bed})
+    # Wet ground along the stream's waterline (#158): darker and smoother.
+    color = g.wire(unreal.MaterialExpressionMultiply, 0, {"A": color, "B": g.wire(lerp, 1, {
+        "A": const(1.0), "B": const(STREAM_WET_DARKEN), "Alpha": wet})})
+    rough = g.wire(lerp, 0, {"A": rough, "B": const(STREAM_WET_ROUGHNESS), "Alpha": wet})
     mel.connect_material_property(color, "", unreal.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(normal, "", unreal.MaterialProperty.MP_NORMAL)
     mel.connect_material_property(g.mask(orm, 0, "r"), "", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)

@@ -297,6 +297,17 @@ LAKE_STONE_VARIANTS = [
     *[(f"{EDA}SmallStonesPack/SM_SmallStonesPack_{i:02}", 1) for i in range(1, 15)],
     *[(f"{EDA}MossyForestRock/SM_MossyForestRock_0{i}", 1.5) for i in range(1, 4)],
 ]
+# The stream's waterline (#158): stones half out of the water and caught sticks, along its edge, not the lake's.
+# The pebbles are 10-18 cm and the mossy rocks 0.7-1.7 m: a few rocks among the cobbles, not a boulder line.
+STREAM_STONE_VARIANTS = [
+    *[(f"{EDA}SmallStonesPack/SM_SmallStonesPack_{i:02}", 1) for i in range(1, 15)],
+    *[(f"{EDA}MossyForestRock/SM_MossyForestRock_0{i}", 0.05) for i in range(1, 4)],
+]
+# The twigs are 6-13 cm and read only up close; the 35-50 cm branches carry the caught sticks.
+STREAM_DEBRIS_VARIANTS = [
+    *[(f"{EDA}WoodenSticksAndTwigs/SM_WoodenSticksAndTwigs_{i:02}", 0.3) for i in range(1, 11)],
+    *[(f"{EDA}DryBranches/SM_DryBranches_0{i}", 1) for i in range(1, 9)],
+]
 LAKE_PLANT_VARIANTS = [
     *[(f"{ED}Taro/SM_Taro_{i:02}", 1) for i in range(1, 11)],
     *[(f"{ED}ArrowheadPlant/SM_ArrowheadPlant_0{i}", 1) for i in range(1, 6)],
