@@ -137,6 +137,8 @@ GRASS_LAYERS = {
     # #141: stones over the lake bed in patches and plants in its shallows (water_bed_mask.py), not the stream.
     "LakeStones": (f"{FOLDER}/DA_LakeStones", "LAKE_STONE_VARIANTS", 20.0, 5000, (1.0, 2.5), "lake"),
     "LakePlants": (f"{FOLDER}/DA_LakePlants", "LAKE_PLANT_VARIANTS", 12.0, 5000, (0.7, 1.2), "shallows"),
+    # #159: dense clumps of reeds and arrow leaves standing in the water along the lake's edge.
+    "LakeReeds": (f"{FOLDER}/DA_LakeReeds", "LAKE_REED_VARIANTS", 500.0, 5000, (1.1, 1.6), "lake edge"),
     # #158: stones half out of the water and caught sticks along the stream's waterline, in patches.
     "StreamStones": (f"{FOLDER}/DA_StreamStones", "STREAM_STONE_VARIANTS", 120.0, 4000, (1.5, 3.0), "stream stones"),
     "StreamDebris": (f"{FOLDER}/DA_StreamDebris", "STREAM_DEBRIS_VARIANTS", 60.0, 3000, (1.2, 2.0), "stream debris"),
@@ -202,6 +204,11 @@ STONE_DEEP_SHARE = 0.1
 BED = ("/Game/Megascans/Surfaces/MossyRockyGround/T_MossyRockyGround_01", 400.0)  # Electric Dreams surface, tile cm
 BED_MOSS = 0.25  # share of the moss floor's colour kept on the bed
 LAKE_NOISE_CM = 800.0  # feature size of the lake's stone and plant patches
+# The reed clumps (#159): rising over the waterline (the outline lies MARGINS["Lake"] = 60 cm outside it), full to
+# LAKE_REED_CM[2] in, gone by LAKE_REED_CM[3]; a band several vertices wide, as the grass weights are sampled every 2 m.
+LAKE_REED_CM = (0.0, 80.0, 200.0, 300.0)
+LAKE_REED_NOISE_CM = 300.0  # feature size of the clumps
+LAKE_REED_CLUMP = (0.55, 0.65)  # noise from none to full: well-separated, solid clumps rather than a scatter
 SAND_EDGE_MASK = f"{FOLDER}/T_SandEdgeMask"  # scan_mask.py: the sand within 6 m of the forest edge (#38)
 SAND_EDGE_NOISE_CM = 500.0  # feature size of their patches
 ISLAND = json.loads((Path(unreal.Paths.project_dir()) / "../scripts/pcg/forest_foot.json").read_text())["island_m"]
@@ -584,6 +591,12 @@ def build():
     lake_stones = g.wire(unreal.MaterialExpressionMultiply, 1, {
         "A": g.wire(unreal.MaterialExpressionMultiply, 1, {"A": lake, "B": stone_share}), "B": lake_patches})
     lake_plants = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": shallows, "B": lake_patches})
+    r0, r1, r2, r3 = LAKE_REED_CM
+    lake_edge = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": g.wire(unreal.MaterialExpressionMultiply, 2, {
+        "A": g.wire(smooth, 2, {"Min": const(r0), "Max": const(r1), "Value": in_lake}),
+        "B": g.wire(smooth, 2, {"Min": const(r3), "Max": const(r2), "Value": in_lake})}), "B": g.wire(
+        smooth, 3, {"Min": const(LAKE_REED_CLUMP[0]), "Max": const(LAKE_REED_CLUMP[1]),
+                    "Value": g.noise(4, LAKE_REED_NOISE_CM)})})
     stream_stones = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": stream_edge, "B": lake_patches})
     stream_debris = g.wire(unreal.MaterialExpressionMultiply, 1, {"A": stream_edge, "B": g.wire(
         smooth, 3, {"Min": p["GrassRunLow"], "Max": p["GrassRunHigh"], "Value": g.noise(4, STREAM_DEBRIS_NOISE_CM)})})
@@ -603,10 +616,10 @@ def build():
     weights = {"Groundcover": (weight, grass_type())}
     for name, (asset, variants, density, cull, scale, kind) in GRASS_LAYERS.items():
         if kind in ("sand", "waterline", "dry sand", "lake", "shallows", "sand edge", "clearing", "stream stones",
-                    "stream debris"):
+                    "stream debris", "lake edge"):
             layer = {"sand": sand_litter, "waterline": waterline, "dry sand": dry_sand, "lake": lake_stones,
                      "shallows": lake_plants, "sand edge": sand_edge, "clearing": clearing,
-                     "stream stones": stream_stones, "stream debris": stream_debris}[kind]
+                     "stream stones": stream_stones, "stream debris": stream_debris, "lake edge": lake_edge}[kind]
         else:
             layer = floor if kind == "all" else g.wire(unreal.MaterialExpressionMultiply, 1, {"A": floor, "B": where[kind]})
         if kind in SOLID_KINDS:

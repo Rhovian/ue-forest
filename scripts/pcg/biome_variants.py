@@ -312,6 +312,16 @@ LAKE_PLANT_VARIANTS = [
     *[(f"{ED}Taro/SM_Taro_{i:02}", 1) for i in range(1, 11)],
     *[(f"{ED}ArrowheadPlant/SM_ArrowheadPlant_0{i}", 1) for i in range(1, 6)],
 ]
+# Emergent clumps along the lake's edge (#159): the meadow's reeds standing in for sedge and reed, with arrow leaves.
+LAKE_REED_VARIANTS = [
+    *[(f"{FAB_PLANTS}Rough_Meadow_Grass_skFjJ/Medium/skFjJ_tier_2/StaticMeshes/SM_skFjJ_Var{v}", 1) for v in "ABCDE"],
+    *[(f"{ED}ArrowheadPlant/SM_ArrowheadPlant_0{i}", 0.5) for i in range(1, 6)],
+]
+# Leaves floating on the lake (#159, lake_leaves.py): single 4-9 cm leaves, and now and then a 0.8 m mat.
+LAKE_LEAF_VARIANTS = [
+    *[(f"{ED}DeadLeaves/SM_DeadLeaves_{i:02}", 1) for i in range(2, 12)],
+    (f"{ED}DeadLeaves/SM_DeadLeaves_12", 0.03),
+]
 DRY_SAND_STONE_VARIANTS = [
     (f"{EDA}NordicBeachRock/SM_NordicBeachRock_01", 1),
     *[(f"{EDA}SmallStonesPack/SM_SmallStonesPack_{i:02}", 0.2) for i in range(1, 15)],
