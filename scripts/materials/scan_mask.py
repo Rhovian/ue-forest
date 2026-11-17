@@ -24,7 +24,7 @@ import unreal
 sys.path.insert(0, str(Path(unreal.Paths.project_dir()) / "../scripts/materials"))
 import beach_lift
 import mask_raster
-from groundcover_mask import CELL, bounds, import_texture
+from groundcover_mask import CELL, bounds, import_texture, landscape_z
 
 importlib.reload(mask_raster)  # the editor keeps imported modules between runs
 importlib.reload(beach_lift)
@@ -45,21 +45,7 @@ def heights(x0, y0, width, height):
     out = [None] * (width * height)
     for j in range(height):
         for i in range(width):
-            x, y = x0 + (i + 0.5) * CELL, y0 + (j + 0.5) * CELL
-            # Ignore each actor in the way and trace again, so placed logs and rocks with collision cannot hide the
-            # ground: stepping down past them 1 cm at a time stalled inside the large logs (#38).
-            ignored = []
-            for _ in range(16):
-                hit = unreal.SystemLibrary.line_trace_single(
-                    world, unreal.Vector(x, y, 100000), unreal.Vector(x, y, -50000),
-                    unreal.TraceTypeQuery.TRACE_TYPE_QUERY1, False, ignored, unreal.DrawDebugTrace.NONE, True)
-                fields = hit.to_tuple() if hit else None
-                if not fields or not fields[0]:
-                    break
-                if "Landscape" in type(fields[9]).__name__:
-                    out[j * width + i] = fields[4].z
-                    break
-                ignored.append(fields[9])
+            out[j * width + i] = landscape_z(world, x0 + (i + 0.5) * CELL, y0 + (j + 0.5) * CELL)
     return out
 
 

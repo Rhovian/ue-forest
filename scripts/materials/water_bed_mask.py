@@ -18,7 +18,7 @@ from pathlib import Path
 import unreal
 
 sys.path.insert(0, str(Path(unreal.Paths.project_dir()) / "../scripts/materials"))
-from groundcover_mask import CELL, bounds, import_texture
+from groundcover_mask import CELL, bounds, import_texture, landscape_z
 
 PREFIX = "ForestExclusion_"
 # cm the outline lies outside the visible water's edge, at water_exclusions.py's defaults (rerun both if those change):
@@ -28,6 +28,12 @@ MARGINS = {"Lake": 60.0, "Stream": 0.0}
 LAKES = ("Lake",)
 SCALE = 8.0  # cm per step: 128 +- 127 steps covers +-10 m of the edge
 REACH = 1200.0  # cm around each outline that is measured; beyond it a cell is "far" (0 outside, 255 inside)
+# T_StreamWaterline (#158): the stream's water depth, its surface less the ground, 1 cm per step around 128 (positive
+# in the water). Its surface spills 0.75-2 m past the exclusion corridor onto the gentle banks, so the visible
+# waterline is where the depth is 0, not the corridor's edge. Far from the stream a cell is 0 (dry).
+STREAM = "Stream"
+STREAM_NAME = "T_StreamWaterline"
+STREAM_REACH = 800.0  # cm around the stream's outline that is traced
 
 
 def outlines():
@@ -74,9 +80,39 @@ def bake(name, bodies, x0, y0, width, height):
     return sum(1 for v in pixels if v > 128)
 
 
+def bake_stream(points, x0, y0, width, height):
+    actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()
+    river = next(a for a in actors if isinstance(a, unreal.WaterBodyRiver) and a.get_actor_label() == STREAM)
+    spline = river.get_component_by_class(unreal.WaterSplineComponent)
+    world, space = unreal.UnrealEditorSubsystem().get_editor_world(), unreal.SplineCoordinateSpace.WORLD
+    pixels = bytearray(width * height)
+    xs, ys = [p[0] for p in points], [p[1] for p in points]
+    i0, i1 = max(0, int((min(xs) - STREAM_REACH - x0) // CELL)), min(width, int((max(xs) + STREAM_REACH - x0) // CELL) + 1)
+    j0, j1 = max(0, int((min(ys) - STREAM_REACH - y0) // CELL)), min(height, int((max(ys) + STREAM_REACH - y0) // CELL) + 1)
+    wet = 0
+    for j in range(j0, j1):
+        for i in range(i0, i1):
+            x, y = x0 + (i + 0.5) * CELL, y0 + (j + 0.5) * CELL
+            if signed_distance(points, x, y) < -STREAM_REACH:
+                continue
+            # Through the river and any log or rock over the bank: a cell left at 0 would read as dry ground (#158 review).
+            ground = landscape_z(world, x, y, [river])
+            if ground is None:
+                continue
+            # The query is 3D and the stream falls 21 m: ask at the ground, which is within a metre of the water here.
+            surface = spline.find_location_closest_to_world_location(unreal.Vector(x, y, ground), space).z
+            depth = surface - ground
+            pixels[j * width + i] = max(1, min(255, round(128 + depth)))
+            wet += depth > 0
+    import_texture(pixels, width, height, STREAM_NAME)
+    return wet
+
+
 def main():
     x0, y0, width, height = bounds()
     found = outlines()
+    wet = bake_stream(found[STREAM], x0, y0, width, height)
+    print(f"{STREAM_NAME}: {wet} cells under the stream's surface")
     water = bake("T_WaterBedMask", [(found[n], m) for n, m in MARGINS.items()], x0, y0, width, height)
     lake = bake("T_LakeMask", [(found[n], MARGINS[n]) for n in LAKES], x0, y0, width, height)
     print(f"T_WaterBedMask: {water} cells in water; T_LakeMask: {lake} in the lake ({CELL} cm cells)")

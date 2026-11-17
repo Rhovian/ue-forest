@@ -40,6 +40,24 @@ def bounds():
     return x_min * 100, y_min * 100, math.ceil((x_max - x_min) * 100 / CELL), math.ceil((y_max - y_min) * 100 / CELL)
 
 
+def landscape_z(world, x, y, ignored=()):
+    """The landscape's z under (x, y) in cm, or None where there is none. Each other actor in the way is ignored and
+    the trace repeated, so placed logs and rocks with collision cannot hide the ground: stepping down past them 1 cm at
+    a time stalled inside the large logs (#38)."""
+    ignored = list(ignored)
+    for _ in range(16):
+        hit = unreal.SystemLibrary.line_trace_single(
+            world, unreal.Vector(x, y, 100000), unreal.Vector(x, y, -50000),
+            unreal.TraceTypeQuery.TRACE_TYPE_QUERY1, False, ignored, unreal.DrawDebugTrace.NONE, True)
+        fields = hit.to_tuple() if hit else None
+        if not fields or not fields[0]:
+            return None
+        if "Landscape" in type(fields[9]).__name__:
+            return fields[4].z
+        ignored.append(fields[9])
+    return None
+
+
 def polygons():
     actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()
     found = [a for a in actors if a.get_actor_label().startswith(PREFIX) or a.get_actor_label() == LABEL]
