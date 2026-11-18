@@ -213,10 +213,22 @@ def generator(group, density, slope, priority, doubles=None, bools=None, extent=
     if doubles and "PointsPerSquareMeter" in doubles:
         raise RuntimeError(f"{group}: pass the density as the `density` argument, not a PointsPerSquareMeter override,"
                            " so the candidate budget checks what is installed")
-    ranges = area_sampling.ranges(group) if region is not None else None
+    numbers = {
+        "PointsPerSquareMeter": density / 10000, "SlopeMaskLow": math.cos(math.radians(slope)),
+        "SlopeMaskHigh": math.cos(math.radians(5)) if group == "Rocks" else 1.0, "SpatialDensityLow": 0.35, "SpatialDensityHigh": 1.0,
+        "ScaleByDensityRangeMin": 1.0, "ScaleByDensityRangeMax": 1.0, "ScramblePositionDistance": 0.0,
+    } | (doubles or {})
+    switches = {
+        "EnableSlopeMasking": True, "EnableWorldRayHitQuery": False, "EnableSpatialNoise": True,
+        "EnableVoronoiNoiseBreakup": False, "EnableDistanceToEdge": False,
+    } | (bools or {})
+    # What the measured density ranges depend on: a change to any of these measures them again.
+    inputs = numbers | switches | {"PointExtents": extent}
+    ranges = area_sampling.ranges(group, inputs) if region is not None else None
     if region is not None and ranges is None:
-        print(f"{group}: no measured density ranges; it samples the whole island once to measure them (#247)")
-    estimate = candidate_estimate(density, extent, area_sampling.tile_area_ha(region) if ranges else None)
+        area_sampling.pending(group, inputs)
+        print(f"{group}: no density ranges measured for these settings; it samples the whole island once to measure them (#247)")
+    estimate = candidate_estimate(density, extent, area_sampling.tile_area_ha(region) if ranges is not None else None)
     if estimate > MAX_CANDIDATES:
         raise RuntimeError(f"{group}: {density:.0f}/ha at extent {extent} cm samples ~{estimate / 1e6:.0f} million points over"
                            f" the biome volume (budget {MAX_CANDIDATES / 1e6:.0f} million); lower the density or narrow"
@@ -231,16 +243,9 @@ def generator(group, density, slope, priority, doubles=None, bools=None, extent=
     # Native parameter helpers already validate names/types and notify graph instances:
     # UE 5.8 PCG/Private/Helpers/PCGGraphParametersHelpers.cpp: ValidateAndSetValue.
     helpers = unreal.PCGGraphParametersHelpers
-    for name, value in ({
-        "PointsPerSquareMeter": density / 10000, "SlopeMaskLow": math.cos(math.radians(slope)),
-        "SlopeMaskHigh": math.cos(math.radians(5)) if group == "Rocks" else 1.0, "SpatialDensityLow": 0.35, "SpatialDensityHigh": 1.0,
-        "ScaleByDensityRangeMin": 1.0, "ScaleByDensityRangeMax": 1.0, "ScramblePositionDistance": 0.0,
-    } | (doubles or {})).items():
+    for name, value in numbers.items():
         helpers.set_double_parameter(graph, name, value)
-    for name, value in ({
-        "EnableSlopeMasking": True, "EnableWorldRayHitQuery": False, "EnableSpatialNoise": True,
-        "EnableVoronoiNoiseBreakup": False, "EnableDistanceToEdge": False,
-    } | (bools or {})).items():
+    for name, value in switches.items():
         helpers.set_bool_parameter(graph, name, value)
     for name, value in {"ScaleMin": unreal.Vector(0.8, 0.8, 0.8), "ScaleMax": unreal.Vector(1.2, 1.2, 1.2),
                         # The surface sampler emits at most one point per cell of twice these extents.

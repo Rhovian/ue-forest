@@ -7,8 +7,9 @@ then keeps exactly the points it kept before.
 
 Converting a family (deadwood_rocks.generator's `region`): build it once without measured ranges (it samples the whole
 island and saves its density ranges under PROBE), regenerate, record(groups) into area_ranges.json, then build again.
-A measuring regenerate costs what the stock one does; regenerate with only the family's group enabled to keep it under
-the memory guard.
+The ranges are kept with the generator settings they were measured with; changing those settings measures again.
+A measuring regenerate costs what the stock one does: with only the Understory group enabled it still reached the 75 GB
+guard (#247), so keep only the generators being measured (their rows in the group's asset list, in memory).
 """
 
 import json
@@ -35,18 +36,39 @@ AREA = "PCG_Forest_{}Area"  # a group's area graph, the parent of its generator 
 PROBE = "/Game/_AreaProbe"  # measuring graphs save their reduce values here; record() reads, then deletes them
 
 
-def ranges(group):
-    """The group's measured density ranges, or None until measured."""
-    measured = json.loads(RANGES.read_text()) if RANGES.exists() else {}
-    return {remap: tuple(pair) for remap, pair in measured[group].items()} if group in measured else None
+def _load():
+    return json.loads(RANGES.read_text()) if RANGES.exists() else {}
+
+
+def _store(measured):
+    RANGES.write_text(json.dumps(measured, indent=1, sort_keys=True) + "\n")
+
+
+def ranges(group, inputs):
+    """The group's density ranges measured with these generator inputs, or None: never measured, or measured with
+    other settings (the extrema depend on the lattice, slope mask and noise). The terrain and the biome volume are not in
+    inputs: after changing either, delete the group's entries from area_ranges.json and measure again."""
+    entry = _load().get(group)
+    if entry and entry["inputs"] == inputs and entry["ranges"] is not None:
+        return {remap: tuple(pair) for remap, pair in entry["ranges"].items()}
+    return None
+
+
+def pending(group, inputs):
+    """Note that group's measuring graph was built with these inputs; record() fills in what it measures."""
+    measured = _load()
+    measured[group] = {"inputs": inputs, "ranges": None}
+    _store(measured)
 
 
 def record(groups):
-    """Add groups' measured ranges (measure_ranges) to area_ranges.json."""
-    measured = json.loads(RANGES.read_text()) if RANGES.exists() else {}
+    """Fill in groups' measured ranges (measure_ranges) after a regenerate with their measuring graphs."""
+    measured = _load()
     for group in groups:
-        measured[group] = {remap: list(pair) for remap, pair in measure_ranges(group).items()}
-    RANGES.write_text(json.dumps(measured, indent=1, sort_keys=True) + "\n")
+        if group not in measured:
+            raise RuntimeError(f"{group}: no measuring build pending; build it first")
+        measured[group]["ranges"] = {remap: list(pair) for remap, pair in measure_ranges(group).items()}
+    _store(measured)
     unreal.EditorAssetLibrary.delete_directory(PROBE)
     return measured
 
@@ -100,8 +122,8 @@ def _connect(graph, source, source_pin, target, target_pin):
 
 def area_graph(path, cells, ranges=None, cell=TILE):
     """A new generator graph at path sampling only `cells` (tiles_near). ranges {remap: (min, max)} fixes the template's
-    three density rescales; without it the graph samples the whole island and measures them (measure_ranges)."""
-    if not ranges:
+    density rescales; None samples the whole island and measures them (measure_ranges)."""
+    if ranges is None:
         cells, cell = WHOLE, WHOLE_CELL
     if unreal.EditorAssetLibrary.does_asset_exist(path):
         unreal.EditorAssetLibrary.delete_asset(path)
@@ -133,7 +155,7 @@ def area_graph(path, cells, ranges=None, cell=TILE):
     _connect(graph, tiles, "Out", sampler, "Region Tiles")
     _connect(graph, tiles, "Out", sampler, "Region")
     edges = list(_edges(graph))
-    if ranges:
+    if ranges is not None:
         for remap, (low, high) in ranges.items():
             node = _node(graph, remap)
             for up, up_pin, down, down_pin in edges:
@@ -162,14 +184,19 @@ def _measure(graph, edges):
 
 
 def measure_ranges(group):
-    """{remap: (min, max)} from the probe assets a measuring generator saved during a regenerate."""
+    """{remap: (min, max)} from the probe assets a measuring generator saved during a regenerate. A rescale whose branch
+    the generator's settings leave off (the Voronoi breakup) saves nothing and is left out: it never runs."""
     def value(reduce):
         asset = unreal.load_asset(f"{PROBE}/{AREA.format(group)}_{reduce}")
         if asset is None:
-            raise RuntimeError(f"{group}: no probe asset for {reduce}; regenerate with its measuring graph first")
+            return None
         found = unreal.PCGDataFunctionLibrary.get_typed_inputs(asset.get_editor_property("data"), unreal.PCGParamData)
         params = (found[0] if isinstance(found, tuple) else found)[0]
         metadata = params.const_metadata()
         names, _types = metadata.get_attributes()
         return unreal.PCGMetadataAccessorHelpers.get_double_attribute_by_metadata_key(0, metadata, names[0])
-    return {remap: (value(low), value(high)) for remap, (low, high) in REMAPS.items()}
+    measured = {remap: (value(low), value(high)) for remap, (low, high) in REMAPS.items()}
+    measured = {remap: pair for remap, pair in measured.items() if None not in pair}
+    if not measured:
+        raise RuntimeError(f"{group}: no probe assets; regenerate with its measuring graph first")
+    return measured

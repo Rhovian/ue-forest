@@ -1,7 +1,7 @@
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 sys.modules.setdefault("unreal", MagicMock())
 sys.path.insert(0, str(Path(__file__).parent))
@@ -28,6 +28,25 @@ class CandidateBudgetTests(unittest.TestCase):
 
     def test_estimate_counts_an_area_generators_tiles(self):
         self.assertAlmostEqual(deadwood_rocks.candidate_estimate(100, 100, area_ha=2), 200)
+
+    # 600,000/ha at extent 8 is ~185 million candidates island-wide but ~0.4 million on one tile.
+    def test_measured_area_generator_is_charged_its_tiles(self):
+        with patch.object(area_sampling, "ranges", return_value={}), patch.object(area_sampling, "area_graph") as built, \
+                patch.object(deadwood_rocks, "put"):
+            deadwood_rocks.generator("Meadow", 600000, 25, 60, extent=8, region=[(0, 0)])
+        built.assert_called_once()
+
+    def test_measuring_area_generator_is_charged_the_whole_island(self):
+        with patch.object(area_sampling, "ranges", return_value=None), patch.object(area_sampling, "pending"), \
+                patch.object(area_sampling, "area_graph"), self.assertRaisesRegex(RuntimeError, "million points"):
+            deadwood_rocks.generator("Meadow", 600000, 25, 60, extent=8, region=[(0, 0)])
+
+    def test_ranges_are_measured_again_when_generator_settings_change(self):
+        stored = {"Herbs": {"inputs": {"PointsPerSquareMeter": 0.02}, "ranges": {"AttributeRemap_1": [0.0, 0.9]}}}
+        with patch.object(area_sampling, "_load", return_value=stored):
+            self.assertEqual(area_sampling.ranges("Herbs", {"PointsPerSquareMeter": 0.02}), {"AttributeRemap_1": (0.0, 0.9)})
+            self.assertIsNone(area_sampling.ranges("Herbs", {"PointsPerSquareMeter": 0.01}))  # --density-scale 0.5
+            self.assertIsNone(area_sampling.ranges("Ferns", {"PointsPerSquareMeter": 0.02}))
 
 
 class AreaTileTests(unittest.TestCase):
