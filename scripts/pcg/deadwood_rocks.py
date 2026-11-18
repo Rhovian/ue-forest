@@ -20,6 +20,7 @@ import biome_variants
 import unreal
 from child_layouts import along_sides, along_top, base_ring, build_points_graph, surface_hits
 from long_log_keepout import water_keepout
+from terrain_regions import terrain_cells
 from trees_above_shore import land_z, shore_height, z_range
 
 ROOT = "/Game/ForestBiome/"
@@ -146,8 +147,18 @@ REGION_MARGIN = 300
 def foot_cells(reach):
     """Area tiles (area_sampling) holding all ground within reach cm of the forest foot: the only ground foot_graph
     can keep (its Distance is 3D, so the horizontal distance is never longer)."""
-    foot = json.loads(Path(__file__).with_name("forest_foot.json").read_text())
+    foot = json.loads(Path(area_sampling.__file__).with_name("forest_foot.json").read_text())
     return area_sampling.tiles_near([(x * 100, y * 100) for x, y in foot["points_m"]], reach + REGION_MARGIN)
+
+
+def above_shore_cells():
+    """Area tiles holding all ground whose LAND_Z (ground plus the beach lift, at most landheight.LIFT_CM) can reach the
+    lowest band any filter_graph keeps: PLANT_FLOOR above the shore, less PLANT_FADE's deepest tongue (terrain_tiles.json,
+    #258)."""
+    landheight = Path(area_sampling.__file__).parents[1] / "terrain/landheight.py"  # no __file__ when run as a script
+    lift = int(re.search(r"^LIFT_CM = (\d+)", landheight.read_text(), re.MULTILINE)[1])
+    lowest = shore_height() + PLANT_FLOOR - max((depth for depth, _ in PLANT_FADE), default=0)
+    return terrain_cells(lambda _z_min, z_max, _slope: z_max + lift >= lowest)
 
 
 def filter_graph(name, reach=0, slope=0, sink=None, fade=None):
@@ -158,7 +169,7 @@ def filter_graph(name, reach=0, slope=0, sink=None, fade=None):
     for node in list(graph.get_editor_property("nodes")):
         if node not in (inp, out):
             graph.remove_node(node)
-    floor = shore_height() + 150 + reach * math.sin(math.radians(slope))
+    floor = shore_height() + PLANT_FLOOR + reach * math.sin(math.radians(slope))
     band = z_range(graph, floor, 1.0e7)
     edge(graph, land_z(graph, inp, "In"), "Out", band, "In")
     last, pin = band, "InsideFilter"
@@ -184,6 +195,7 @@ def filter_graph(name, reach=0, slope=0, sink=None, fade=None):
 # so the plants come down in irregular tongues. PCG Spatial Noise's base period is 100 m: a scale of 6 gives ~15 m tongues.
 # Thresholds of 0.45-0.62 to 140 cm down (Perlin rarely passes 0.6) left the 2-6 m apron between a bluff and the sand a
 # bright continuous strip (#188 review); these reach the sand at the shore height.
+PLANT_FLOOR = 150  # cm above the shore height where filter_graph's band starts (#165)
 PLANT_FADE = ((50, 0.35), (100, 0.42), (150, 0.5))
 FADE_NOISE_SCALE = 6.0
 LOGS_PER_HA = 20  # #32 ruling: more deadwood on the floor (was 12 logs + 6 stumps)

@@ -107,5 +107,36 @@ class MeasureTests(unittest.TestCase):
                     self.assertRaises(RuntimeError):
                 area_sampling.measure_ranges("Herbs", NOISE_VORONOI)
 
+def summaries(cells):
+    """A terrain_cells stand-in over {(ix, iy): (z_min, z_max, slope)}."""
+    return lambda predicate: sorted(c for c, summary in cells.items() if predicate(*summary))
+
+
+class RegionTests(unittest.TestCase):
+    SHORE = 75  # cm; the lowest any plant filter keeps is the shore height (PLANT_FLOOR less the deepest fade)
+
+    def test_above_shore_tiles_count_the_beach_lift(self):
+        cells = {(0, 0): (-500, self.SHORE - 150, 0), (1, 0): (-500, self.SHORE - 151, 0), (2, 0): (0, 900, 0)}
+        with patch.object(deadwood_rocks, "terrain_cells", summaries(cells)), \
+                patch.object(deadwood_rocks, "shore_height", return_value=self.SHORE):
+            self.assertEqual(deadwood_rocks.above_shore_cells(), [(0, 0), (2, 0)])  # lifted 150 cm, (0, 0) reaches it
+
+    def test_without_a_fade_the_band_starts_at_the_plant_floor(self):
+        cells = {(0, 0): (-500, self.SHORE, 0), (1, 0): (-500, self.SHORE - 1, 0)}
+        with patch.object(deadwood_rocks, "terrain_cells", summaries(cells)), patch.object(deadwood_rocks, "PLANT_FADE", ()), \
+                patch.object(deadwood_rocks, "shore_height", return_value=self.SHORE):
+            self.assertEqual(deadwood_rocks.above_shore_cells(), [(0, 0)])  # lifted 150 cm, it reaches PLANT_FLOOR
+
+    def test_damp_tiles_are_low_or_near_water_and_above_the_shore(self):
+        import saplings_understory
+        cells = {(0, 0): (1199, 5000, 0), (1, 0): (1200, 5000, 0), (2, 0): (1300, 5000, 0), (3, 0): (100, 900, 0)}
+        with patch.object(saplings_understory, "terrain_cells", summaries(cells)), \
+                patch.object(saplings_understory, "bank_cells", return_value=[(2, 0), (9, 9)]), \
+                patch.object(deadwood_rocks, "above_shore_cells", return_value=[(0, 0), (1, 0), (2, 0)]):
+            # (0, 0) low by its lowest ground; (1, 0) neither low nor near; (2, 0) high but near water; (3, 0) and the
+            # near-water (9, 9) below the shore
+            self.assertEqual(saplings_understory.damp_cells(), [(0, 0), (2, 0)])
+
+
 if __name__ == "__main__":
     unittest.main()

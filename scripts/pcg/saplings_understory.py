@@ -274,22 +274,32 @@ def bank_filter(band, inner, outer):
     return graph
 
 
+DAMP_TOP, DAMP_REACH = 1200, 3000  # cm: damp ground is below this height or within this reach of a water spline
+
+
+def damp_cells():
+    """Area tiles holding all ground damp_filter keeps: above the shore and low, or near water (bank_cells)."""
+    near = set(bank_cells(DAMP_REACH))
+    low = set(terrain_cells(lambda z_min, _z_max, _slope: z_min < DAMP_TOP))
+    return sorted(set(deadwood_rocks.above_shore_cells()) & (low | near))
+
+
 def damp_filter():
     graph = copy_asset(ROOT + "PCG_TreesAboveShore", "PCG_UnderstoryDamp")
     inp, out = graph.get_input_node(), graph.get_output_node()
     for node in list(graph.get_editor_property("nodes")):
         if node not in (inp, out):
             graph.remove_node(node)
-    floor = shore_height() + 150
+    floor = shore_height() + deadwood_rocks.PLANT_FLOOR
     shore = z_range(graph, floor, 1.0e7)
     edge(graph, land_z(graph, inp, "In"), "Out", shore, "In")
     above = fade_in(graph, shore, "OutsideFilter", floor, PLANT_FADE)  # the same ragged lower edge as the Gaps (#165)
     edge(graph, shore, "InsideFilter", above, "In")
-    first, low = shore_band(graph, shore_height(), 1200)
+    first, low = shore_band(graph, shore_height(), DAMP_TOP)
     edge(graph, above, "Out", first, "In")
     merge, _ = graph.add_node_of_type(unreal.PCGMergeSettings)
     edge(graph, low, "InsideFilter", merge, "In")
-    near, pin = water_near(graph, low, "OutsideFilter", 3000)
+    near, pin = water_near(graph, low, "OutsideFilter", DAMP_REACH)
     edge(graph, near, pin, merge, "In")
     edge(graph, merge, "Out", out, "Out")
     save(graph)
@@ -361,6 +371,7 @@ def main():
     # The Steep patch's own slope mask keeps only ground steeper than STEEP; terrain_tiles.json bounds the landscape
     # normal PCG reads anywhere in a tile (terrain_regions).
     cells |= {"Steep": terrain_cells(lambda _z_min, _z_max, slope: slope >= STEEP)}
+    cells |= {"Gaps": deadwood_rocks.above_shore_cells()} | ({"Damp": damp_cells()} if damp else {})
     entries = []
     # Understory (#32 rulings, interior_01): colonies rather than an even scatter, and plants grow under trees too
     # (overlap, so canopy bounds do not prune them). The template's spatial noise is world-space with no seed

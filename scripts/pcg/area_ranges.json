@@ -63,6 +63,70 @@
    ]
   }
  },
+ "BalsamDamp": {
+  "inputs": {
+   "EnableDistanceToEdge": false,
+   "EnableSlopeMasking": true,
+   "EnableSpatialNoise": true,
+   "EnableVoronoiNoiseBreakup": true,
+   "EnableWorldRayHitQuery": false,
+   "PointExtents": 100,
+   "PointsPerSquareMeter": 0.0075,
+   "ScaleByDensityRangeMax": 1.0,
+   "ScaleByDensityRangeMin": 1.0,
+   "ScramblePositionDistance": 0.0,
+   "SlopeMaskHigh": 1.0,
+   "SlopeMaskLow": 0.9063077870366499,
+   "SpatialDensityHigh": 1.0,
+   "SpatialDensityLow": 0.3
+  },
+  "ranges": {
+   "AttributeRemap_1": [
+    0.3000022768974304,
+    0.9910231232643127
+   ],
+   "AttributeRemap_2": [
+    1.5414146403713858e-08,
+    1.0
+   ],
+   "AttributeRemap_3": [
+    0.03779655694961548,
+    0.9760421514511108
+   ]
+  }
+ },
+ "BalsamGaps": {
+  "inputs": {
+   "EnableDistanceToEdge": false,
+   "EnableSlopeMasking": true,
+   "EnableSpatialNoise": true,
+   "EnableVoronoiNoiseBreakup": true,
+   "EnableWorldRayHitQuery": false,
+   "PointExtents": 100,
+   "PointsPerSquareMeter": 0.015,
+   "ScaleByDensityRangeMax": 1.0,
+   "ScaleByDensityRangeMin": 1.0,
+   "ScramblePositionDistance": 0.0,
+   "SlopeMaskHigh": 1.0,
+   "SlopeMaskLow": 0.9063077870366499,
+   "SpatialDensityHigh": 1.0,
+   "SpatialDensityLow": 0.3
+  },
+  "ranges": {
+   "AttributeRemap_1": [
+    0.30003151297569275,
+    0.9802603721618652
+   ],
+   "AttributeRemap_2": [
+    4.805847941824481e-10,
+    1.0
+   ],
+   "AttributeRemap_3": [
+    0.0367024689912796,
+    0.9835683703422546
+   ]
+  }
+ },
  "BeechFernsBankFar": {
   "inputs": {
    "EnableDistanceToEdge": false,
@@ -124,6 +188,70 @@
    "AttributeRemap_3": [
     0.033304132521152496,
     0.9941450953483582
+   ]
+  }
+ },
+ "BeechFernsDamp": {
+  "inputs": {
+   "EnableDistanceToEdge": false,
+   "EnableSlopeMasking": true,
+   "EnableSpatialNoise": true,
+   "EnableVoronoiNoiseBreakup": true,
+   "EnableWorldRayHitQuery": false,
+   "PointExtents": 100,
+   "PointsPerSquareMeter": 0.01125,
+   "ScaleByDensityRangeMax": 1.0,
+   "ScaleByDensityRangeMin": 1.0,
+   "ScramblePositionDistance": 0.0,
+   "SlopeMaskHigh": 1.0,
+   "SlopeMaskLow": 0.42261826174069944,
+   "SpatialDensityHigh": 1.0,
+   "SpatialDensityLow": 0.15
+  },
+  "ranges": {
+   "AttributeRemap_1": [
+    0.15000030398368835,
+    0.9940390586853027
+   ],
+   "AttributeRemap_2": [
+    4.169645073659467e-09,
+    1.0
+   ],
+   "AttributeRemap_3": [
+    0.04044497385621071,
+    0.981334388256073
+   ]
+  }
+ },
+ "BeechFernsGaps": {
+  "inputs": {
+   "EnableDistanceToEdge": false,
+   "EnableSlopeMasking": true,
+   "EnableSpatialNoise": true,
+   "EnableVoronoiNoiseBreakup": true,
+   "EnableWorldRayHitQuery": false,
+   "PointExtents": 100,
+   "PointsPerSquareMeter": 0.0225,
+   "ScaleByDensityRangeMax": 1.0,
+   "ScaleByDensityRangeMin": 1.0,
+   "ScramblePositionDistance": 0.0,
+   "SlopeMaskHigh": 1.0,
+   "SlopeMaskLow": 0.42261826174069944,
+   "SpatialDensityHigh": 1.0,
+   "SpatialDensityLow": 0.15
+  },
+  "ranges": {
+   "AttributeRemap_1": [
+    0.15000589191913605,
+    0.9797832369804382
+   ],
+   "AttributeRemap_2": [
+    1.0545584405718955e-09,
+    1.0
+   ],
+   "AttributeRemap_3": [
+    0.035429708659648895,
+    0.9863488078117371
    ]
   }
  },
@@ -220,6 +348,70 @@
    "AttributeRemap_3": [
     0.03511366993188858,
     0.995815098285675
+   ]
+  }
+ },
+ "DeerFernsDamp": {
+  "inputs": {
+   "EnableDistanceToEdge": false,
+   "EnableSlopeMasking": true,
+   "EnableSpatialNoise": true,
+   "EnableVoronoiNoiseBreakup": true,
+   "EnableWorldRayHitQuery": false,
+   "PointExtents": 100,
+   "PointsPerSquareMeter": 0.015,
+   "ScaleByDensityRangeMax": 1.0,
+   "ScaleByDensityRangeMin": 1.0,
+   "ScramblePositionDistance": 0.0,
+   "SlopeMaskHigh": 1.0,
+   "SlopeMaskLow": 0.42261826174069944,
+   "SpatialDensityHigh": 1.0,
+   "SpatialDensityLow": 0.15
+  },
+  "ranges": {
+   "AttributeRemap_1": [
+    0.1500001847743988,
+    0.9802603721618652
+   ],
+   "AttributeRemap_2": [
+    4.805847941824481e-10,
+    1.0
+   ],
+   "AttributeRemap_3": [
+    0.0367024689912796,
+    0.9835683703422546
+   ]
+  }
+ },
+ "DeerFernsGaps": {
+  "inputs": {
+   "EnableDistanceToEdge": false,
+   "EnableSlopeMasking": true,
+   "EnableSpatialNoise": true,
+   "EnableVoronoiNoiseBreakup": true,
+   "EnableWorldRayHitQuery": false,
+   "PointExtents": 100,
+   "PointsPerSquareMeter": 0.03,
+   "ScaleByDensityRangeMax": 1.0,
+   "ScaleByDensityRangeMin": 1.0,
+   "ScramblePositionDistance": 0.0,
+   "SlopeMaskHigh": 1.0,
+   "SlopeMaskLow": 0.42261826174069944,
+   "SpatialDensityHigh": 1.0,
+   "SpatialDensityLow": 0.15
+  },
+  "ranges": {
+   "AttributeRemap_1": [
+    0.15000127255916595,
+    0.9745437502861023
+   ],
+   "AttributeRemap_2": [
+    1.3472223336918887e-11,
+    1.0
+   ],
+   "AttributeRemap_3": [
+    0.03687458112835884,
+    0.9918273687362671
    ]
   }
  },
@@ -340,6 +532,70 @@
    "AttributeRemap_3": [
     0.032225847244262695,
     0.9967254996299744
+   ]
+  }
+ },
+ "FernsDamp": {
+  "inputs": {
+   "EnableDistanceToEdge": false,
+   "EnableSlopeMasking": true,
+   "EnableSpatialNoise": true,
+   "EnableVoronoiNoiseBreakup": true,
+   "EnableWorldRayHitQuery": false,
+   "PointExtents": 100,
+   "PointsPerSquareMeter": 0.02625,
+   "ScaleByDensityRangeMax": 1.0,
+   "ScaleByDensityRangeMin": 1.0,
+   "ScramblePositionDistance": 0.0,
+   "SlopeMaskHigh": 1.0,
+   "SlopeMaskLow": 0.42261826174069944,
+   "SpatialDensityHigh": 1.0,
+   "SpatialDensityLow": 0.15
+  },
+  "ranges": {
+   "AttributeRemap_1": [
+    0.15000726282596588,
+    0.9925948977470398
+   ],
+   "AttributeRemap_2": [
+    1.2443412966689493e-10,
+    1.0
+   ],
+   "AttributeRemap_3": [
+    0.03429783135652542,
+    0.9903836250305176
+   ]
+  }
+ },
+ "FernsGaps": {
+  "inputs": {
+   "EnableDistanceToEdge": false,
+   "EnableSlopeMasking": true,
+   "EnableSpatialNoise": true,
+   "EnableVoronoiNoiseBreakup": true,
+   "EnableWorldRayHitQuery": false,
+   "PointExtents": 100,
+   "PointsPerSquareMeter": 0.0525,
+   "ScaleByDensityRangeMax": 1.0,
+   "ScaleByDensityRangeMin": 1.0,
+   "ScramblePositionDistance": 0.0,
+   "SlopeMaskHigh": 1.0,
+   "SlopeMaskLow": 0.42261826174069944,
+   "SpatialDensityHigh": 1.0,
+   "SpatialDensityLow": 0.15
+  },
+  "ranges": {
+   "AttributeRemap_1": [
+    0.15000107884407043,
+    0.988900899887085
+   ],
+   "AttributeRemap_2": [
+    2.337846027877788e-10,
+    1.0
+   ],
+   "AttributeRemap_3": [
+    0.03367612138390541,
+    0.9906681180000305
    ]
   }
  },
@@ -503,6 +759,134 @@
    ]
   }
  },
+ "HerbsDamp": {
+  "inputs": {
+   "EnableDistanceToEdge": false,
+   "EnableSlopeMasking": true,
+   "EnableSpatialNoise": true,
+   "EnableVoronoiNoiseBreakup": true,
+   "EnableWorldRayHitQuery": false,
+   "PointExtents": 100,
+   "PointsPerSquareMeter": 0.0125,
+   "ScaleByDensityRangeMax": 1.0,
+   "ScaleByDensityRangeMin": 1.0,
+   "ScramblePositionDistance": 0.0,
+   "SlopeMaskHigh": 1.0,
+   "SlopeMaskLow": 0.9063077870366499,
+   "SpatialDensityHigh": 1.0,
+   "SpatialDensityLow": 0.3
+  },
+  "ranges": {
+   "AttributeRemap_1": [
+    0.300045907497406,
+    0.9639172554016113
+   ],
+   "AttributeRemap_2": [
+    1.0110468018353913e-10,
+    1.0
+   ],
+   "AttributeRemap_3": [
+    0.035635195672512054,
+    0.9761984348297119
+   ]
+  }
+ },
+ "HerbsGaps": {
+  "inputs": {
+   "EnableDistanceToEdge": false,
+   "EnableSlopeMasking": true,
+   "EnableSpatialNoise": true,
+   "EnableVoronoiNoiseBreakup": true,
+   "EnableWorldRayHitQuery": false,
+   "PointExtents": 100,
+   "PointsPerSquareMeter": 0.025,
+   "ScaleByDensityRangeMax": 1.0,
+   "ScaleByDensityRangeMin": 1.0,
+   "ScramblePositionDistance": 0.0,
+   "SlopeMaskHigh": 1.0,
+   "SlopeMaskLow": 0.9063077870366499,
+   "SpatialDensityHigh": 1.0,
+   "SpatialDensityLow": 0.3
+  },
+  "ranges": {
+   "AttributeRemap_1": [
+    0.30000630021095276,
+    0.9946194291114807
+   ],
+   "AttributeRemap_2": [
+    4.911404616336768e-10,
+    1.0
+   ],
+   "AttributeRemap_3": [
+    0.03777993097901344,
+    0.9852496981620789
+   ]
+  }
+ },
+ "IvyDamp": {
+  "inputs": {
+   "EnableDistanceToEdge": false,
+   "EnableSlopeMasking": true,
+   "EnableSpatialNoise": true,
+   "EnableVoronoiNoiseBreakup": true,
+   "EnableWorldRayHitQuery": false,
+   "PointExtents": 100,
+   "PointsPerSquareMeter": 0.025,
+   "ScaleByDensityRangeMax": 1.0,
+   "ScaleByDensityRangeMin": 1.0,
+   "ScramblePositionDistance": 0.0,
+   "SlopeMaskHigh": 1.0,
+   "SlopeMaskLow": 0.3420201433256688,
+   "SpatialDensityHigh": 1.0,
+   "SpatialDensityLow": 0.3
+  },
+  "ranges": {
+   "AttributeRemap_1": [
+    0.30000630021095276,
+    0.9946194291114807
+   ],
+   "AttributeRemap_2": [
+    4.911404616336768e-10,
+    1.0
+   ],
+   "AttributeRemap_3": [
+    0.03777993097901344,
+    0.9852496981620789
+   ]
+  }
+ },
+ "IvyGaps": {
+  "inputs": {
+   "EnableDistanceToEdge": false,
+   "EnableSlopeMasking": true,
+   "EnableSpatialNoise": true,
+   "EnableVoronoiNoiseBreakup": true,
+   "EnableWorldRayHitQuery": false,
+   "PointExtents": 100,
+   "PointsPerSquareMeter": 0.05,
+   "ScaleByDensityRangeMax": 1.0,
+   "ScaleByDensityRangeMin": 1.0,
+   "ScramblePositionDistance": 0.0,
+   "SlopeMaskHigh": 1.0,
+   "SlopeMaskLow": 0.3420201433256688,
+   "SpatialDensityHigh": 1.0,
+   "SpatialDensityLow": 0.3
+  },
+  "ranges": {
+   "AttributeRemap_1": [
+    0.30000385642051697,
+    0.99052894115448
+   ],
+   "AttributeRemap_2": [
+    1.0514356052482299e-09,
+    1.0
+   ],
+   "AttributeRemap_3": [
+    0.03082035481929779,
+    0.9862791895866394
+   ]
+  }
+ },
  "SandHeather": {
   "inputs": {
    "EnableDistanceToEdge": false,
@@ -524,6 +908,94 @@
    "AttributeRemap_1": [
     0.3500008285045624,
     0.9926524758338928
+   ]
+  }
+ },
+ "SaplingsGaps": {
+  "inputs": {
+   "EnableDistanceToEdge": false,
+   "EnableSlopeMasking": true,
+   "EnableSpatialNoise": true,
+   "EnableVoronoiNoiseBreakup": false,
+   "EnableWorldRayHitQuery": false,
+   "PointExtents": 100,
+   "PointsPerSquareMeter": 0.03,
+   "ScaleByDensityRangeMax": 1.0,
+   "ScaleByDensityRangeMin": 1.0,
+   "ScramblePositionDistance": 0.0,
+   "SlopeMaskHigh": 1.0,
+   "SlopeMaskLow": 0.9063077870366499,
+   "SpatialDensityHigh": 1.0,
+   "SpatialDensityLow": 0.35
+  },
+  "ranges": {
+   "AttributeRemap_1": [
+    0.3500090539455414,
+    0.9918273687362671
+   ]
+  }
+ },
+ "ShrubsDamp": {
+  "inputs": {
+   "EnableDistanceToEdge": false,
+   "EnableSlopeMasking": true,
+   "EnableSpatialNoise": true,
+   "EnableVoronoiNoiseBreakup": true,
+   "EnableWorldRayHitQuery": false,
+   "PointExtents": 100,
+   "PointsPerSquareMeter": 0.0015,
+   "ScaleByDensityRangeMax": 1.0,
+   "ScaleByDensityRangeMin": 1.0,
+   "ScramblePositionDistance": 0.0,
+   "SlopeMaskHigh": 1.0,
+   "SlopeMaskLow": 0.9063077870366499,
+   "SpatialDensityHigh": 1.0,
+   "SpatialDensityLow": 0.3
+  },
+  "ranges": {
+   "AttributeRemap_1": [
+    0.30014851689338684,
+    0.9437204599380493
+   ],
+   "AttributeRemap_2": [
+    5.335143882234661e-08,
+    0.9999999403953552
+   ],
+   "AttributeRemap_3": [
+    0.03727312013506889,
+    0.9902731776237488
+   ]
+  }
+ },
+ "ShrubsGaps": {
+  "inputs": {
+   "EnableDistanceToEdge": false,
+   "EnableSlopeMasking": true,
+   "EnableSpatialNoise": true,
+   "EnableVoronoiNoiseBreakup": true,
+   "EnableWorldRayHitQuery": false,
+   "PointExtents": 100,
+   "PointsPerSquareMeter": 0.003,
+   "ScaleByDensityRangeMax": 1.0,
+   "ScaleByDensityRangeMin": 1.0,
+   "ScramblePositionDistance": 0.0,
+   "SlopeMaskHigh": 1.0,
+   "SlopeMaskLow": 0.9063077870366499,
+   "SpatialDensityHigh": 1.0,
+   "SpatialDensityLow": 0.3
+  },
+  "ranges": {
+   "AttributeRemap_1": [
+    0.30014568567276,
+    0.987277090549469
+   ],
+   "AttributeRemap_2": [
+    7.123264822439523e-08,
+    1.0
+   ],
+   "AttributeRemap_3": [
+    0.05038609728217125,
+    0.9920538067817688
    ]
   }
  },
@@ -588,6 +1060,70 @@
    "AttributeRemap_3": [
     0.033327773213386536,
     0.9913188219070435
+   ]
+  }
+ },
+ "SwordFernsDamp": {
+  "inputs": {
+   "EnableDistanceToEdge": false,
+   "EnableSlopeMasking": true,
+   "EnableSpatialNoise": true,
+   "EnableVoronoiNoiseBreakup": true,
+   "EnableWorldRayHitQuery": false,
+   "PointExtents": 100,
+   "PointsPerSquareMeter": 0.0225,
+   "ScaleByDensityRangeMax": 1.0,
+   "ScaleByDensityRangeMin": 1.0,
+   "ScramblePositionDistance": 0.0,
+   "SlopeMaskHigh": 1.0,
+   "SlopeMaskLow": 0.42261826174069944,
+   "SpatialDensityHigh": 1.0,
+   "SpatialDensityLow": 0.15
+  },
+  "ranges": {
+   "AttributeRemap_1": [
+    0.15000589191913605,
+    0.9797832369804382
+   ],
+   "AttributeRemap_2": [
+    1.0545584405718955e-09,
+    1.0
+   ],
+   "AttributeRemap_3": [
+    0.035429708659648895,
+    0.9863488078117371
+   ]
+  }
+ },
+ "SwordFernsGaps": {
+  "inputs": {
+   "EnableDistanceToEdge": false,
+   "EnableSlopeMasking": true,
+   "EnableSpatialNoise": true,
+   "EnableVoronoiNoiseBreakup": true,
+   "EnableWorldRayHitQuery": false,
+   "PointExtents": 100,
+   "PointsPerSquareMeter": 0.045,
+   "ScaleByDensityRangeMax": 1.0,
+   "ScaleByDensityRangeMin": 1.0,
+   "ScramblePositionDistance": 0.0,
+   "SlopeMaskHigh": 1.0,
+   "SlopeMaskLow": 0.42261826174069944,
+   "SpatialDensityHigh": 1.0,
+   "SpatialDensityLow": 0.15
+  },
+  "ranges": {
+   "AttributeRemap_1": [
+    0.15000100433826447,
+    0.972428023815155
+   ],
+   "AttributeRemap_2": [
+    1.0139095119043873e-10,
+    1.0
+   ],
+   "AttributeRemap_3": [
+    0.033304132521152496,
+    0.9941450953483582
    ]
   }
  },
