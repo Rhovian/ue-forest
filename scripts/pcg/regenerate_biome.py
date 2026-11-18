@@ -121,9 +121,10 @@ def dirty_allowed(loaded, world):
 
 
 # Physical footprint, not resident memory: RSS leaves out compressed and swapped pages, and a run that reached a 317 GB
-# footprint never passed a 70 GB RSS limit (#203). A full regenerate's footprint peaks at 71-72 GB on a 96 GB machine;
-# 75 until #247 brings the peak down (operator, 2026-11-16).
-MEMORY_LIMIT_GB = 75
+# footprint never passed a 70 GB RSS limit (#203). A full regenerate's footprint peaked at 71-75 GB on a 96 GB machine
+# with a 75 GB limit; since #247 it peaks at 60-61 GB and the limit is 70 (operator, 2026-11-18). A measuring build
+# (area_sampling.py) samples the whole island: enable only the measured generators.
+MEMORY_LIMIT_GB = 70
 RUSAGE_INFO_V4 = 4
 PHYS_FOOTPRINT = slice(72, 80)  # ri_phys_footprint in rusage_info_v4 (sys/resource.h), little-endian uint64
 LIBPROC = ctypes.CDLL("/usr/lib/libproc.dylib")
