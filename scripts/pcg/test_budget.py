@@ -121,6 +121,12 @@ class RegionTests(unittest.TestCase):
                 patch.object(deadwood_rocks, "shore_height", return_value=self.SHORE):
             self.assertEqual(deadwood_rocks.above_shore_cells(), [(0, 0), (2, 0)])  # lifted 150 cm, (0, 0) reaches it
 
+    def test_without_a_fade_the_band_starts_at_the_plant_floor(self):
+        cells = {(0, 0): (-500, self.SHORE, 0), (1, 0): (-500, self.SHORE - 1, 0)}
+        with patch.object(deadwood_rocks, "terrain_cells", summaries(cells)), patch.object(deadwood_rocks, "PLANT_FADE", ()), \
+                patch.object(deadwood_rocks, "shore_height", return_value=self.SHORE):
+            self.assertEqual(deadwood_rocks.above_shore_cells(), [(0, 0)])  # lifted 150 cm, it reaches PLANT_FLOOR
+
     def test_damp_tiles_are_low_or_near_water_and_above_the_shore(self):
         import saplings_understory
         cells = {(0, 0): (1199, 5000, 0), (1, 0): (1200, 5000, 0), (2, 0): (1300, 5000, 0), (3, 0): (100, 900, 0)}

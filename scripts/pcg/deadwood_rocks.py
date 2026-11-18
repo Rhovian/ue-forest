@@ -157,7 +157,7 @@ def above_shore_cells():
     #258)."""
     landheight = Path(area_sampling.__file__).parents[1] / "terrain/landheight.py"  # no __file__ when run as a script
     lift = int(re.search(r"^LIFT_CM = (\d+)", landheight.read_text(), re.MULTILINE)[1])
-    lowest = shore_height() + PLANT_FLOOR - max(depth for depth, _ in PLANT_FADE)
+    lowest = shore_height() + PLANT_FLOOR - max((depth for depth, _ in PLANT_FADE), default=0)
     return terrain_cells(lambda _z_min, z_max, _slope: z_max + lift >= lowest)
 
 
