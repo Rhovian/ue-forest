@@ -37,6 +37,7 @@ from deadwood_rocks import (
     save,
 )
 from shore_path import LABEL
+from terrain_regions import terrain_cells
 from trees_above_shore import land_z, shore_band, shore_height, z_range
 
 # Colonies (#71, lush-forest-placement.md §8.1): instead of single plants evenly spread, a sparse anchor carries a
@@ -357,6 +358,9 @@ def main():
              ] if args.group == "understory" else []
     cells = {"Bank" + band: bank_cells(outer) for band, _inner, outer, _shares in BANKS} if banks else {}  # #247
     cells |= {"Canopy": openings_cells(GAPS_KEY)} | ({"Foot": deadwood_rocks.foot_cells(FOOT[2])} if foot else {})
+    # The Steep patch's own slope mask keeps only ground steeper than STEEP; terrain_tiles.json bounds the landscape
+    # normal PCG reads anywhere in a tile (terrain_regions).
+    cells |= {"Steep": terrain_cells(lambda _z_min, _z_max, slope: slope >= STEEP)}
     entries = []
     # Understory (#32 rulings, interior_01): colonies rather than an even scatter, and plants grow under trees too
     # (overlap, so canopy bounds do not prune them). The template's spatial noise is world-space with no seed
