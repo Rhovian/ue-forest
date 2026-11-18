@@ -15,6 +15,7 @@ import math
 import re
 from pathlib import Path
 
+import area_sampling
 import biome_variants
 import unreal
 from child_layouts import along_sides, along_top, base_ring, build_points_graph, surface_hits
@@ -193,26 +194,40 @@ LITTER_SPACING, LITTER_MARGIN = 180, 0  # cm between litter piles along a log or
 MAX_CANDIDATES = 60e6
 
 
-def candidate_estimate(density, extent):
-    """Candidate points the sampler draws over the island's bounds (forest_foot.json) for this density and extent."""
+def candidate_estimate(density, extent, area_ha=None):
+    """Candidate points the sampler draws over area_ha (an area generator's tiles) or else the island's bounds
+    (forest_foot.json) for this density and extent."""
     import json
     from pathlib import Path
 
-    x0, x1, y0, y1 = json.loads(Path(biome_variants.__file__).with_name("forest_foot.json").read_text())["island_m"]
+    if area_ha is None:
+        x0, x1, y0, y1 = json.loads(Path(biome_variants.__file__).with_name("forest_foot.json").read_text())["island_m"]
+        area_ha = (x1 - x0) * (y1 - y0) / 10000
     cell_cap = 10000 / (2 * extent / 100) ** 2  # one point per (2 x extent)^2 cell, per hectare
-    return min(density, cell_cap) * (x1 - x0) * (y1 - y0) / 10000
+    return min(density, cell_cap) * area_ha
 
 
-def generator(group, density, slope, priority, doubles=None, bools=None, extent=100):
+def generator(group, density, slope, priority, doubles=None, bools=None, extent=100, region=None):
+    """region: tile cells (area_sampling.tiles_near) covering every point the group's filter graph can keep; the
+    generator then samples only those (#247)."""
     if doubles and "PointsPerSquareMeter" in doubles:
         raise RuntimeError(f"{group}: pass the density as the `density` argument, not a PointsPerSquareMeter override,"
                            " so the candidate budget checks what is installed")
-    estimate = candidate_estimate(density, extent)
+    ranges = area_sampling.ranges(group) if region is not None else None
+    if region is not None and ranges is None:
+        print(f"{group}: no measured density ranges; it samples the whole island once to measure them (#247)")
+    estimate = candidate_estimate(density, extent, area_sampling.tile_area_ha(region) if ranges else None)
     if estimate > MAX_CANDIDATES:
         raise RuntimeError(f"{group}: {density:.0f}/ha at extent {extent} cm samples ~{estimate / 1e6:.0f} million points over"
                            f" the biome volume (budget {MAX_CANDIDATES / 1e6:.0f} million); lower the density or narrow"
                            " the area")
     graph = copy_asset(ROOT + "PCG_Forest_TreesGenerator", f"PCG_Forest_{group}Generator")
+    # The same instance with a parent that samples only the region (#247). Changing the parent resets the instance's
+    # parameter overrides to the template's defaults, so the parameters are all set after it.
+    parent = area_sampling.area_graph(ROOT + area_sampling.AREA.format(group), region, ranges) if region is not None else (
+        load(ROOT + "PCG_Forest_TreesGenerator").get_editor_property("graph"))
+    if graph.get_editor_property("graph") != parent:
+        graph.set_editor_property("graph", parent)
     # Native parameter helpers already validate names/types and notify graph instances:
     # UE 5.8 PCG/Private/Helpers/PCGGraphParametersHelpers.cpp: ValidateAndSetValue.
     helpers = unreal.PCGGraphParametersHelpers
