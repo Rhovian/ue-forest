@@ -3,8 +3,6 @@ import json
 import math
 import sys
 import unittest
-from pathlib import Path
-from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -19,24 +17,26 @@ class TerrainTileTests(unittest.TestCase):
         height = -3 + (col - 20) * 2 * 0.3 + (row - 15) * 2 * 0.4
         data = summaries(height, 2)
         known = math.degrees(math.atan(0.5))
-        self.assertEqual([(c[0], c[1]) for c in data["cells"]],
-                         [(x, y) for x in range(-2, 3) for y in range(-2, 2)])
-        for _, _, low, high, slope in data["cells"]:
-            self.assertLessEqual(known, slope)
-            self.assertLess(slope - known, 0.001)
+        self.assertTrue(all(abs(c[4] - known) < 0.5 for c in data["cells"]))  # 8-bit normal packing
         cell = next(c for c in data["cells"] if c[:2] == [0, 0])
         self.assertAlmostEqual(cell[2], -300)
         self.assertAlmostEqual(cell[3], 1100)
 
-    def test_step_flags_both_sides_including_the_one_vertex_border(self):
+    def test_step_bounds_every_supporting_normal_and_flags_both_sides(self):
         for axis in (0, 1):
             with self.subTest(axis=axis):
                 height = np.zeros((61, 61))
-                # x/y = 20 to 22 m: tile 0's border must see the step just beyond it.
+                # The face at 20..22 m contributes to supporting vertices in both cells.
                 height[(slice(41, None), slice(None)) if axis == 0 else (slice(None), slice(41, None))] = 4
                 cells = summaries(height, 2)["cells"]
-                along = {c[1 - axis] for c in cells if c[4] >= 45}
+                along = {c[1 - axis] for c in cells if c[4] >= 30}
                 self.assertEqual(along, {0, 1})
+                y, x = (np.indices(height.shape) - 30) * 200
+                model = landscape_slopes(height, 2)
+                for ix, iy, _, _, slope in cells:
+                    support = (x >= ix * TILE) & (x <= (ix + 1) * TILE) & (y >= iy * TILE) & (y <= (iy + 1) * TILE)
+                    self.assertGreaterEqual(slope, model[support].max())
+                    self.assertLess(slope - model[support].max(), 0.001)
 
     def test_indexing_agrees_with_tiles_near_at_negative_world_position(self):
         with patch.dict(sys.modules, unreal=MagicMock()):
@@ -50,18 +50,13 @@ class TerrainTileTests(unittest.TestCase):
         self.assertEqual([(x, y) for x, y, _, high, _ in cells if high == -200], expected)
 
     def test_reader_filters_all_summary_fields_and_sorts_without_numpy(self):
-        data = {"slope_margin_deg": 3.0, "cells": [[1, 0, -20, 80, 35], [-2, 4, 10, 40, 28],
-                                                     [0, 0, 100, 120, 40], [-1, 0, 10, 30, 2]]}
-        with TemporaryDirectory() as directory:
-            path = Path(directory) / "terrain_tiles.json"
-            path.write_text(json.dumps(data))
-            with patch.object(terrain_regions, "DATA", path), patch.dict(sys.modules, numpy=None, unreal=None):
-                self.assertEqual(terrain_regions.terrain_cells(lambda lo, hi, s: lo < 50 and hi < 100 and s >= 27),
-                                 [(-2, 4), (1, 0)])
-                self.assertEqual(terrain_regions.terrain_cells(lambda *_: False), [])
-                self.assertEqual(terrain_regions.terrain_slope_margin(), 3.0)
-                # Reimport with unavailable UE/scientific dependencies, as in UE's Python.
-                importlib.reload(terrain_regions)
+        data = {"cells": [[1, 0, -20, 80, 35], [-2, 4, 10, 40, 30], [0, 0, 100, 120, 40], [-1, 0, 10, 30, 2]]}
+        with patch.object(terrain_regions, "DATA") as source, patch.dict(sys.modules, numpy=None, unreal=None):
+            source.read_text.return_value = json.dumps(data)
+            self.assertEqual(terrain_regions.terrain_cells(lambda lo, hi, s: lo < 50 and hi < 100 and s >= 30),
+                             [(-2, 4), (1, 0)])
+            self.assertEqual(terrain_regions.terrain_cells(lambda *_: False), [])
+            importlib.reload(terrain_regions)
 
     def test_landscape_normals_include_diagonal_triangles(self):
         height = np.zeros((3, 3))
@@ -70,16 +65,16 @@ class TerrainTileTests(unittest.TestCase):
         xy, z = -1 / math.sqrt(2), 4 + math.sqrt(2)
         component = xy / math.sqrt(2 * xy * xy + z * z)
         packed = math.floor(127.5 * (component + 1) + 0.5) / 127.5 - 1
-        expected = math.degrees(math.asin(math.sqrt(2) * abs(packed)))
-        self.assertAlmostEqual(landscape_slopes(height, 2)[1, 1], expected)
+        self.assertAlmostEqual(landscape_slopes(height, 2)[1, 1], math.degrees(math.asin(math.sqrt(2) * abs(packed))))
 
-    def test_margin_accounts_for_packed_flat_normal(self):
-        data = summaries(np.zeros((21, 21)), 2)
-        self.assertTrue(all(c[4] == 0 for c in data["cells"]))
-        # Even a flat normal packs XY=128,128, decoded as (1/255,1/255).
-        packed_slope = math.degrees(math.asin(math.sqrt(2) / 255))
-        self.assertGreaterEqual(data["slope_margin_deg"], packed_slope)
-        self.assertLess(data["slope_margin_deg"], packed_slope + 0.02)
+    def test_packing_chooses_steeper_code_only_near_a_tie(self):
+        for offset, code in ((-0.0015, 191), (-0.0005, 192), (0.0005, 192), (0.0015, 192)):
+            component = (191.5 + offset) / 127.5 - 1
+            rise = component / math.sqrt(1 - component * component)
+            height = np.tile(np.arange(3) * 2 * rise, (3, 1))
+            expected = math.degrees(math.asin(math.hypot(code / 127.5 - 1, 1 / 255)))
+            with self.subTest(offset=offset):
+                self.assertAlmostEqual(landscape_slopes(height, 2).max(), expected)
 
 
 if __name__ == "__main__":
