@@ -15,6 +15,7 @@ import itertools
 import math
 import random
 
+import area_sampling
 import biome_variants
 import deadwood_rocks
 import unreal
@@ -220,6 +221,28 @@ def band_lower(inner, outer):
     return inner / outer
 
 
+# cm between the points bank_cells takes along each water spline, and its reach past a band's outer distance: the
+# filter measures from samples 500 cm apart (water_near), each within this step's half of a sample here.
+BANK_STEP, BANK_MARGIN = 100, 300
+
+
+def bank_cells(outer):
+    """Tile cells (area_sampling) holding all ground within outer cm of a water body's spline: the only ground a Bank
+    band's filter (water_near, the same splines) can keep."""
+    points = []
+    for actor in unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors():
+        if not isinstance(actor, unreal.WaterBody):
+            continue
+        for spline in actor.get_components_by_class(unreal.SplineComponent):
+            length = spline.get_spline_length()
+            for i in range(int(length // BANK_STEP) + 1):
+                at = spline.get_location_at_distance_along_spline(min(i * BANK_STEP, length), unreal.SplineCoordinateSpace.WORLD)
+                points.append((at.x, at.y))
+    if not points:
+        raise RuntimeError("No water body splines loaded: the Bank tiles would be empty")
+    return area_sampling.tiles_near(points, outer + BANK_MARGIN)
+
+
 def bank_filter(band, inner, outer):
     """Ground above the shore between inner and outer cm of a water spline: one step of the bank falloff."""
     graph = copy_asset(ROOT + "PCG_TreesAboveShore", "PCG_UnderstoryBank" + band)
@@ -317,6 +340,7 @@ def main():
                       ) if args.group == "understory" else None
     banks = [(band, bank_filter(band, inner, outer), shares) for band, inner, outer, shares in BANKS
              ] if args.group == "understory" else []
+    cells = {"Bank" + band: bank_cells(outer) for band, _inner, outer, _shares in BANKS} if banks else {}  # #247
     entries = []
     # Understory (#32 rulings, interior_01): colonies rather than an even scatter, and plants grow under trees too
     # (overlap, so canopy bounds do not prune them). The template's spatial noise is world-space with no seed
@@ -357,7 +381,7 @@ def main():
             # One point per (2 x extent)^2 cell at most, so the extent must allow the requested rate (#32 review).
             extent = min(100, 50 / math.sqrt(density * share / 10000))
             data = generator(kind + patch, density * args.density_scale * share, SLOPE.get(kind, 25), 30 if damp is None else 40,
-                             doubles, bools, extent)
+                             doubles, bools, extent, cells.get(patch))
             value = data.get_editor_property("Generator")
             put(value, GeneratorAllowOverlap=overlap)
             data.set_editor_property("Generator", value)

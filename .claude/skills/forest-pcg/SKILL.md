@@ -15,7 +15,7 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
 ## Cost: estimate before you build
 
 - A generator samples the **whole biome volume** before any filter, so its cost is density x the island's bounds
-  (~470 ha), not density x the area it ends up on.
+  (~470 ha), not density x the area it ends up on. An area generator (`region`, #247) samples only its tiles.
 - The sampler emits at most one point per (2 x extent)^2 cell; `extent` is in cm (half the cell side), so the cap is
   10,000 / (2 x extent / 100)^2 per ha. 600,000/ha at extent 8 hit the cap (390,000/ha) everywhere: ~185 million points
   that put the operator's 96 GB machine under memory pressure. Density above the cap adds only cost.
@@ -143,6 +143,20 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
 - When solids move (logs, trunks, rocks), the order is regenerate, `solid_keepout.py`, regenerate again. Computing the
   keep-outs before the first regenerate uses the old positions, and the placement graphs it rewrites are real changes
   to commit, not incidental re-saves.
+
+- Area-first sampling (#247, `area_sampling.py`): a generator given a `region` samples only those tiles through the
+  Forest Area Sampler. Biome Core's generator template rescales density by the sampled set's own min and max (three
+  Attribute Reduce -> Remap pairs: after the spatial noise, the Voronoi breakup and the colony density filter), so a
+  cropped sample changed which points passed and which entry each picked. Area graphs use those ranges as constants
+  measured once over the whole island (`area_ranges.json`); with them the 14 Bank generators placed the same roots as
+  before. Biome Core keeps only its own attributes on generator points, so measured values cannot ride on the points to
+  the Local output: the measuring graph saves them with Save Data Asset nodes instead.
+- Setting a PCG graph instance's parent graph resets all its parameter overrides to the new parent's defaults: the
+  first area build placed ~250 points per bank band at the template's default density. Set the parent first, then
+  the parameters (`generator()`).
+- Rerunning `solid_keepout.py` after the documented rebuild removed all 16 meadow logs: it bakes every placed solid's
+  footprint, the meadow logs' own included, into the TransformGraph the logs share with the meadow plants, so each log
+  is dropped by its own footprint on the next regenerate (seen on main, #247). Diff root counts after it.
 
 ## Counts do not scale smoothly
 
