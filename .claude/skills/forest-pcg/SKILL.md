@@ -25,7 +25,7 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   (`children()` with a disc of points, `ground=True`), as in `meadow.py`. Cost then scales with the anchors.
   The budget covers anchors only: the instance total is accepted anchors x children per patch, so measure it after
   each change (fern drifts: 16 children each, ~194k ferns). `candidate_estimate` uses the capped density.
-- `regenerate_biome.py` prints duration and peak editor memory (physical footprint since #203; earlier lessons quote resident memory). Above `MEMORY_LIMIT_GB` (75 footprint since #203; 70 and 60 RSS before, which older lessons here refer to) it cancels all PCG generation
+- `regenerate_biome.py` prints duration and peak editor memory (physical footprint since #203; earlier lessons quote resident memory). Above `MEMORY_LIMIT_GB` (70 footprint since #247 brought the peak to 60-61 GB; 75 footprint after #203; 70 and 60 RSS before, which older lessons here refer to) it cancels all PCG generation
   through `unreal.ForestPCGLibrary.cancel_all_pcg_generation()` (C++: `PCGComponent::CancelGeneration` is not exposed
   to Python) and saves nothing. Pass a density only as `generator()`'s `density`; a `PointsPerSquareMeter` override is
   refused because the budget would not see it.
