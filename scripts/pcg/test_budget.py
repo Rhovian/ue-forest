@@ -41,6 +41,14 @@ class CandidateBudgetTests(unittest.TestCase):
                 patch.object(area_sampling, "area_graph"), self.assertRaisesRegex(RuntimeError, "million points"):
             deadwood_rocks.generator("Meadow", 600000, 25, 60, extent=8, region=[(0, 0)])
 
+    def test_noise_free_area_generator_samples_its_tiles_without_measuring(self):
+        # Spatial noise off: the rescales never run, so nothing is measured and the tiles alone are charged.
+        with patch.object(area_sampling, "ranges", return_value=None), patch.object(area_sampling, "pending") as pending, \
+                patch.object(area_sampling, "area_graph") as built, patch.object(deadwood_rocks, "put"):
+            deadwood_rocks.generator("Meadow", 600000, 25, 60, extent=8, region=[(0, 0)], bools={"EnableSpatialNoise": False})
+        pending.assert_not_called()
+        self.assertEqual(built.call_args.args[2], {})
+
     def test_ranges_are_measured_again_when_generator_settings_change(self):
         stored = {"Herbs": {"inputs": {"PointsPerSquareMeter": 0.02}, "ranges": {"AttributeRemap_1": [0.0, 0.9]}}}
         with patch.object(area_sampling, "_load", return_value=stored):
@@ -71,7 +79,7 @@ class AreaTileTests(unittest.TestCase):
         reach, cell = 500, area_sampling.TILE
         covered = set(deadwood_rocks.foot_cells(reach))
         foot = json.loads(Path(deadwood_rocks.__file__).with_name("forest_foot.json").read_text())["points_m"]
-        for x, y in foot[::50]:
+        for x, y in foot:  # every point: the filter measures from all of them
             for dx, dy in ((reach, 0), (-reach, 0), (0, reach), (0, -reach), (0, 0)):
                 self.assertIn(((x * 100 + dx) // cell, (y * 100 + dy) // cell), covered)
 
