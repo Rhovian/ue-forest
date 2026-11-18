@@ -27,9 +27,13 @@ SAMPLER = "SurfaceSampler_0"
 REMAPS = {"AttributeRemap_3": ("AttributeReduce_4", "AttributeReduce_5"),
           "AttributeRemap_2": ("AttributeReduce_2", "AttributeReduce_3"),
           "AttributeRemap_1": ("AttributeReduce_0", "AttributeReduce_1")}
+# The template switches each rescale's branch with these generator parameters; all must be on for it to run.
+REMAP_SWITCHES = {"AttributeRemap_3": ("EnableSpatialNoise", "EnableVoronoiNoiseBreakup"),
+                  "AttributeRemap_2": ("EnableSpatialNoise", "EnableVoronoiNoiseBreakup"),
+                  "AttributeRemap_1": ("EnableSpatialNoise",)}
 TILE = 2000  # cm, side of a tile cell
 TILE_Z = (-1.0e5, 1.0e6)  # cm; the Region is tested at the projected point, so a tile spans every ground height
-RANGES = Path(__file__).with_name("area_ranges.json")  # {group: {remap: [min, max]}}, measured over the whole island
+RANGES = Path(__file__).with_name("area_ranges.json")  # {group: {"inputs", "ranges"}}, measured over the whole island
 WHOLE = [(-1, -1), (-1, 0), (0, -1), (0, 0)]  # with cell=WHOLE_CELL: +-100 km, past any bounding shape
 WHOLE_CELL = 1.0e7
 AREA = "PCG_Forest_{}Area"  # a group's area graph, the parent of its generator instance
@@ -67,7 +71,7 @@ def record(groups):
     for group in groups:
         if group not in measured:
             raise RuntimeError(f"{group}: no measuring build pending; build it first")
-        measured[group]["ranges"] = {remap: list(pair) for remap, pair in measure_ranges(group).items()}
+        measured[group]["ranges"] = {remap: list(pair) for remap, pair in measure_ranges(group, measured[group]["inputs"]).items()}
     _store(measured)
     unreal.EditorAssetLibrary.delete_directory(PROBE)
     return measured
@@ -183,20 +187,27 @@ def _measure(graph, edges):
         _connect(graph, _node(graph, reduce), "Out", save_node, "In")
 
 
-def measure_ranges(group):
-    """{remap: (min, max)} from the probe assets a measuring generator saved during a regenerate. A rescale whose branch
-    the generator's settings leave off (the Voronoi breakup) saves nothing and is left out: it never runs."""
-    def value(reduce):
-        asset = unreal.load_asset(f"{PROBE}/{AREA.format(group)}_{reduce}")
-        if asset is None:
-            return None
-        found = unreal.PCGDataFunctionLibrary.get_typed_inputs(asset.get_editor_property("data"), unreal.PCGParamData)
-        params = (found[0] if isinstance(found, tuple) else found)[0]
-        metadata = params.const_metadata()
-        names, _types = metadata.get_attributes()
-        return unreal.PCGMetadataAccessorHelpers.get_double_attribute_by_metadata_key(0, metadata, names[0])
-    measured = {remap: (value(low), value(high)) for remap, (low, high) in REMAPS.items()}
-    measured = {remap: pair for remap, pair in measured.items() if None not in pair}
-    if not measured:
-        raise RuntimeError(f"{group}: no probe assets; regenerate with its measuring graph first")
+def _probe_value(group, reduce):
+    """The value a measuring graph saved for reduce, or None when it saved none."""
+    asset = unreal.load_asset(f"{PROBE}/{AREA.format(group)}_{reduce}")
+    if asset is None:
+        return None
+    found = unreal.PCGDataFunctionLibrary.get_typed_inputs(asset.get_editor_property("data"), unreal.PCGParamData)
+    params = (found[0] if isinstance(found, tuple) else found)[0]
+    metadata = params.const_metadata()
+    names, _types = metadata.get_attributes()
+    return unreal.PCGMetadataAccessorHelpers.get_double_attribute_by_metadata_key(0, metadata, names[0])
+
+
+def measure_ranges(group, inputs):
+    """{remap: (min, max)} from the probe assets a measuring generator built with inputs saved during a regenerate,
+    for each rescale those inputs switch on (REMAP_SWITCHES). One that runs but saved nothing (an interrupted or failed
+    measuring run) raises: freezing the others alone would leave it rescaling by the cropped sample."""
+    measured = {}
+    for remap, (low, high) in REMAPS.items():
+        if all(inputs[switch] for switch in REMAP_SWITCHES[remap]):
+            pair = (_probe_value(group, low), _probe_value(group, high))
+            if None in pair:
+                raise RuntimeError(f"{group}: {remap} runs but its probes are missing; regenerate with its measuring graph again")
+            measured[remap] = pair
     return measured

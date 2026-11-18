@@ -67,5 +67,22 @@ class AreaTileTests(unittest.TestCase):
         self.assertAlmostEqual(area_sampling.tile_area_ha(cells), 0.16)
 
 
+NOISE_VORONOI = {"EnableSpatialNoise": True, "EnableVoronoiNoiseBreakup": True}
+
+
+class MeasureTests(unittest.TestCase):
+    def test_every_rescale_the_settings_run_is_measured(self):
+        with patch.object(area_sampling, "_probe_value", return_value=0.5):
+            self.assertEqual(set(area_sampling.measure_ranges("Herbs", NOISE_VORONOI)), set(area_sampling.REMAPS))
+            self.assertEqual(set(area_sampling.measure_ranges("Herbs", {"EnableSpatialNoise": True, "EnableVoronoiNoiseBreakup": False})),
+                             {"AttributeRemap_1"})
+
+    def test_a_missing_probe_of_a_running_rescale_raises(self):
+        def probe(group, reduce):
+            return None if reduce == "AttributeReduce_0" else 0.5  # an interrupted run lost one export
+        with patch.object(area_sampling, "_probe_value", side_effect=probe), self.assertRaisesRegex(RuntimeError, "AttributeRemap_1"):
+            area_sampling.measure_ranges("Herbs", NOISE_VORONOI)
+
+
 if __name__ == "__main__":
     unittest.main()
