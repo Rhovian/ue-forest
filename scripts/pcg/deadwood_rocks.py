@@ -20,6 +20,7 @@ import biome_variants
 import unreal
 from child_layouts import along_sides, along_top, base_ring, build_points_graph, surface_hits
 from long_log_keepout import water_keepout
+from terrain_regions import terrain_cells
 from trees_above_shore import land_z, shore_height, z_range
 
 ROOT = "/Game/ForestBiome/"
@@ -148,6 +149,14 @@ def foot_cells(reach):
     can keep (its Distance is 3D, so the horizontal distance is never longer)."""
     foot = json.loads(Path(__file__).with_name("forest_foot.json").read_text())
     return area_sampling.tiles_near([(x * 100, y * 100) for x, y in foot["points_m"]], reach + REGION_MARGIN)
+
+
+def above_shore_cells():
+    """Area tiles holding all ground whose LAND_Z (ground plus the beach lift, at most landheight.LIFT_CM) can reach the
+    shore height: the lowest any filter_graph or fade_in tongue keeps (terrain_tiles.json, #258)."""
+    lift = int(re.search(r"^LIFT_CM = (\d+)", (Path(__file__).parents[1] / "terrain/landheight.py").read_text(), re.MULTILINE)[1])
+    shore = shore_height()
+    return terrain_cells(lambda _z_min, z_max, _slope: z_max + lift >= shore)
 
 
 def filter_graph(name, reach=0, slope=0, sink=None, fade=None):
