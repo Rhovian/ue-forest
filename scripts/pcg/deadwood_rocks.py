@@ -151,14 +151,24 @@ def foot_cells(reach):
     return area_sampling.tiles_near([(x * 100, y * 100) for x, y in foot["points_m"]], reach + REGION_MARGIN)
 
 
-def above_shore_cells():
-    """Area tiles holding all ground whose LAND_Z (ground plus the beach lift, at most landheight.LIFT_CM) can reach the
-    lowest band any filter_graph keeps: PLANT_FLOOR above the shore, less PLANT_FADE's deepest tongue (terrain_tiles.json,
-    #258)."""
+def lifted_cells(lowest):
+    """Area tiles holding all ground whose LAND_Z (ground plus the beach lift, at most landheight.LIFT_CM) can reach
+    lowest cm (terrain_tiles.json, #258)."""
     landheight = Path(area_sampling.__file__).parents[1] / "terrain/landheight.py"  # no __file__ when run as a script
     lift = int(re.search(r"^LIFT_CM = (\d+)", landheight.read_text(), re.MULTILINE)[1])
-    lowest = shore_height() + PLANT_FLOOR - max((depth for depth, _ in PLANT_FADE), default=0)
     return terrain_cells(lambda _z_min, z_max, _slope: z_max + lift >= lowest)
+
+
+def above_shore_cells():
+    """Tiles holding the lowest band any filter_graph keeps: PLANT_FLOOR above the shore, less PLANT_FADE's deepest
+    tongue."""
+    return lifted_cells(shore_height() + PLANT_FLOOR - max((depth for depth, _ in PLANT_FADE), default=0))
+
+
+def forest_floor_cells():
+    """Tiles holding all ground PCG_TreesAboveShore (trees_above_shore.py) keeps: LAND_Z from the shore height up,
+    whatever the plants' band and fade."""
+    return lifted_cells(shore_height())
 
 
 def filter_graph(name, reach=0, slope=0, sink=None, fade=None):
@@ -231,6 +241,26 @@ def candidate_estimate(density, extent, area_ha=None):
     return min(density, cell_cap) * area_ha
 
 
+def area_ranges(group, inputs):
+    """The density ranges an area generator with these inputs (every template parameter it sets) freezes: {} with
+    spatial noise off, whose branch holds the rescales; None until measured, noting a measuring build (#247)."""
+    if not inputs.get("EnableSpatialNoise", True):
+        return {}
+    ranges = area_sampling.ranges(group, inputs)
+    if ranges is None:
+        area_sampling.pending(group, inputs)
+        print(f"{group}: no density ranges measured for these settings; it samples the whole island once to measure them (#247)")
+    return ranges
+
+
+def area_parent(group, region, ranges):
+    """The parent graph of a generator instance: the Biome Core template, or with a region the group's own area graph
+    sampling only it (area_sampling.area_graph)."""
+    if region is None:
+        return load(area_sampling.TEMPLATE)
+    return area_sampling.area_graph(ROOT + area_sampling.AREA.format(group), region, ranges)
+
+
 def generator(group, density, slope, priority, doubles=None, bools=None, extent=100, region=None):
     """region: tile cells (area_sampling.tiles_near) covering every point the group's filter graph can keep; the
     generator then samples only those (#247)."""
@@ -248,22 +278,16 @@ def generator(group, density, slope, priority, doubles=None, bools=None, extent=
     } | (bools or {})
     # What the measured density ranges depend on: a change to any of these measures them again.
     inputs = numbers | switches | {"PointExtents": extent}
-    ranges = area_sampling.ranges(group, inputs) if region is not None else None
-    if region is not None and not switches["EnableSpatialNoise"]:
-        ranges = {}  # the density rescales sit on the spatial noise branch, which this generator never runs
-    if region is not None and ranges is None:
-        area_sampling.pending(group, inputs)
-        print(f"{group}: no density ranges measured for these settings; it samples the whole island once to measure them (#247)")
+    ranges = area_ranges(group, inputs) if region is not None else None
     estimate = candidate_estimate(density, extent, area_sampling.tile_area_ha(region) if ranges is not None else None)
     if estimate > MAX_CANDIDATES:
         raise RuntimeError(f"{group}: {density:.0f}/ha at extent {extent} cm samples ~{estimate / 1e6:.0f} million points over"
                            f" the biome volume (budget {MAX_CANDIDATES / 1e6:.0f} million); lower the density or narrow"
                            " the area")
     graph = copy_asset(ROOT + "PCG_Forest_TreesGenerator", f"PCG_Forest_{group}Generator")
-    # The same instance with a parent that samples only the region (#247). Changing the parent resets the instance's
-    # parameter overrides to the template's defaults, so the parameters are all set after it.
-    parent = area_sampling.area_graph(ROOT + area_sampling.AREA.format(group), region, ranges) if region is not None else (
-        load(ROOT + "PCG_Forest_TreesGenerator").get_editor_property("graph"))
+    # Changing the parent resets the instance's parameter overrides to the template's defaults, so the parameters are
+    # all set after it.
+    parent = area_parent(group, region, ranges)
     if graph.get_editor_property("graph") != parent:
         graph.set_editor_property("graph", parent)
     # Native parameter helpers already validate names/types and notify graph instances:
@@ -429,7 +453,8 @@ def main():
             raise RuntimeError(f"Expected 1..4 convex collision hulls: {name}, got {count}")
         save(mesh)
     plain = filter_graph("PCG_DeadwoodAboveShore")
-    deadwood = generator("Deadwood", STUMPS_PER_HA, 20, 10)
+    land = above_shore_cells()  # every deadwood and rock filter keeps only ground above the shore band (#247)
+    deadwood = generator("Deadwood", STUMPS_PER_HA, 20, 10, region=land)
     entries = [entry(template, mesh, deadwood, plain, weight, shell_children(template, mesh)) for mesh, weight in stumps]
     densities = set()
     for index, (mesh, weight) in enumerate(logs):
@@ -446,7 +471,7 @@ def main():
         if density in densities:
             raise RuntimeError(f"Log variant {name} has the same generator density as another; adjust a weight")
         densities.add(density)
-        group = generator("Deadwood_" + name, density, slope, 10)
+        group = generator("Deadwood_" + name, density, slope, 10, region=land)
         # Altitude alone is no dampness proxy; both forms need the same eligible ground.
         nurse = filter_graph("PCG_Nurse_" + name, reach=reach if long else 0, slope=slope)
         # nurse_log_01: about one seedling per 4 m of trunk (4 on the 17 m log), two mushroom clusters on the top of
@@ -480,7 +505,7 @@ def main():
             entry(template, mesh, group, nurse, 1, nurse_children, aligned=True)]
         print(f"Log variant {name}: share {weight / sum(w for _, w in logs):.1%}, slope {slope} deg, reach {reach:.0f} cm,"
               f" {len(seedling_tops)} seedling / {len(fungi_tops)} fungi / {len(sides)} base points")
-    rocks = generator("Rocks", 30, 35, 20)
+    rocks = generator("Rocks", 30, 35, 20, region=land)
     rock_entries = []
     for mesh, weight in slabs:
         # rock_assembly_01: ferns and flowers packed round the base with no bare ring.

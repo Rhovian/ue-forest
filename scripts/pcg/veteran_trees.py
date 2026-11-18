@@ -15,7 +15,19 @@ import importlib
 
 import biome_variants
 import unreal
-from deadwood_rocks import ROOT, asset_list, entry, generator, get, load, load_forest_actors, put, save, shell_children
+from deadwood_rocks import (
+    ROOT,
+    asset_list,
+    entry,
+    forest_floor_cells,
+    generator,
+    get,
+    load,
+    load_forest_actors,
+    put,
+    save,
+    shell_children,
+)
 
 PER_HA = 2  # candidates/ha island-wide
 PRIORITY = -10  # before the Trees group (0): the beech are pruned around the veteran
@@ -43,7 +55,8 @@ def main():
     if not biomes:
         raise RuntimeError("Load the forest biome volume (all WP cells) before running")
     filter_graph = load(ROOT + "PCG_TreesAboveShore")
-    group = generator("Veterans", PER_HA, 15, PRIORITY, {"SpatialDensityLow": 1.0}, {"EnableSpatialNoise": False})
+    group = generator("Veterans", PER_HA, 15, PRIORITY, {"SpatialDensityLow": 1.0}, {"EnableSpatialNoise": False},
+                      region=forest_floor_cells())  # the forest-floor filter keeps nothing lower (#247)
     graph = load(ROOT + "PCG_Forest_VeteransGenerator")
     for name, scale in (("ScaleMin", SCALE[0]), ("ScaleMax", SCALE[1])):
         unreal.PCGGraphParametersHelpers.set_vector_parameter(graph, name, unreal.Vector(scale, scale, scale))
