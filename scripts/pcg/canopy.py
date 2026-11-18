@@ -10,7 +10,7 @@ lead regenerates Core and saves the level.
 """
 
 import unreal
-from deadwood_rocks import ROOT, load, save
+from deadwood_rocks import ROOT, above_shore_cells, area_parent, area_ranges, load, save
 
 PARAMETERS = {  # tree generator graph parameter -> value
     "PointsPerSquareMeter": 0.019,  # 190 candidates/ha, unchanged
@@ -21,6 +21,14 @@ PARAMETERS = {  # tree generator graph parameter -> value
 }
 
 graph = load(ROOT + "PCG_Forest_TreesGenerator")
+# #247: the Trees sample only the ground their filter (PCG_TreesAboveShore) can keep. The instance keeps the template's
+# defaults for everything but PARAMETERS, so its density is what the measured ranges depend on. Other generators are
+# copied from this instance, so generator() sets each copy's parent itself.
+TEMPLATE_SWITCHES = {"EnableSpatialNoise": True, "EnableVoronoiNoiseBreakup": False}  # the template's, kept here
+ranges = area_ranges("Trees", {"PointsPerSquareMeter": PARAMETERS["PointsPerSquareMeter"]} | TEMPLATE_SWITCHES)
+parent = area_parent("Trees", above_shore_cells(), ranges)
+if graph.get_editor_property("graph") != parent:  # resets the overrides, so PARAMETERS are set after it
+    graph.set_editor_property("graph", parent)
 helpers = unreal.PCGGraphParametersHelpers
 for name, value in PARAMETERS.items():
     if isinstance(value, unreal.Vector):

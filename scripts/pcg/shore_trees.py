@@ -14,9 +14,22 @@ and filter. Saves assets and attaches the group; the lead regenerates Core and s
 
 import importlib
 
+import area_sampling
 import biome_variants
 import unreal
-from deadwood_rocks import ROOT, asset_list, copy_asset, edge, generator, get, load, load_forest_actors, put, save
+from deadwood_rocks import (
+    REGION_MARGIN,
+    ROOT,
+    asset_list,
+    copy_asset,
+    edge,
+    generator,
+    get,
+    load,
+    load_forest_actors,
+    put,
+    save,
+)
 from trees_above_shore import land_z, shore_height, z_range
 
 PER_HA = 200  # candidates/ha island-wide; only sand near a headland survives: about one tree per headland
@@ -73,7 +86,10 @@ def main():
     edge(graph, near, "Out", out, "Out")
     save(graph)
     # No spatial noise: it thinned ~97% of candidates, too few for the small headland areas.
-    group = generator("ShoreTrees", PER_HA, 15, PRIORITY, {"SpatialDensityLow": 1.0}, {"EnableSpatialNoise": False})
+    # #247: only the tiles within NEAR of a headland, the only sand the filter keeps
+    headlands = area_sampling.tiles_near([(x * 100, y * 100) for x, y in HEADLANDS], NEAR + REGION_MARGIN)
+    group = generator("ShoreTrees", PER_HA, 15, PRIORITY, {"SpatialDensityLow": 1.0}, {"EnableSpatialNoise": False},
+                      region=headlands)
     entries = []
     for path, weight in variants:
         value = stock[path].copy()
