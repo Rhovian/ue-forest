@@ -13,9 +13,11 @@ cost density x the whole biome volume (deadwood_rocks.candidate_estimate): 120,0
 import importlib
 import math
 
+import area_sampling
 import biome_variants
 import unreal
 from deadwood_rocks import (
+    REGION_MARGIN,
     ROOT,
     asset_list,
     children,
@@ -70,6 +72,15 @@ def sand_edge_graph():
     return foot_graph("PCG_HeatherSandEdge", *SAND_HEATHER_BAND, SAND_HEATHER_REACH)
 
 
+def meadow_cells():
+    """Area tiles holding every MEADOWS disc: the only ground meadow_graph keeps (its Distance is 3D, so the horizontal
+    distance is never longer)."""
+    cells = set()
+    for x, y, radius in MEADOWS:
+        cells.update(area_sampling.tiles_near([(x * 100, y * 100)], radius * 100 + REGION_MARGIN))
+    return sorted(cells)
+
+
 def meadow_graph():
     """Low ground (shore height up to TOP) within a MEADOWS radius."""
     graph = copy_asset(ROOT + "PCG_TreesAboveShore", "PCG_MeadowGround")
@@ -117,13 +128,15 @@ def main():
     graph = meadow_graph()
     # Priority 60 so trees win Core's priority difference; overlap allowed so grass also grows around them.
     # Spatial noise off: a meadow is grass throughout (the noise thinned it to sparse tufts).
-    group = generator("Meadow", ANCHORS_PER_HA, 25, 60, {"SpatialDensityLow": 1.0}, {"EnableSpatialNoise": False})
+    meadow = meadow_cells()  # #247: the meadow generators sample only the meadow discs
+    group = generator("Meadow", ANCHORS_PER_HA, 25, 60, {"SpatialDensityLow": 1.0}, {"EnableSpatialNoise": False}, region=meadow)
     value = group.get_editor_property("Generator")
     put(value, GeneratorAllowOverlap=True)
     group.set_editor_property("Generator", value)
     save(group)
     # Logs: MEADOW_LOG_VARIANTS (mossy, blocking), their own sparse generator on the same meadow ground.
-    log_group = generator("MeadowLogs", LOGS_PER_HA, 15, 55, {"SpatialDensityLow": 1.0}, {"EnableSpatialNoise": False})
+    log_group = generator("MeadowLogs", LOGS_PER_HA, 15, 55, {"SpatialDensityLow": 1.0}, {"EnableSpatialNoise": False},
+                          region=meadow)
     entries = []
     for path, weight in variants.MEADOW_LOG_VARIANTS:
         mesh = load(variants.asset_path(path))
@@ -143,7 +156,7 @@ def main():
     # Heather drifts: their own sparse generator on the meadow ground, each anchor carrying an irregular drift.
     heather = [(load(path), weight) for path, weight in variants.HEATHER_VARIANTS]
     heather_group = generator("MeadowHeather", HEATHER_PER_HA, 25, 58, {"SpatialDensityLow": 1.0},
-                              {"EnableSpatialNoise": False})
+                              {"EnableSpatialNoise": False}, region=meadow)
     value = heather_group.get_editor_property("Generator")
     put(value, GeneratorAllowOverlap=True)
     heather_group.set_editor_property("Generator", value)
