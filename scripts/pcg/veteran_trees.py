@@ -17,9 +17,9 @@ import biome_variants
 import unreal
 from deadwood_rocks import (
     ROOT,
-    above_shore_cells,
     asset_list,
     entry,
+    forest_floor_cells,
     generator,
     get,
     load,
@@ -56,7 +56,7 @@ def main():
         raise RuntimeError("Load the forest biome volume (all WP cells) before running")
     filter_graph = load(ROOT + "PCG_TreesAboveShore")
     group = generator("Veterans", PER_HA, 15, PRIORITY, {"SpatialDensityLow": 1.0}, {"EnableSpatialNoise": False},
-                      region=above_shore_cells())  # the forest-floor filter keeps nothing lower (#247)
+                      region=forest_floor_cells())  # the forest-floor filter keeps nothing lower (#247)
     graph = load(ROOT + "PCG_Forest_VeteransGenerator")
     for name, scale in (("ScaleMin", SCALE[0]), ("ScaleMax", SCALE[1])):
         unreal.PCGGraphParametersHelpers.set_vector_parameter(graph, name, unreal.Vector(scale, scale, scale))

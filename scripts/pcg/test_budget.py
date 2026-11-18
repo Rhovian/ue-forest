@@ -127,6 +127,13 @@ class RegionTests(unittest.TestCase):
                 patch.object(deadwood_rocks, "shore_height", return_value=self.SHORE):
             self.assertEqual(deadwood_rocks.above_shore_cells(), [(0, 0)])  # lifted 150 cm, it reaches PLANT_FLOOR
 
+    def test_tree_ground_starts_at_the_shore_whatever_the_plant_fade(self):
+        cells = {(0, 0): (-500, self.SHORE - 150, 0), (1, 0): (-500, self.SHORE - 151, 0)}
+        for fade in ((), ((50, 0.35),), deadwood_rocks.PLANT_FADE):
+            with self.subTest(fade=fade), patch.object(deadwood_rocks, "terrain_cells", summaries(cells)), \
+                    patch.object(deadwood_rocks, "PLANT_FADE", fade), patch.object(deadwood_rocks, "shore_height", return_value=self.SHORE):
+                self.assertEqual(deadwood_rocks.forest_floor_cells(), [(0, 0)])  # lifted 150 cm, (0, 0) reaches the shore
+
     def test_damp_tiles_are_low_or_near_water_and_above_the_shore(self):
         import saplings_understory
         cells = {(0, 0): (1199, 5000, 0), (1, 0): (1200, 5000, 0), (2, 0): (1300, 5000, 0), (3, 0): (100, 900, 0)}
@@ -136,6 +143,35 @@ class RegionTests(unittest.TestCase):
             # (0, 0) low by its lowest ground; (1, 0) neither low nor near; (2, 0) high but near water; (3, 0) and the
             # near-water (9, 9) below the shore
             self.assertEqual(saplings_understory.damp_cells(), [(0, 0), (2, 0)])
+
+
+class ParentTests(unittest.TestCase):
+    """Every generator is copied from the Trees instance, whose own parent is cropped to the Trees' area: generator()
+    must give each copy its parent, before any parameter (changing the parent resets them)."""
+
+    def build(self, region):
+        order, instance = MagicMock(), MagicMock()
+        with patch.object(deadwood_rocks, "copy_asset", return_value=instance), \
+                patch.object(deadwood_rocks, "load", side_effect=lambda path: f"loaded {path}"), \
+                patch.object(deadwood_rocks.unreal, "PCGGraphParametersHelpers") as helpers, \
+                patch.object(area_sampling, "ranges", return_value={}), patch.object(area_sampling, "area_graph", return_value="own area"), \
+                patch.object(deadwood_rocks, "put"):
+            order.attach_mock(instance.set_editor_property, "parent")
+            order.attach_mock(helpers.set_double_parameter, "parameter")
+            deadwood_rocks.generator("Example", 100, 25, 60, region=region, bools={"EnableSpatialNoise": False})
+        calls = [name for name, args, _ in order.mock_calls if name == "parameter" or args[0] == "graph"]
+        parent = next(args[1] for name, args, _ in order.mock_calls if name == "parent" and args[0] == "graph")
+        return parent, calls
+
+    def test_a_generator_without_a_region_takes_the_template(self):
+        parent, calls = self.build(None)
+        self.assertEqual(parent, f"loaded {area_sampling.TEMPLATE}")
+        self.assertEqual(calls[0], "parent")
+
+    def test_an_area_generator_takes_its_own_area_graph(self):
+        parent, calls = self.build([(0, 0)])
+        self.assertEqual(parent, "own area")
+        self.assertEqual(calls[0], "parent")
 
 
 if __name__ == "__main__":

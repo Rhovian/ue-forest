@@ -151,14 +151,24 @@ def foot_cells(reach):
     return area_sampling.tiles_near([(x * 100, y * 100) for x, y in foot["points_m"]], reach + REGION_MARGIN)
 
 
-def above_shore_cells():
-    """Area tiles holding all ground whose LAND_Z (ground plus the beach lift, at most landheight.LIFT_CM) can reach the
-    lowest band any filter_graph keeps: PLANT_FLOOR above the shore, less PLANT_FADE's deepest tongue (terrain_tiles.json,
-    #258)."""
+def lifted_cells(lowest):
+    """Area tiles holding all ground whose LAND_Z (ground plus the beach lift, at most landheight.LIFT_CM) can reach
+    lowest cm (terrain_tiles.json, #258)."""
     landheight = Path(area_sampling.__file__).parents[1] / "terrain/landheight.py"  # no __file__ when run as a script
     lift = int(re.search(r"^LIFT_CM = (\d+)", landheight.read_text(), re.MULTILINE)[1])
-    lowest = shore_height() + PLANT_FLOOR - max((depth for depth, _ in PLANT_FADE), default=0)
     return terrain_cells(lambda _z_min, z_max, _slope: z_max + lift >= lowest)
+
+
+def above_shore_cells():
+    """Tiles holding the lowest band any filter_graph keeps: PLANT_FLOOR above the shore, less PLANT_FADE's deepest
+    tongue."""
+    return lifted_cells(shore_height() + PLANT_FLOOR - max((depth for depth, _ in PLANT_FADE), default=0))
+
+
+def forest_floor_cells():
+    """Tiles holding all ground PCG_TreesAboveShore (trees_above_shore.py) keeps: LAND_Z from the shore height up,
+    whatever the plants' band and fade."""
+    return lifted_cells(shore_height())
 
 
 def filter_graph(name, reach=0, slope=0, sink=None, fade=None):
