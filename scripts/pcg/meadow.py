@@ -22,6 +22,7 @@ from deadwood_rocks import (
     copy_asset,
     edge,
     entry,
+    foot_cells,
     foot_graph,
     generator,
     get,
@@ -30,7 +31,7 @@ from deadwood_rocks import (
     put,
     save,
 )
-from saplings_understory import drift_points, openings_filter
+from saplings_understory import EDGES_KEY, drift_points, openings_cells, openings_filter
 from trees_above_shore import land_z, shore_band, shore_height
 
 # (x m, y m, radius m) per meadow stretch: the coastal meadow at the clearing view, and grassland on the north-west lobe.
@@ -61,7 +62,7 @@ LOGS_PER_HA = 60  # ~10% survive the slope mask and meadow filter (measured: 200
 def edge_graph():
     """Low coastal ground (shore height up to TOP) inside a forest-edge opening (canopy_gaps.py): open sky beside the
     forest, so heather stays off the shaded beech floor (#95 review: low ground alone includes closed canopy)."""
-    return openings_filter("PCG_HeatherEdge", "edges_m [x, y, ground low, ground high, radius]", shore_height(), TOP)
+    return openings_filter("PCG_HeatherEdge", EDGES_KEY, shore_height(), TOP)
 
 
 def sand_edge_graph():
@@ -147,12 +148,12 @@ def main():
     put(value, GeneratorAllowOverlap=True)
     heather_group.set_editor_property("Generator", value)
     save(heather_group)
-    edge_group = generator("EdgeHeather", EDGE_HEATHER_PER_HA, 25, 58)
+    edge_group = generator("EdgeHeather", EDGE_HEATHER_PER_HA, 25, 58, region=openings_cells(EDGES_KEY))  # edge_graph's openings
     value = edge_group.get_editor_property("Generator")
     put(value, GeneratorAllowOverlap=True)
     edge_group.set_editor_property("Generator", value)
     save(edge_group)
-    sand_group = generator("SandHeather", SAND_HEATHER_PER_HA, 35, 58)
+    sand_group = generator("SandHeather", SAND_HEATHER_PER_HA, 35, 58, region=foot_cells(SAND_HEATHER_REACH))
     value = sand_group.get_editor_property("Generator")
     put(value, GeneratorAllowOverlap=True)
     sand_group.set_editor_property("Generator", value)

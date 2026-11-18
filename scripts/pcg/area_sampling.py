@@ -126,7 +126,8 @@ def _connect(graph, source, source_pin, target, target_pin):
 
 def area_graph(path, cells, ranges=None, cell=TILE):
     """A new generator graph at path sampling only `cells` (tiles_near). ranges {remap: (min, max)} fixes the template's
-    density rescales; None samples the whole island and measures them (measure_ranges)."""
+    density rescales ({} for a generator with spatial noise off, which never runs them); None samples the whole
+    island and measures them (measure_ranges)."""
     if ranges is None:
         cells, cell = WHOLE, WHOLE_CELL
     if unreal.EditorAssetLibrary.does_asset_exist(path):

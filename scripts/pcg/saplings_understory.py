@@ -124,7 +124,7 @@ for _kind in biome_variants.FERN_COLONY_SHARES:
 
 def canopy_filter():
     """Ground inside a canopy gap from canopy_gaps.json, high enough to be forest floor."""
-    return openings_filter("PCG_SaplingsCanopyGaps", "gaps_m [x, y, ground low, ground high, radius]",
+    return openings_filter("PCG_SaplingsCanopyGaps", GAPS_KEY,
                            shore_height() + 150, 1.0e7)
 
 
@@ -176,6 +176,21 @@ def openings_filter(name, key, low, high):
     edge(graph, merge, "Out", out, "Out")
     save(graph)
     return graph
+
+
+def openings_cells(key):
+    """Area tiles holding every opening listed under key in canopy_gaps.json: the only ground openings_filter keeps."""
+    import json
+    from pathlib import Path
+
+    data = json.loads(Path(deadwood_rocks.__file__).with_name("canopy_gaps.json").read_text())
+    cells = set()
+    for x, y, _low, _high, radius in data[key]:
+        cells.update(area_sampling.tiles_near([(x * 100, y * 100)], int(radius) * 100 + deadwood_rocks.REGION_MARGIN))
+    return sorted(cells)
+
+
+GAPS_KEY, EDGES_KEY = "gaps_m [x, y, ground low, ground high, radius]", "edges_m [x, y, ground low, ground high, radius]"
 
 
 def water_near(graph, source, pin, maximum, nearest=0.0):
@@ -341,6 +356,7 @@ def main():
     banks = [(band, bank_filter(band, inner, outer), shares) for band, inner, outer, shares in BANKS
              ] if args.group == "understory" else []
     cells = {"Bank" + band: bank_cells(outer) for band, _inner, outer, _shares in BANKS} if banks else {}  # #247
+    cells |= {"Canopy": openings_cells(GAPS_KEY)} | ({"Foot": deadwood_rocks.foot_cells(FOOT[2])} if foot else {})
     entries = []
     # Understory (#32 rulings, interior_01): colonies rather than an even scatter, and plants grow under trees too
     # (overlap, so canopy bounds do not prune them). The template's spatial noise is world-space with no seed

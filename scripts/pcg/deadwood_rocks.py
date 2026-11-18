@@ -138,6 +138,18 @@ def foot_graph(name, low, high, reach):
     return graph
 
 
+# cm past a filter's reach that its area tiles extend: the sampler's points sit where the stock sampler's do, so this
+# only absorbs float rounding at a tile's edge.
+REGION_MARGIN = 300
+
+
+def foot_cells(reach):
+    """Area tiles (area_sampling) holding all ground within reach cm of the forest foot: the only ground foot_graph
+    can keep (its Distance is 3D, so the horizontal distance is never longer)."""
+    foot = json.loads(Path(__file__).with_name("forest_foot.json").read_text())
+    return area_sampling.tiles_near([(x * 100, y * 100) for x, y in foot["points_m"]], reach + REGION_MARGIN)
+
+
 def filter_graph(name, reach=0, slope=0, sink=None, fade=None):
     """Points above the shore band (and off the water by reach); sink=(min, max) cm lowers each point into the floor;
     fade=((depth, threshold), ...) lets points below the band's floor through in tongues (fade_in)."""
@@ -225,6 +237,8 @@ def generator(group, density, slope, priority, doubles=None, bools=None, extent=
     # What the measured density ranges depend on: a change to any of these measures them again.
     inputs = numbers | switches | {"PointExtents": extent}
     ranges = area_sampling.ranges(group, inputs) if region is not None else None
+    if region is not None and not switches["EnableSpatialNoise"]:
+        ranges = {}  # the density rescales sit on the spatial noise branch, which this generator never runs
     if region is not None and ranges is None:
         area_sampling.pending(group, inputs)
         print(f"{group}: no density ranges measured for these settings; it samples the whole island once to measure them (#247)")

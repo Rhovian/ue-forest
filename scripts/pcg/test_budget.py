@@ -66,6 +66,15 @@ class AreaTileTests(unittest.TestCase):
         self.assertEqual(cells, [(-1, -1), (-1, 0), (0, -1), (0, 0)])  # the four cells round a corner sample
         self.assertAlmostEqual(area_sampling.tile_area_ha(cells), 0.16)
 
+    def test_foot_cells_cover_the_reach_of_every_foot_point(self):
+        import json
+        reach, cell = 500, area_sampling.TILE
+        covered = set(deadwood_rocks.foot_cells(reach))
+        foot = json.loads(Path(deadwood_rocks.__file__).with_name("forest_foot.json").read_text())["points_m"]
+        for x, y in foot[::50]:
+            for dx, dy in ((reach, 0), (-reach, 0), (0, reach), (0, -reach), (0, 0)):
+                self.assertIn(((x * 100 + dx) // cell, (y * 100 + dy) // cell), covered)
+
 
 NOISE_VORONOI = {"EnableSpatialNoise": True, "EnableVoronoiNoiseBreakup": True}
 
