@@ -290,7 +290,7 @@ def damp_filter():
     for node in list(graph.get_editor_property("nodes")):
         if node not in (inp, out):
             graph.remove_node(node)
-    floor = shore_height() + 150
+    floor = shore_height() + deadwood_rocks.PLANT_FLOOR
     shore = z_range(graph, floor, 1.0e7)
     edge(graph, land_z(graph, inp, "In"), "Out", shore, "In")
     above = fade_in(graph, shore, "OutsideFilter", floor, PLANT_FADE)  # the same ragged lower edge as the Gaps (#165)
