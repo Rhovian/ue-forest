@@ -34,7 +34,8 @@ TILE = 2000  # cm; area_sampling imports unreal, so it cannot be imported here
 
 
 def landscape_slopes(height, metres):
-    """UE 5.8 LandscapeEdit.cpp:Import / LandscapeEditInterface.cpp:SetHeightData normals.
+    """UE 5.8 LandscapeEditLayersHeightmaps.usf:GenerateNormalsPS edit-layer normals.
+
     NumPy has no UE-normal routine; sum incident unit faces, pack as LandscapeDataAccess.h.
     """
     dx, dy = np.diff(height, axis=1) / metres, np.diff(height, axis=0) / metres
@@ -78,7 +79,8 @@ def main():
         landheight.TERRAIN = Path(sys.argv[1])
     data = summaries(*landheight.read_height())
     png = landheight.TERRAIN.with_suffix(".png").resolve()
-    data.update(source_png=str(png), source_sha256=hashlib.sha256(png.read_bytes()).hexdigest())
+    source_root = next(parent for parent in png.parents if (parent / ".git").exists())
+    data.update(source_png=png.relative_to(source_root).as_posix(), source_sha256=hashlib.sha256(png.read_bytes()).hexdigest())
     OUT.write_text(json.dumps(data, separators=(",", ":")) + "\n")
     print(f"{OUT.relative_to(ROOT)}: {len(data['cells'])} cells, {OUT.stat().st_size} bytes, "
           f"max slope {max(c[4] for c in data['cells']):.3f} deg, "
