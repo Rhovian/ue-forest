@@ -21,6 +21,7 @@ from deadwood_rocks import (
     asset_list,
     children,
     entry,
+    foot_cells,
     foot_graph,
     generator,
     get,
@@ -111,7 +112,8 @@ def main():
     # spawned, and it made counts jump nonlinearly. Each anchor variant has its own pile outline; every pile mixes
     # all sticks and, rarely, a log, so weathered trunks lie among the branches (beach reference).
     flat = ({"SpatialDensityLow": 1.0}, {"EnableSpatialNoise": False})
-    trunk_group = generator("DebrisTrunks", TRUNKS_PER_HA, 35, TRUNK_PRIORITY, *flat)
+    wrack_cells = foot_cells(WRACK_REACH)  # the only ground the wrack graph keeps (#247)
+    trunk_group = generator("DebrisTrunks", TRUNKS_PER_HA, 35, TRUNK_PRIORITY, *flat, region=foot_cells(TRUNK_REACH))
     palette = sticks + [(mesh, weight * PILE_LOGS) for mesh, weight in logs]
     entries = []
     for index, (mesh, weight) in enumerate(sticks):
@@ -119,7 +121,7 @@ def main():
                                                              (0.8, 1.3), palette, True)])
         bleach(pile, materials)
         pile_group = generator("DebrisSticks_" + mesh.get_name(), PILES_PER_HA * weight * (1 + 0.05 * index), 35,
-                               STICK_PRIORITY, *flat)
+                               STICK_PRIORITY, *flat, region=wrack_cells)
         value = entry(template, mesh, pile_group, wrack, collision=False, aligned=True, children=pile)
         put(value, AssetType="Driftwood_" + mesh.get_name())
         options = get(value, "MeshOptions")
