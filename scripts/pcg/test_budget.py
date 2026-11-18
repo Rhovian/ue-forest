@@ -70,19 +70,25 @@ class AreaTileTests(unittest.TestCase):
 NOISE_VORONOI = {"EnableSpatialNoise": True, "EnableVoronoiNoiseBreakup": True}
 
 
+# A distinct value per probe, so a min read in place of a max (or one rescale's probes for another's) shows.
+PROBES = {f"AttributeReduce_{i}": (i + 1) / 8 for i in range(6)}
+
+
 class MeasureTests(unittest.TestCase):
-    def test_every_rescale_the_settings_run_is_measured(self):
-        with patch.object(area_sampling, "_probe_value", return_value=0.5):
-            self.assertEqual(set(area_sampling.measure_ranges("Herbs", NOISE_VORONOI)), set(area_sampling.REMAPS))
-            self.assertEqual(set(area_sampling.measure_ranges("Herbs", {"EnableSpatialNoise": True, "EnableVoronoiNoiseBreakup": False})),
-                             {"AttributeRemap_1"})
+    def test_every_rescale_the_settings_run_is_measured_from_its_own_probes(self):
+        with patch.object(area_sampling, "_probe_value", side_effect=lambda group, reduce: PROBES[reduce]):
+            self.assertEqual(area_sampling.measure_ranges("Herbs", NOISE_VORONOI),
+                             {"AttributeRemap_1": (1 / 8, 2 / 8), "AttributeRemap_2": (3 / 8, 4 / 8), "AttributeRemap_3": (5 / 8, 6 / 8)})
+            self.assertEqual(area_sampling.measure_ranges("Herbs", {"EnableSpatialNoise": True, "EnableVoronoiNoiseBreakup": False}),
+                             {"AttributeRemap_1": (1 / 8, 2 / 8)})
 
     def test_a_missing_probe_of_a_running_rescale_raises(self):
-        def probe(group, reduce):
-            return None if reduce == "AttributeReduce_0" else 0.5  # an interrupted run lost one export
-        with patch.object(area_sampling, "_probe_value", side_effect=probe), self.assertRaisesRegex(RuntimeError, "AttributeRemap_1"):
-            area_sampling.measure_ranges("Herbs", NOISE_VORONOI)
-
+        for lost in ("AttributeReduce_0", "AttributeReduce_1", "AttributeReduce_5"):  # an interrupted run lost one export
+            def probe(group, reduce, lost=lost):
+                return None if reduce == lost else 0.5
+            with self.subTest(lost=lost), patch.object(area_sampling, "_probe_value", side_effect=probe), \
+                    self.assertRaises(RuntimeError):
+                area_sampling.measure_ranges("Herbs", NOISE_VORONOI)
 
 if __name__ == "__main__":
     unittest.main()
