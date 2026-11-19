@@ -1,0 +1,250 @@
+{
+ "BalsamBankFar": {
+  "blended": 162,
+  "unblended": 799
+ },
+ "BalsamBankNear": {
+  "blended": 442,
+  "unblended": 3505
+ },
+ "BalsamDamp": {
+  "blended": 608,
+  "unblended": 1935
+ },
+ "BalsamGaps": {
+  "blended": 2752,
+  "unblended": 5325
+ },
+ "BeechFernsBankFar": {
+  "blended": 134,
+  "unblended": 626
+ },
+ "BeechFernsBankNear": {
+  "blended": 125,
+  "unblended": 904
+ },
+ "BeechFernsDamp": {
+  "blended": 1621,
+  "unblended": 5100
+ },
+ "BeechFernsFoot": {
+  "blended": 254,
+  "unblended": 2720
+ },
+ "BeechFernsGaps": {
+  "blended": 7545,
+  "unblended": 14554
+ },
+ "BeechFernsSteep": {
+  "blended": 1107,
+  "unblended": 1682
+ },
+ "Deadwood": {
+  "blended": 208,
+  "unblended": 330
+ },
+ "Deadwood_SM_MossyTree_01": {
+  "blended": 158,
+  "unblended": 250
+ },
+ "Deadwood_wd1mbcvbw_tier_2": {
+  "blended": 74,
+  "unblended": 88
+ },
+ "Deadwood_wgrubc1s_tier_2": {
+  "blended": 205,
+  "unblended": 351
+ },
+ "DebrisSticks_SM_xlknfje_tier_2": {
+  "blended": 202,
+  "unblended": 8204
+ },
+ "DebrisSticks_SM_xlkoaaw_tier_2": {
+  "blended": 203,
+  "unblended": 7876
+ },
+ "DebrisSticks_SM_xlkoadp_tier_2": {
+  "blended": 187,
+  "unblended": 7498
+ },
+ "DebrisSticks_SM_xlnnden_tier_2": {
+  "blended": 199,
+  "unblended": 7160
+ },
+ "DebrisSticks_SM_xlnndfv_tier_2": {
+  "blended": 186,
+  "unblended": 6845
+ },
+ "DebrisTrunks": {
+  "blended": 171,
+  "unblended": 8892
+ },
+ "DeerFernsBankFar": {
+  "blended": 178,
+  "unblended": 831
+ },
+ "DeerFernsBankNear": {
+  "blended": 143,
+  "unblended": 1193
+ },
+ "DeerFernsDamp": {
+  "blended": 2158,
+  "unblended": 6873
+ },
+ "DeerFernsFoot": {
+  "blended": 338,
+  "unblended": 3657
+ },
+ "DeerFernsGaps": {
+  "blended": 10019,
+  "unblended": 19312
+ },
+ "DeerFernsSteep": {
+  "blended": 1509,
+  "unblended": 2262
+ },
+ "EdgeHeather": {
+  "blended": 54,
+  "unblended": 440
+ },
+ "FernsBankFar": {
+  "blended": 337,
+  "unblended": 1493
+ },
+ "FernsBankNear": {
+  "blended": 256,
+  "unblended": 2093
+ },
+ "FernsDamp": {
+  "blended": 3848,
+  "unblended": 12154
+ },
+ "FernsFoot": {
+  "blended": 630,
+  "unblended": 6313
+ },
+ "FernsGaps": {
+  "blended": 17630,
+  "unblended": 34305
+ },
+ "FernsSteep": {
+  "blended": 2658,
+  "unblended": 3974
+ },
+ "FoxgloveBankFar": {
+  "blended": 483,
+  "unblended": 2294
+ },
+ "FoxgloveBankNear": {
+  "blended": 881,
+  "unblended": 6682
+ },
+ "FoxgloveCanopy": {
+  "blended": 148,
+  "unblended": 229
+ },
+ "GapShrubsCanopy": {
+  "blended": 46,
+  "unblended": 65
+ },
+ "HerbsBankFar": {
+  "blended": 545,
+  "unblended": 2656
+ },
+ "HerbsBankNear": {
+  "blended": 1586,
+  "unblended": 12048
+ },
+ "HerbsDamp": {
+  "blended": 1029,
+  "unblended": 3243
+ },
+ "HerbsGaps": {
+  "blended": 4640,
+  "unblended": 9028
+ },
+ "Hornbeams": {
+  "blended": 273,
+  "unblended": 515
+ },
+ "IvyDamp": {
+  "blended": 2054,
+  "unblended": 6565
+ },
+ "IvyGaps": {
+  "blended": 9694,
+  "unblended": 19028
+ },
+ "Meadow": {
+  "blended": 501,
+  "unblended": 5507
+ },
+ "MeadowHeather": {
+  "blended": 134,
+  "unblended": 1637
+ },
+ "MeadowLogs": {
+  "blended": 16,
+  "unblended": 158
+ },
+ "Rocks": {
+  "blended": 405,
+  "unblended": 536
+ },
+ "SandHeather": {
+  "blended": 342,
+  "unblended": 5341
+ },
+ "SaplingsCanopy": {
+  "blended": 826,
+  "unblended": 1211
+ },
+ "SaplingsGaps": {
+  "blended": 7266,
+  "unblended": 14205
+ },
+ "ShoreTrees": {
+  "blended": 4,
+  "unblended": 69
+ },
+ "ShrubsDamp": {
+  "blended": 113,
+  "unblended": 357
+ },
+ "ShrubsGaps": {
+  "blended": 307,
+  "unblended": 800
+ },
+ "SwordFernsBankFar": {
+  "blended": 252,
+  "unblended": 1269
+ },
+ "SwordFernsBankNear": {
+  "blended": 242,
+  "unblended": 1793
+ },
+ "SwordFernsDamp": {
+  "blended": 3296,
+  "unblended": 10372
+ },
+ "SwordFernsFoot": {
+  "blended": 545,
+  "unblended": 5452
+ },
+ "SwordFernsGaps": {
+  "blended": 14985,
+  "unblended": 29203
+ },
+ "SwordFernsSteep": {
+  "blended": 2259,
+  "unblended": 3431
+ },
+ "Trees": {
+  "blended": 6835,
+  "unblended": 13611
+ },
+ "Veterans": {
+  "blended": 76,
+  "unblended": 127
+ }
+}

@@ -22,6 +22,7 @@ import traceback
 
 import unreal
 from biome_variants import PLANT_USAGE_MATERIALS
+from biome_volume import problems as volume_problems
 from deadwood_rocks import get
 from exact_exclusions import inputs as local_inputs
 from pcg_delegate_cleanup import assert_clean, detach
@@ -102,6 +103,9 @@ def validate(cores):
                 or component.get_editor_property("current_editing_mode") != unreal.PCGEditorDirtyMode.NORMAL
                 or component.get_editor_property("serialized_editing_mode") != unreal.PCGEditorDirtyMode.NORMAL):
             raise RuntimeError("Core must be partitioned, editor-generated and in saved Normal mode")
+    found = volume_problems(local_inputs(actors()))
+    if found:
+        raise RuntimeError(f"Run biome_volume.py first: {'; '.join(found)}")
 
 
 def actor_packages(loaded):
