@@ -3,7 +3,7 @@
 
     scripts/editor-py scripts/pcg/exact_exclusions.py [--check]
 
-Run after rebuilding groups, before regenerate_biome.py --save. Re-runnable. Check
+Run after rebuilding groups, before the bake (scripts/pcg/bake). Re-runnable. Check
 only reads loaded actors/graphs; build retains WP inputs and saves project graphs.
 """
 

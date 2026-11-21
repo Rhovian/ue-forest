@@ -10,7 +10,7 @@ ivy is written into the host's moss shell as an "Ivy" section where it has one (
 whose rebuild drops it), else into SM_<host>_Ivy (Nanite, no collision) in the host's own space, which
 deadwood_rocks.shell_children places at the host's transform. A slab's ivy covers its top and sides within CORNER of its footprint's
 +X+Y corner, sheets lying on the faces they cover. Rerun after a host or setting changes, then deadwood_rocks.py,
-veteran_trees.py, flare_moss.py, hornbeam_trees.py, shore_trees.py, exact_exclusions.py and regenerate_biome.py.
+veteran_trees.py, flare_moss.py, hornbeam_trees.py, shore_trees.py, exact_exclusions.py and scripts/pcg/bake.
 """
 
 import importlib

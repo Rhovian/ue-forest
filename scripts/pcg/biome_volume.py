@@ -10,8 +10,8 @@ low ground unevenly unpartitioned and removed ~5/6 of every partitioned cell's p
 blend: BlendingRange 0 makes BiomeCore_RunGenerators skip it. A partitioned Local generates cell by cell, so the bake is
 bounded by a cell's content rather than the map's. Switching to partitioned keeps the original component's old
 unpartitioned output, which the volume package serialized (1.17 GB) and the World Partition builder reloaded each time
-an iteration touched the volume: it is cleared here. regenerate_biome.py refuses to run unless all three hold. Saves
-the volume's package; the lead regenerates afterwards.
+an iteration touched the volume: it is cleared here. regenerate_biome.py's preflight fails unless all three hold. Saves
+the volume's package; the lead bakes afterwards (scripts/pcg/bake).
 """
 
 import argparse

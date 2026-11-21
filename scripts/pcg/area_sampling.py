@@ -10,6 +10,8 @@ island and saves its density ranges under PROBE), regenerate, record(groups) int
 The ranges are kept with the generator settings they were measured with; changing those settings measures again.
 A measuring regenerate costs what the stock one does: with only the Understory group enabled it still reached the 75 GB
 guard (#247), so keep only the generators being measured (their rows in the group's asset list, in memory).
+That route ran the in-editor regenerate; since #264 the Local is partitioned and bakes only with scripts/pcg/bake,
+which reads saved assets, so measuring a new family has no working route yet.
 
 Each area graph ends in a keep filter (ramp(), #264). The level was tuned with biome blending's rounding cull, which
 kept a point with a chance that halved with each halving of its height below ~10 m (2^floor(log2(z / 10 m))), the

@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+"""Lead only: bake L_vilm's Biome Core with UE's World Partition builder, the Local inputs first, then Core (#264).
+
+    scripts/editor-py scripts/pcg/regenerate_biome.py   # preflight, with the editor open
+    scripts/editor.sh close                              # saves; the builder loads the level from disk
+    scripts/pcg/bake
+
+Each pass is its own builder process, loading 256 m of cells at a time and saving their partition actors as it goes;
+the editor cannot bake the partitioned Local in one session (its footprint grows 8-10 GB per dense cell). The builder
+skips every save when any error is logged, and the Biome Core template logs one per generator that has no points in
+a cell (its Reduce Density Min/Max), so it runs with -IgnoreGenerationErrors and this script audits the log instead:
+any error but those, a pass past MEMORY_LIMIT_GB, or no saved packages fails the bake. Measured on the 108-cell island
+(2026-11-20): Local ~60 GB, ~23 min; Core ~21 GB, ~8.5 min. Logs go to Forest/Saved/Logs/bake_<pass>.log.
+"""
+
+import os
+import re
+import signal
+import subprocess
+import sys
+import time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.dirname(os.path.dirname(HERE))
+PROJECT = os.path.join(REPO, "Forest", "Forest.uproject")
+UE_ROOT = os.environ.get("UE_ROOT", "/Users/Shared/Epic Games/UE_5.8")
+EDITOR = os.path.join(UE_ROOT, "Engine/Binaries/Mac/UnrealEditor.app/Contents/MacOS/UnrealEditor")
+PASSES = [("local", "LocalBiomeCore"), ("core", "BiomeCore")]  # Core reads the Local cells' saved output
+CELL = 25600  # cm, the Biome Core partition grid: one cell per iteration
+# Physical footprint, as `footprint -p` reports it; a full regenerate in the editor was held to 70 GB on this 96 GB
+# machine (#203, operator 2026-11-18).
+MEMORY_LIMIT_GB = 70
+# Errors a clean bake logs: the template's Reduce Density nodes on a generator with no points in a cell, and the Asset
+# Manager's GameFeatureData complaint at startup.
+EXPECTED = re.compile(r"AttributeReduce_[0-5] \(Reduce Density: M(in|ax)\)\]: Operation was not compatible"
+                      r"|settings do not include an? (entry|rule) for assets of type GameFeatureData")
+
+
+def footprint_gb(pid):
+    printed = subprocess.run(["footprint", "-p", str(pid)], check=False, capture_output=True, text=True).stdout
+    match = re.search(r"phys_footprint:\s*([\d.]+)\s*([KMG])B", printed)
+    if not match:
+        return 0.0
+    return float(match[1]) / {"K": 2**20, "M": 2**10, "G": 1}[match[2]]
+
+
+def bake(name, graph):
+    log = os.path.join(REPO, "Forest", "Saved", "Logs", f"bake_{name}.log")
+    command = [EDITOR, PROJECT, "/Game/L_vilm", "-run=WorldPartitionBuilderCommandlet",
+               "-Builder=PCGWorldPartitionBuilder", "-Unattended", "-AllowCommandletRendering", "-AllowSoftwareRendering",
+               "-SCCProvider=None",
+               "-GenerateComponentEditingModeNormal", f"-IncludeGraphNames={graph}", "-IterativeCellLoading",
+               f"-IterativeCellSize={CELL}", "-IgnoreGenerationErrors", "-stdout", "-FullStdOutLogOutput"]
+    began, peak = time.monotonic(), 0.0
+    with open(log, "w") as stream:
+        process = subprocess.Popen(command, stdout=stream, stderr=subprocess.STDOUT)
+        while process.poll() is None:
+            peak = max(peak, footprint_gb(process.pid))
+            if peak > MEMORY_LIMIT_GB:
+                process.send_signal(signal.SIGKILL)  # the builder ignores SIGINT while generating
+                process.wait()
+                sys.exit(f"{name}: footprint passed {MEMORY_LIMIT_GB} GB; killed, its cells partly saved ({log})")
+            time.sleep(5)
+    with open(log, errors="replace") as stream:
+        text = stream.read()
+    errors = [line for line in text.splitlines() if "Error:" in line]
+    unexpected = [line for line in errors if not EXPECTED.search(line)]
+    saved = re.search(r"Final package changes: .*", text)
+    print(f"{name}: {time.monotonic() - began:.0f} s, peak {peak:.1f} GB, {len(errors) - len(unexpected)} expected"
+          f" errors; {saved[0] if saved else 'no package changes reported'}")
+    if unexpected:
+        print("\n".join(unexpected[:20]))
+        sys.exit(f"{name}: {len(unexpected)} unexpected errors ({log})")
+    if not saved:
+        sys.exit(f"{name}: the builder did not finish saving (exit {process.returncode}; {log})")
+
+
+def main():
+    if len(sys.argv) > 1:
+        sys.exit(__doc__)
+    status = subprocess.run([os.path.join(REPO, "scripts", "editor.sh"), "status"], check=False, capture_output=True,
+                            text=True)
+    if "editor is not running" not in status.stdout + status.stderr:
+        sys.exit("Close the editor first (scripts/editor.sh close saves): the builder loads and saves the same packages")
+    for name, graph in PASSES:
+        bake(name, graph)
+
+
+if __name__ == "__main__":
+    main()

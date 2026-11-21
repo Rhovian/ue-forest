@@ -1,6 +1,6 @@
 ---
 name: forest-pcg
-description: Lessons for this project's Biome Core PCG placement of everything on the island, forest, meadow and beach (scripts/pcg/*.py, regenerate_biome.py). Read before adding or changing a placement group, a density, a generator, child assets or a filter graph, and when diagnosing a slow or memory-heavy regenerate or plants that float, vanish or clump wrongly. Not for lighting, fog or materials. Append each new failure here when it is understood.
+description: Lessons for this project's Biome Core PCG placement of everything on the island, forest, meadow and beach (scripts/pcg/*.py, scripts/pcg/bake). Read before adding or changing a placement group, a density, a generator, child assets or a filter graph, and when diagnosing a slow or memory-heavy regenerate or plants that float, vanish or clump wrongly. Not for lighting, fog or materials. Append each new failure here when it is understood.
 ---
 
 Each rule below cost real time when it was learned. A new rule says what broke, why, and the check that prevents it.
@@ -25,9 +25,11 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   (`children()` with a disc of points, `ground=True`), as in `meadow.py`. Cost then scales with the anchors.
   The budget covers anchors only: the instance total is accepted anchors x children per patch, so measure it after
   each change (fern drifts: 16 children each, ~194k ferns). `candidate_estimate` uses the capped density.
-- `regenerate_biome.py` prints duration and peak editor memory (physical footprint since #203; earlier lessons quote resident memory). Above `MEMORY_LIMIT_GB` (70 footprint since #247 brought the peak to 60-61 GB; 75 footprint after #203; 70 and 60 RSS before, which older lessons here refer to) it cancels all PCG generation
-  through `unreal.ForestPCGLibrary.cancel_all_pcg_generation()` (C++: `PCGComponent::CancelGeneration` is not exposed
-  to Python) and saves nothing. Pass a density only as `generator()`'s `density`; a `PointsPerSquareMeter` override is
+- The full bake is `scripts/pcg/bake` (since #264; `regenerate_biome.py` is now its preflight, with the editor open).
+  It prints each pass's duration and peak builder footprint and kills a pass above `MEMORY_LIMIT_GB` (70 footprint;
+  75 after #203; 70 and 60 RSS before, which older lessons here refer to). Lessons below that quote an in-editor
+  regenerate's peak predate #264: the editor then generated the unpartitioned Local and Core in one session, and
+  cancelled through `unreal.ForestPCGLibrary.cancel_all_pcg_generation()`. Pass a density only as `generator()`'s `density`; a `PointsPerSquareMeter` override is
   refused because the budget would not see it.
   A full regenerate takes about 1-2 minutes and peaks at 35-45 GB after a fresh editor start. The peak creeps up
   across many regenerates in one session (45 -> 54 GB for the same content): restart the editor (`editor.sh close`,
@@ -238,7 +240,7 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   margin; Biome Core selects exclusions by that tag) keeps everything out of the water, and `ForestKeepout_*` (tag
   `Forest_WaterKeepout`, 3 m) keeps every group but the ground plants (`exact_exclusions.PLANT_GRAPHS`) back from it.
   A new ground-plant filter graph must be added to `PLANT_GRAPHS` to reach the banks.
-- After rebuilding any group, run `exact_exclusions.py` before `regenerate_biome.py --save`: child graphs are rebuilt
+- After rebuilding any group, run `exact_exclusions.py` before the bake: child graphs are rebuilt
   without the path, water and shore exclusions, so children can land across a path (#73 review).
 - One child list applies every layout to every anchor. For several patch outlines, give each entry its own list and
   split the variant weight across them (`saplings_understory.py` drifts).
@@ -260,8 +262,7 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
 - Every child layout runs per parent point, and regenerate memory scales with it: a second child (trunk ivy) on a quarter
   of the ~5,700 beech pushed regenerate past the 60 GB guard twice, where the same ivy merged into the trees' existing
   moss shell as an extra section (trunk_ivy.py) peaked at ~56 GB. Add geometry to an existing child's mesh before adding
-  a child to a large group (#121). Landscape Grass held ~11 GB of that: regenerate_biome.py turns it off while it runs
-  (peak ~49 GB, #132).
+  a child to a large group (#121). Landscape Grass held ~11 GB of that in the editor (peak ~49 GB with it off, #132).
 
 ## Verification
 
