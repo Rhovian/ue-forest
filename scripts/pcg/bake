@@ -37,15 +37,17 @@ EXPECTED = re.compile(r"AttributeReduce_[0-5] \(Reduce Density: M(in|ax)\)\]: Op
 
 
 def footprint_gb(pid):
-    printed = subprocess.run(["footprint", "-p", str(pid)], check=False, capture_output=True, text=True).stdout
+    """The builder's physical footprint; raises when it cannot be read, since an unread footprint is no guard."""
+    printed = subprocess.run(["footprint", "-p", str(pid)], check=True, capture_output=True, text=True, timeout=30).stdout
     match = re.search(r"phys_footprint:\s*([\d.]+)\s*([KMG])B", printed)
     if not match:
-        return 0.0
+        raise RuntimeError(f"footprint -p {pid} printed no phys_footprint")
     return float(match[1]) / {"K": 2**20, "M": 2**10, "G": 1}[match[2]]
 
 
 def bake(name, graph):
     log = os.path.join(REPO, "Forest", "Saved", "Logs", f"bake_{name}.log")
+    os.makedirs(os.path.dirname(log), exist_ok=True)  # the Mac editor logs elsewhere, so the folder may not exist
     command = [EDITOR, PROJECT, "/Game/L_vilm", "-run=WorldPartitionBuilderCommandlet",
                "-Builder=PCGWorldPartitionBuilder", "-Unattended", "-AllowCommandletRendering", "-AllowSoftwareRendering",
                "-SCCProvider=None",
@@ -54,25 +56,37 @@ def bake(name, graph):
     began, peak = time.monotonic(), 0.0
     with open(log, "w") as stream:
         process = subprocess.Popen(command, stdout=stream, stderr=subprocess.STDOUT)
-        while process.poll() is None:
-            peak = max(peak, footprint_gb(process.pid))
-            if peak > MEMORY_LIMIT_GB:
-                process.send_signal(signal.SIGKILL)  # the builder ignores SIGINT while generating
+        try:
+            while process.poll() is None:
+                try:
+                    peak = max(peak, footprint_gb(process.pid))
+                except (subprocess.SubprocessError, RuntimeError):
+                    if process.poll() is not None:
+                        break  # it exited between the poll and the read
+                    raise
+                if peak > MEMORY_LIMIT_GB:
+                    sys.exit(f"{name}: footprint passed {MEMORY_LIMIT_GB} GB; killed, its cells partly saved ({log})")
+                time.sleep(5)
+        finally:
+            # Whatever ends the watch (the limit, Ctrl-C, an unreadable footprint), never leave the builder saving
+            # unguarded. It ignores SIGINT while generating.
+            if process.poll() is None:
+                process.send_signal(signal.SIGKILL)
                 process.wait()
-                sys.exit(f"{name}: footprint passed {MEMORY_LIMIT_GB} GB; killed, its cells partly saved ({log})")
-            time.sleep(5)
     with open(log, errors="replace") as stream:
         text = stream.read()
     errors = [line for line in text.splitlines() if "Error:" in line]
     unexpected = [line for line in errors if not EXPECTED.search(line)]
-    saved = re.search(r"Final package changes: .*", text)
+    # PostRun prints this summary whatever happened, so a pass that saved nothing still prints it, with zeros.
+    saved = re.search(r"Final package changes: (\d+) new, (\d+) modified.*", text)
     print(f"{name}: {time.monotonic() - began:.0f} s, peak {peak:.1f} GB, {len(errors) - len(unexpected)} expected"
           f" errors; {saved[0] if saved else 'no package changes reported'}")
     if unexpected:
         print("\n".join(unexpected[:20]))
         sys.exit(f"{name}: {len(unexpected)} unexpected errors ({log})")
-    if not saved:
-        sys.exit(f"{name}: the builder did not finish saving (exit {process.returncode}; {log})")
+    # Exit 1 is the logged expected errors; a signal or any other code is a crash.
+    if process.returncode not in (0, 1) or not saved or int(saved[1]) + int(saved[2]) == 0:
+        sys.exit(f"{name}: the builder saved no partition actors or did not finish (exit {process.returncode}; {log})")
 
 
 def main():
@@ -82,6 +96,7 @@ def main():
                             text=True)
     if "editor is not running" not in status.stdout + status.stderr:
         sys.exit("Close the editor first (scripts/editor.sh close saves): the builder loads and saves the same packages")
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit("bake: terminated; builder killed"))  # unwinds into the cleanup
     for name, graph in PASSES:
         bake(name, graph)
 
