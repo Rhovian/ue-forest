@@ -8,8 +8,10 @@ max(BlendingDensity, 1e-5). At BlendingDensity 0, PCGDistance's float rounding (
 that exponent into a cull: positive residues become ~1 and the noise drops them, negative ones become NaN. It thinned
 low ground unevenly unpartitioned and removed ~5/6 of every partitioned cell's points (#264). One biome has nothing to
 blend: BlendingRange 0 makes BiomeCore_RunGenerators skip it. A partitioned Local generates cell by cell, so the bake is
-bounded by a cell's content rather than the map's. regenerate_biome.py refuses to run unless both hold. Saves the
-volume's package; the lead regenerates afterwards.
+bounded by a cell's content rather than the map's. Switching to partitioned keeps the original component's old
+unpartitioned output, which the volume package serialized (1.17 GB) and the World Partition builder reloaded each time
+an iteration touched the volume: it is cleared here. regenerate_biome.py refuses to run unless all three hold. Saves
+the volume's package; the lead regenerates afterwards.
 """
 
 import argparse
@@ -30,6 +32,8 @@ def problems(locals_):
                   for name, value in SETTINGS.items() if volume.get_editor_property(name) != value]
         if not local.get_editor_property("is_component_partitioned"):
             found.append(f"{volume.get_actor_label()}: Local is not partitioned")
+        if local.get_generated_graph_output().get_editor_property("tagged_data"):
+            found.append(f"{volume.get_actor_label()}: original Local still holds its unpartitioned output")
     return found
 
 
@@ -50,6 +54,7 @@ def main():
     actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()
     for local in inputs(actors):
         local.set_editor_property("is_component_partitioned", True)
+        unreal.ForestPCGLibrary.clear_generated_graph_output(local)
     remaining = problems(inputs(actors))
     if remaining:
         raise RuntimeError("; ".join(remaining))

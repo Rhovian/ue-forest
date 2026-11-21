@@ -170,12 +170,21 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   the rest is allocator retention). Bake with UE's `PCGWorldPartitionBuilder` in its own process:
   `-run=WorldPartitionBuilderCommandlet -Builder=PCGWorldPartitionBuilder -AllowCommandletRendering
   -GenerateComponentEditingModeNormal -IncludeGraphNames=<graph> -IterativeCellLoading -IterativeCellSize=25600`.
-  It refuses to run without `-AllowCommandletRendering`.
+  It refuses to run without `-AllowCommandletRendering`. It skips every save after any logged error; the template's
+  Density min/max Reduce nodes log one for each generator with no points in a cell (77 of 108 Local cells), so run it
+  with `-IgnoreGenerationErrors` and audit the log's errors by node yourself. Core's per-cell components keep no
+  graph output after the builder: count roots on the Local cells, instances on the Core partition actors.
+- Switching a generated component to partitioned keeps its old unpartitioned output on the original component (the
+  volume package stayed 1.17 GB). The builder reloaded it for every iteration that touched the volume (~19 s,
+  ~1.7 GB each, Core reached 70 GB in 5 cells); `biome_volume.py` clears it with
+  `ForestPCGLibrary.clear_generated_graph_output`. Do not toggle `is_component_partitioned` or call `cleanup_local`
+  from Python to clear it: that wiped 103 of the 108 baked Local cells in memory (#264).
 - The builder (and any master recompile) asserted `ShaderMapId.ContainsShaderType` / `FAnisotropyPS` on the
   Megascans masters on 5.8.3 and 5.8.4 (also #135); the editor only survived on shader cache hits. With Substrate, a
   `SubstrateShadingModels` FrontMaterial whose ShadingModel pin is wired reports no shading model, so its Anisotropy
   input never reaches the predicted shader set, while the compiler finds anisotropy. Masters whose pin held a constant
-  equal to the node's override had the pin cleared (#264); check `scripts/review` captures after such an edit.
+  equal to the node's override had the pin cleared (#264); `M_Foliage`, whose shading model is static-switched, had
+  its always-zero Anisotropy input disconnected instead. Check `scripts/review` captures after such an edit.
 - Per-cell time in the editor is mostly the PCG scheduler (~870k tasks a dense cell) yielding to editor frames:
   `pcg.EditorFrameTime 250` (default 15 ms) cut a dense cell from 54 s to 30 s.
 - To create a partitioned component's local components without generating them all, call `generate_local(True)` and
