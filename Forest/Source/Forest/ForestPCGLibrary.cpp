@@ -3,7 +3,6 @@
 #include "Data/PCGBasePointData.h"
 #include "PCGComponent.h"
 #include "Subsystems/PCGSubsystem.h"
-#include "UObject/UnrealType.h"
 
 bool UForestPCGLibrary::CancelAllPCGGeneration()
 {
@@ -18,28 +17,14 @@ bool UForestPCGLibrary::CancelAllPCGGeneration()
 
 void UForestPCGLibrary::ClearGeneratedGraphOutput(UPCGComponent* Component)
 {
-	if (!Component)
+	if (Component)
 	{
-		return;
+		// UPCGComponent::ClearGraphGeneratedOutput is private; cleanup also touches managed resources.
+		auto& Output = const_cast<FPCGDataCollection&>(Component->GetGeneratedGraphOutput());
+		Output.ClearUsage(EPCGDataUsage::ComponentOutputData);
+		Output.Reset();
+		Component->MarkPackageDirty();
 	}
-	// UE 5.8 PCGComponent.h:693 makes ClearGraphGeneratedOutput private; cleanup also touches managed resources.
-	// PCGComponent.cpp:1920-1926 saves LoadedPreviewGeneratedGraphOutput in Preview mode, so clear both collections.
-	const FName OutputNames[] = {
-		TEXT("GeneratedGraphOutput"),
-#if WITH_EDITORONLY_DATA
-		TEXT("LoadedPreviewGeneratedGraphOutput"),
-#endif
-	};
-	for (const FName OutputName : OutputNames)
-	{
-		FStructProperty* Property = FindFProperty<FStructProperty>(UPCGComponent::StaticClass(), OutputName);
-		check(Property && Property->Struct == FPCGDataCollection::StaticStruct());
-		FPCGDataCollection* Output = Property->ContainerPtrToValuePtr<FPCGDataCollection>(Component);
-		// Match PCGComponent.cpp:1710,1740 without reparenting data potentially shared with other components.
-		Output->ClearUsage(EPCGDataUsage::ComponentOutputData);
-		Output->Reset();
-	}
-	Component->MarkPackageDirty();
 }
 
 TArray<FVector> UForestPCGLibrary::GetGeneratedPointLocations(const UPCGComponent* Component, const FString& Tag)

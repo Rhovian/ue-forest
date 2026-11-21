@@ -18,9 +18,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Forest PCG")
 	static bool CancelAllPCGGeneration();
 
-	/** Clears only this component's generated graph output, including its saved preview snapshot; null is a no-op.
-	 *  Leaves managed resources and per-cell components untouched, without regenerating. Marks the package dirty;
-	 *  scripts/pcg/biome_volume.py uses it before saving the volume after switching to partitioned generation. */
+	/** Clears only this component's live graph output; preserves managed resources and per-cell components; null is a no-op.
+	 *  scripts/pcg/biome_volume.py calls it in Normal mode before saving. Marks the package dirty without regenerating. */
 	UFUNCTION(BlueprintCallable, Category = "Forest PCG")
 	static void ClearGeneratedGraphOutput(UPCGComponent* Component);
 
