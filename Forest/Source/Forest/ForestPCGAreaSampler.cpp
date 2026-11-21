@@ -120,7 +120,9 @@ namespace ForestPCGAreaSampler
 				if (Context->Bounds)
 				{
 					FPCGPoint BoundSample;
-					const bool bInside = Context->Bounds->SamplePoint(Point.Transform, Point.GetLocalBounds(), BoundSample, nullptr);
+					// UPCGBasePointData::ProjectPoint weights nonzero query bounds by volume overlap.
+					// Test the centre so partition seams neither attenuate density nor share a point's extents.
+					const bool bInside = Context->Bounds->SamplePoint(Point.Transform, FBox(FVector::ZeroVector, FVector::ZeroVector), BoundSample, nullptr);
 #if WITH_EDITOR
 					if (!bInside && !Params.bKeepZeroDensityPoints)
 					{

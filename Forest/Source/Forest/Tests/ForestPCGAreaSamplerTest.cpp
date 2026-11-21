@@ -182,6 +182,52 @@ bool FForestAreaSamplerIdentityTest::RunTest(const FString& Parameters)
 				< Surface->Bounds.GetSize().X * Surface->Bounds.GetSize().Y / 3);
 		}
 	}
+	// Partition seam identity needs real point-data bounds: the soft mask above ignores query extents.
+	{
+		auto* Surface = NewObject<UForestPCGAreaSamplerTestSurface>();
+		Surface->Bounds = FBox(FVector(-400, -400, -100), FVector(400, 400, 600));
+		auto* Region = NewObject<UPCGVolumeData>();
+		Region->Initialize(Surface->Bounds.ExpandBy(100));
+		auto* Tiles = NewObject<UPCGPointData>();
+		Tiles->GetMutablePoints().Emplace_GetRef().SetLocalBounds(Surface->Bounds);
+		auto* Settings = NewObject<UForestPCGAreaSamplerSettings>();
+		Settings->PointsPerSquaredMeter = 1.0f; // 100 cm lattice, including centres exactly on Y = 0.
+		Settings->bApplyDensityToPoints = false;
+		auto MakeBounds = [](const FBox& Box)
+		{
+			auto* Data = NewObject<UPCGPointData>();
+			FPCGPoint& Point = Data->GetMutablePoints().Emplace_GetRef();
+			Point.SetLocalBounds(Box);
+			Point.Steepness = 1.0f;
+			return Data;
+		};
+		auto Whole = RunSampler(Settings, Surface, MakeBounds(Surface->Bounds), Region, Tiles);
+		const auto* WholePoints = CastChecked<UPCGBasePointData>(Whole->OutputData.TaggedData[0].Data);
+		TMap<FVector, int32> RemainingSeeds;
+		for (int32 I = 0; I < WholePoints->GetNumPoints(); ++I)
+		{
+			const FPCGPoint Point = FConstPCGPointValueRanges(WholePoints).GetPoint(I);
+			RemainingSeeds.Add(Point.Transform.GetLocation(), Point.Seed);
+		}
+		UTEST_TRUE("Fixture exercises an exact seam centre", RemainingSeeds.Contains(FVector(0, 0, 30)));
+		for (const bool bUpper : {false, true})
+		{
+			FBox Cell = Surface->Bounds;
+			(bUpper ? Cell.Min.Y : Cell.Max.Y) = 0;
+			auto Part = RunSampler(Settings, Surface, MakeBounds(Cell), Region, Tiles);
+			const auto* Points = CastChecked<UPCGBasePointData>(Part->OutputData.TaggedData[0].Data);
+			for (int32 I = 0; I < Points->GetNumPoints(); ++I)
+			{
+				const FPCGPoint Point = FConstPCGPointValueRanges(Points).GetPoint(I);
+				const int32* Seed = RemainingSeeds.Find(Point.Transform.GetLocation());
+				UTEST_NOT_NULL("Each whole-volume centre appears in only one cell", Seed);
+				TestEqual(TEXT("Cell preserves the whole-volume seed"), Point.Seed, *Seed);
+				TestEqual(TEXT("Cell boundaries do not attenuate density"), Point.Density, 1.0f);
+				RemainingSeeds.Remove(Point.Transform.GetLocation());
+			}
+		}
+		TestTrue(TEXT("Cells retain all whole-volume points, including away from the seam"), RemainingSeeds.IsEmpty());
+	}
 	// Independent no-operation inputs: do not multiply these by all grid/crop cases.
 	for (int32 Case = 0; Case < 4; ++Case)
 	{
