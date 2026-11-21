@@ -199,14 +199,12 @@ PYTHON
     if [[ -z "$exiting_pids" ]]; then cleanup_crash_reporters; await_port_free; exit; fi
     # Save first, so quitting never stops on Unreal's unsaved-changes dialog: a modal blocks MCP and editor-py, and
     # the lead closes the editor unattended. The same request closes the queue (init_unreal.py), so nothing queued
-    # after it can write before the quit. It refuses, leaving the editor open, when a regeneration is still running
-    # (it writes through its own callbacks, not the queue; regenerate_biome.ACTIVE) or when it runs after this
-    # shell stopped waiting for it, so a late request cannot close the queue with no quit to follow. A failed save
+    # after it can write before the quit. It refuses, leaving the editor open, when it runs after this shell stopped
+    # waiting for it, so a late request cannot close the queue with no quit to follow. A failed save
     # also stops here: use kill only when losing unsaved work is acceptable.
     deadline=$(($(date +%s) + 240))  # start by 240 s and mark closed by 295 s, inside editor-py's 300 s wait
-    printf '%s\n' 'import builtins, os, time' \
+    printf '%s\n' 'import os, time' \
       "if time.time() > $deadline: raise SystemExit('close request ran after its caller gave up')" \
-      'if getattr(builtins, "_forest_biome_regeneration", None): raise SystemExit("a regeneration is still running")' \
       'if not unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True): raise SystemExit("not saved")' \
       "if time.time() > $((deadline + 55)): raise SystemExit('saved, but too late to close the queue for this caller')" \
       'open(os.path.join(unreal.Paths.project_saved_dir(), "EditorPy", "closing"), "w").close()' |

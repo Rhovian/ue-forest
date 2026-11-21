@@ -18,6 +18,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Forest PCG")
 	static bool CancelAllPCGGeneration();
 
+	/** Clears only this component's live graph output; preserves managed resources and per-cell components; null is a no-op.
+	 *  scripts/pcg/biome_volume.py calls it in Normal mode before saving. Marks the package dirty without regenerating. */
+	UFUNCTION(BlueprintCallable, Category = "Forest PCG")
+	static void ClearGeneratedGraphOutput(UPCGComponent* Component);
+
 	/** Unique world locations (exact XYZ, first-seen order) across Biome Core outputs tagged Root and Tag.
 	 *  Each group's GeneratedPoints has "GEN:<group>", e.g. "GEN:Trees"; Child outputs share that tag but are excluded,
 	 *  including children at offset positions. Python cannot read GPU-only skinned instances;

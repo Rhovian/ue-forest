@@ -42,12 +42,18 @@ namespace ForestPCGAreaSampler
 	{
 		const FVector A = Grid.InnerCellOffset + Grid.InnerCellSize.ComponentMin(FVector::ZeroVector);
 		const FVector B = Grid.InnerCellOffset + Grid.InnerCellSize.ComponentMax(FVector::ZeroVector);
+		// FSurfaceSamplerData::Initialize clips nominal origins, not their jitter footprints (PCGSurfaceSampler.cpp).
+		// Pad traversal only: changing its CellCount would also change the legacy Ratio. Bound int32 span indices.
 		for (const FBox& Tile : Tiles)
 		{
-			const double MinX = FMath::Max<double>(Grid.CellMinX, FMath::CeilToDouble((Tile.Min.X - B.X) / Grid.CellSize.X));
-			const double MaxX = FMath::Min<double>(Grid.CellMaxX, FMath::FloorToDouble((Tile.Max.X - A.X) / Grid.CellSize.X));
-			const double MinY = FMath::Max<double>(Grid.CellMinY, FMath::CeilToDouble((Tile.Min.Y - B.Y) / Grid.CellSize.Y));
-			const double MaxY = FMath::Min<double>(Grid.CellMaxY, FMath::FloorToDouble((Tile.Max.Y - A.Y) / Grid.CellSize.Y));
+			const double MinX = FMath::Max3<double>(MIN_int32, Grid.CellMinX - FMath::CeilToDouble(B.X / Grid.CellSize.X),
+				FMath::CeilToDouble((Tile.Min.X - B.X) / Grid.CellSize.X));
+			const double MaxX = FMath::Min3<double>(MAX_int32, Grid.CellMaxX - FMath::FloorToDouble(A.X / Grid.CellSize.X),
+				FMath::FloorToDouble((Tile.Max.X - A.X) / Grid.CellSize.X));
+			const double MinY = FMath::Max3<double>(MIN_int32, Grid.CellMinY - FMath::CeilToDouble(B.Y / Grid.CellSize.Y),
+				FMath::CeilToDouble((Tile.Min.Y - B.Y) / Grid.CellSize.Y));
+			const double MaxY = FMath::Min3<double>(MAX_int32, Grid.CellMaxY - FMath::FloorToDouble(A.Y / Grid.CellSize.Y),
+				FMath::FloorToDouble((Tile.Max.Y - A.Y) / Grid.CellSize.Y));
 			if (MinX > MaxX || MinY > MaxY)
 			{
 				continue;

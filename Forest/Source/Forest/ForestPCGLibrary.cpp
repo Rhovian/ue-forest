@@ -15,6 +15,18 @@ bool UForestPCGLibrary::CancelAllPCGGeneration()
 	return true;
 }
 
+void UForestPCGLibrary::ClearGeneratedGraphOutput(UPCGComponent* Component)
+{
+	if (Component)
+	{
+		// UPCGComponent::ClearGraphGeneratedOutput is private; cleanup also touches managed resources.
+		auto& Output = const_cast<FPCGDataCollection&>(Component->GetGeneratedGraphOutput());
+		Output.ClearUsage(EPCGDataUsage::ComponentOutputData);
+		Output.Reset();
+		Component->MarkPackageDirty();
+	}
+}
+
 TArray<FVector> UForestPCGLibrary::GetGeneratedPointLocations(const UPCGComponent* Component, const FString& Tag)
 {
 	TArray<FVector> Locations;

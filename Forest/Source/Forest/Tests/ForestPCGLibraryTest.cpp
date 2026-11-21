@@ -43,4 +43,30 @@ bool FForestGeneratedLocationsTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Null component"), UForestPCGLibrary::GetGeneratedPointLocations(nullptr, Tag).IsEmpty());
 	return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FForestClearGeneratedGraphOutputTest, "Forest.PCG.ClearGeneratedGraphOutput",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FForestClearGeneratedGraphOutputTest::RunTest(const FString& Parameters)
+{
+	UPCGComponent* Component = NewObject<UPCGComponent>();
+	UPCGComponent* OtherComponent = NewObject<UPCGComponent>();
+	auto& Output = const_cast<FPCGDataCollection&>(Component->GetGeneratedGraphOutput());
+	auto& OtherOutput = const_cast<FPCGDataCollection&>(OtherComponent->GetGeneratedGraphOutput());
+	UPCGPointArrayData* Data = NewObject<UPCGPointArrayData>(Component);
+	UPCGPointArrayData* OtherData = NewObject<UPCGPointArrayData>(OtherComponent);
+	Output.TaggedData.Emplace_GetRef().Data = Data;
+	OtherOutput.TaggedData.Emplace_GetRef().Data = OtherData;
+	Output.MarkUsage(EPCGDataUsage::ComponentOutputData);
+	OtherOutput.MarkUsage(EPCGDataUsage::ComponentOutputData);
+
+	UForestPCGLibrary::ClearGeneratedGraphOutput(Component);
+	TestTrue(TEXT("Given component's output is cleared"), Output.TaggedData.IsEmpty());
+	TestFalse(TEXT("Dropped output usage is cleared"), Data->HasUsage(EPCGDataUsage::ComponentOutputData));
+	TestTrue(TEXT("Other output data and usage are untouched"), OtherOutput.TaggedData.Num() == 1
+		&& OtherOutput.TaggedData[0].Data.Get() == OtherData && OtherData->HasUsage(EPCGDataUsage::ComponentOutputData));
+	UForestPCGLibrary::ClearGeneratedGraphOutput(nullptr); // Must return without dereferencing null.
+	OtherOutput.ClearUsage(EPCGDataUsage::ComponentOutputData);
+	return true;
+}
 #endif

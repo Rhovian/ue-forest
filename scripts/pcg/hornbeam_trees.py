@@ -8,7 +8,7 @@ beech as the shore trees do: overlap on and a priority after the Trees group, so
 the Trees group without overlap (as the veterans are), each pruned the tall beech round its lower crown and opened the
 canopy (#131 review: a broad sky hole at canopy_up), and a candidate the floor filter later rejected had already pruned
 its neighbours. Same forest-floor filter as the Trees group. Saves assets and attaches the group; then exact_exclusions.py and
-regenerate_biome.py --save.
+scripts/pcg/bake.
 """
 
 import importlib

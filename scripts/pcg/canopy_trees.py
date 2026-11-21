@@ -7,7 +7,7 @@ The rows (DA_Forest_TreesAssets) were set by hand with the four Megaplants beech
 mesh is still listed (its wind, options and children) and adds a copy of the first row for each new mesh, so a new
 species shares the beech's generator, scale and filter. Every row gets its own AssetType and the weights are nudged
 apart (forest-pcg skill: rows sharing a type share one point pool; equal weights share every sampler point). Then flare_moss.py (moss children for the trees that have shells),
-shore_trees.py, exact_exclusions.py and regenerate_biome.py --save.
+shore_trees.py, exact_exclusions.py and scripts/pcg/bake.
 """
 
 import importlib

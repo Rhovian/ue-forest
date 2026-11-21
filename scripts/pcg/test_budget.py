@@ -1,6 +1,7 @@
 import sys
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
 
 sys.modules.setdefault("unreal", MagicMock())
@@ -143,6 +144,82 @@ class RegionTests(unittest.TestCase):
             # (0, 0) low by its lowest ground; (1, 0) neither low nor near; (2, 0) high but near water; (3, 0) and the
             # near-water (9, 9) below the shore
             self.assertEqual(saplings_understory.damp_cells(), [(0, 0), (2, 0)])
+
+
+class KeepProperties:
+    def get_editor_property(self, name):
+        return getattr(self, name)
+
+    def set_editor_property(self, name, value):
+        setattr(self, name, value)
+
+    def import_text(self, text):
+        self.text = text
+
+    def export_text(self):
+        return self.text
+
+
+class KeepTests(unittest.TestCase):
+    def test_ramp_reads_height_from_json_and_defaults_to_identity(self):
+        with TemporaryDirectory() as directory, patch.object(area_sampling, "KEEPS", Path(directory) / "blend_keep.json"):
+            self.assertEqual(area_sampling.ramp("Trees"), 0.0)  # Missing file.
+            area_sampling.KEEPS.write_text('{"Trees": {"ramp": 1250, "blended": 1, "unblended": 4}, "New": {"blended": 1}}')
+            for group, expected in (("Trees", 1250), ("New", 0.0), ("Unknown", 0.0)):
+                with self.subTest(group=group):
+                    self.assertEqual(area_sampling.ramp(group), expected)
+
+    def test_reapplication_replaces_filter_and_identity_restores_original_connection(self):
+        class Noise(KeepProperties):
+            pass
+
+        graph, source, output = MagicMock(), MagicMock(), MagicMock()
+        nodes, original = [source], (source, "Roots", output, "GeneratedPoints")
+        edges = [original]
+        graph.get_output_node.return_value = output
+        graph.get_editor_property.side_effect = lambda name: nodes
+        graph.remove_edge.side_effect = lambda *edge: edges.remove(edge)
+
+        def add_node(cls):
+            settings = cls()
+            node = MagicMock()
+            node.get_settings.return_value = settings
+            nodes.append(node)
+            return node, settings
+
+        def remove_node(node):
+            nodes.remove(node)
+            edges[:] = [e for e in edges if node not in (e[0], e[2])]
+
+        graph.add_node_of_type.side_effect = add_node
+        graph.remove_node.side_effect = remove_node
+        # Adapt only graph storage: thin() and z_range() still perform all graph/settings edits.
+        with patch.multiple(area_sampling.unreal, PCGAttributeNoiseSettings=Noise,
+                            PCGAttributeFilteringRangeSettings=KeepProperties,
+                            PCGAttributePropertyInputSelector=KeepProperties,
+                            PCGAttributePropertyOutputSelector=KeepProperties,
+                            PCGAttributeFilterThresholdSettings=KeepProperties), \
+                patch.object(area_sampling, "_edges", side_effect=lambda graph: iter(edges)), \
+                patch.object(area_sampling, "_connect", side_effect=lambda graph, *edge: edges.append(edge)):
+            for ramp in (0.0, 1250.0, 1250.0, 2500.0, -1.0, 1.0, 0.0):
+                with self.subTest(ramp=ramp):
+                    area_sampling.thin(graph, ramp)
+                    if ramp <= 0:
+                        self.assertEqual((nodes, edges), ([source], [original]))
+                        continue
+                    self.assertEqual(len(nodes), 3)  # One draw/filter pair, never stacked or left disconnected.
+                    noise, below = nodes[1:]
+                    self.assertEqual(edges, [(source, "Roots", noise, "In"), (noise, "Out", below, "In"),
+                                             (below, "InsideFilter", output, "GeneratedPoints")])
+                    settings, bounds = noise.get_settings(), below.get_settings()
+                    self.assertEqual((settings.noise_min, settings.noise_max), (0.0, ramp))
+                    self.assertEqual(settings.mode, area_sampling.unreal.PCGAttributeNoiseMode.SET)
+                    self.assertEqual(settings.output_target.text, "PCGBegin(BlendKeep)PCGEnd")
+                    self.assertEqual(bounds.target_attribute.text, settings.output_target.text)
+                    self.assertIn("DoubleValue=0.0)", bounds.min_threshold.text)
+                    self.assertIn("bInclusive=True,bUseConstantThreshold=True", bounds.min_threshold.text)
+                    self.assertIn("bInclusive=False,bUseConstantThreshold=False", bounds.max_threshold.text)
+                    self.assertIn("ThresholdAttribute=PCGBegin($Position.Z)PCGEnd", bounds.max_threshold.text)
 
 
 class ParentTests(unittest.TestCase):

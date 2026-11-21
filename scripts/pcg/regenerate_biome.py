@@ -1,36 +1,20 @@
 # editor-py: fresh-siblings
-# editor-py: deferred
-"""Lead only: regenerate L_vilm's partitioned Biome Core; optionally save its packages.
+"""Lead only: check L_vilm's partitioned Biome Core before a bake and report its instance counts.
 
-    scripts/editor-py scripts/pcg/regenerate_biome.py [--check] [--save]
+    scripts/editor-py scripts/pcg/regenerate_biome.py
 
---check never loads actors, regenerates or saves; counts describe currently loaded
-instances plus on-disk WP cell descriptors. Build retains all map actors for complete
-inputs/counts. --save includes dirty map/terrain/water/biome/PCG, ForestBiome, and the
-four approved fern/ivy material instances with UE-added shader usage flags.
+Never loads actors, regenerates or saves; counts describe currently loaded instances plus on-disk WP cell
+descriptors. The bake itself is scripts/pcg/bake (World Partition builder, #264): one editor session cannot
+generate the partitioned Local, whose footprint grows 8-10 GB per dense cell and is not returned.
 """
 
-import argparse
-import builtins
-import contextlib
-import ctypes
-import io
-import json
-import os
-import time
-import traceback
-
 import unreal
-from biome_variants import PLANT_USAGE_MATERIALS
+from biome_volume import problems as volume_problems
 from deadwood_rocks import get
 from exact_exclusions import inputs as local_inputs
-from pcg_delegate_cleanup import assert_clean, detach
-from water_exclusions import remember_packages, remembered_packages
 
 MAP = "/Game/L_vilm"
 CORE = "/PCGBiomeCore/BiomeCore.BiomeCore"
-ACTIVE = "_forest_biome_regeneration"
-MARKER = "__EDITOR_PY_DEFERRED__"
 
 
 def actors():
@@ -102,243 +86,15 @@ def validate(cores):
                 or component.get_editor_property("current_editing_mode") != unreal.PCGEditorDirtyMode.NORMAL
                 or component.get_editor_property("serialized_editing_mode") != unreal.PCGEditorDirtyMode.NORMAL):
             raise RuntimeError("Core must be partitioned, editor-generated and in saved Normal mode")
-
-
-def actor_packages(loaded):
-    return {unreal.EditorAssetLibrary.get_package_for_object(actor).get_name() for actor in loaded
-            if isinstance(actor, (unreal.LandscapeProxy, unreal.WaterBody, unreal.PCGPartitionActor))
-            or actor.get_class().get_name().startswith("BP_PCGBiome") or actor.get_class().get_name() == "PCGWorldActor"}
-
-
-def dirty_allowed(loaded, world):
-    # FileHelpers.h SaveDirtyPackages is global; GetDirty* + SavePackages is scoped.
-    # Retain explicit managed package names when replacement/generation removes actors.
-    allowed = ({unreal.EditorAssetLibrary.get_package_for_object(world).get_name()} | PLANT_USAGE_MATERIALS
-               | actor_packages(loaded) | remembered_packages(world))
-    utils = unreal.EditorLoadingAndSavingUtils
-    dirty = list(utils.get_dirty_map_packages()) + list(utils.get_dirty_content_packages())
-    return {p.get_name(): p for p in dirty if p.get_name() in allowed or p.get_name().startswith("/Game/ForestBiome/")}
-
-
-# Physical footprint, not resident memory: RSS leaves out compressed and swapped pages, and a run that reached a 317 GB
-# footprint never passed a 70 GB RSS limit (#203). A full regenerate's footprint peaked at 71-75 GB on a 96 GB machine
-# with a 75 GB limit; since #247 it peaks at 60-61 GB and the limit is 70 (operator, 2026-11-18). A measuring build
-# (area_sampling.py) samples the whole island: enable only the measured generators.
-MEMORY_LIMIT_GB = 70
-RUSAGE_INFO_V4 = 4
-PHYS_FOOTPRINT = slice(72, 80)  # ri_phys_footprint in rusage_info_v4 (sys/resource.h), little-endian uint64
-LIBPROC = ctypes.CDLL("/usr/lib/libproc.dylib")
-
-
-def footprint_gb():
-    """The editor process's physical footprint, as `footprint -p` and Activity Monitor report it."""
-    buffer = ctypes.create_string_buffer(512)  # larger than rusage_info_v4; a struct too small for it segfaults
-    if LIBPROC.proc_pid_rusage(os.getpid(), RUSAGE_INFO_V4, buffer):
-        raise RuntimeError("proc_pid_rusage failed; cannot guard editor memory")
-    return int.from_bytes(buffer.raw[PHYS_FOOTPRINT], "little") / 2**30  # GiB, the unit footprint(1) prints
-
-
-class Regeneration:
-    def __init__(self, cores, world, destination, save, locals_=()):
-        self.cores, self.world, self.destination, self.save = cores, world, destination, save
-        self.sources = list(cores) + [(c.get_owner(), c) for c in locals_]
-        self.stages = [list(locals_), [c for _, c in cores]] if locals_ else [[c for _, c in cores]]
-        self.pending = set(self.stages.pop(0))
-        self.started, self.busy, self.ready, self.bindings = set(), set(), set(), []
-        self.requesting, self.events = None, []
-        self.error, self.handle, self.finishing = None, None, False
-        self.begun = time.monotonic()
-        self.deadline = self.begun + 540
-        self.memory_at, self.memory, self.peak = 0.0, 0.0, 0.0
-        self.cancel_sent = False
-        self.frame, self.frame_since = None, None
-
-    def complete(self, component):
-        self.busy.discard(component)
-        if component in self.started:
-            self.pending.discard(component)
-            self.started.discard(component)
-        elif component in self.pending:
-            self.ready.add(component)  # pre-existing refresh finished; force ours on the next tick
-
-    def started_graph(self, component):
-        self.busy.add(component)
-        if self.requesting == component:
-            self.started.add(component)
-
-    def cancelled(self, component):
-        self.busy.discard(component)
-        if component not in self.pending and component not in self.started:
-            return  # unrelated automatic output refresh while Local inputs are running
-        if self.cancel_sent:
-            return  # our own cancel (memory limit or timeout); keep the error that caused it
-        if component in self.pending and component not in self.started:
-            self.ready.add(component)  # automatic refresh cancelled; requested regeneration still needed
-        else:
-            self.error = f"Generation cancelled: {component.get_path_name()}; nothing saved"
-
-    def request(self, component):
-        # Force=True does NOT clear execution/actor-query caches (PCGComponent.cpp:CreateGenerateTask).
-        # Flush after WP inputs are loaded, and again after any prior automatic refresh completes.
-        if not unreal.PCGBlueprintHelpers.flush_pcg_cache():
-            raise RuntimeError("Could not flush PCG cache; nothing saved")
-        self.requesting = component
-        try:
-            component.generate_local(True)
-        finally:
-            self.requesting = None
-        if component not in self.started:
-            self.events.append("Waiting for current automatic Core refresh before forcing regeneration")
-
-    def start(self):
-        # PCGComponent.cpp:GenerateInternal schedules tasks; its dynamic generated/cancelled
-        # delegates are the native completion signals. Sleeping on the game thread prevents completion.
-        for _, component in self.sources:
-            for prop, callback in (("on_pcg_graph_generated_external", self.complete),
-                                   ("on_pcg_graph_cancelled_external", self.cancelled),
-                                   ("on_pcg_graph_start_generating_external", self.started_graph)):
-                delegate = component.get_editor_property(prop)
-                delegate.add_callable(callback)
-                self.bindings.append((delegate, callback))
-        self.handle = unreal.register_slate_post_tick_callback(self.tick)
-        # Landscape Grass (forest_floor.py's layers) holds ~11 GB around the camera; off during generation the peak
-        # dropped from 56.7 to 45.1 GB (#132). cleanup() turns it back on.
-        unreal.SystemLibrary.execute_console_command(self.world, "grass.Enable 0")
-        for component in list(self.pending):
-            # GenerateInternal (PCGComponent.cpp:546) rejects busy components rather than queuing.
-            # Native completed/cancelled events queue our single pending request; no sleep/retry polling.
-            self.request(component)
-
-    def unbind(self):
-        # Component delegate UPROPERTYs serialize; Python proxy objects are transient.
-        # Remove them BEFORE saving or taking a repair transaction snapshot, not just in finally.
-        # Generation may replace/copy components. Clean live properties FIRST, while
-        # wrappers still retain their proxies; do not make them look clean by only
-        # mutating the old wrappers before the explicit property writeback.
-        changed = detach(actors())
-        for delegate, callback in self.bindings:
-            delegate.remove_callable(callback)
-        self.bindings.clear()
-        for component in changed:
-            owner = component.get_owner()
-            if owner:
-                owner.modify(True)
-
-    def cleanup(self):
-        try:
-            self.unbind()
-        finally:
-            unreal.SystemLibrary.execute_console_command(self.world, "grass.Enable 1")
-            if self.handle is not None:
-                unreal.unregister_slate_post_tick_callback(self.handle)
-                self.handle = None
-            setattr(builtins, ACTIVE, None)
-
-    def tick(self, _delta):
-        if self.finishing:
-            return
-        frame = unreal.SystemLibrary.get_frame_count()
-        if frame != self.frame:
-            self.frame, self.frame_since = frame, time.monotonic()
-        elif self.frame_since is not None and time.monotonic() - self.frame_since > 10:
-            self.error = (f"Engine frame {frame} has not advanced for 10 s; likely a modal dialog "
-                          "(such as unsaved changes). Dismiss it before retrying; nothing saved")
-        now = time.monotonic()
-        if now - self.memory_at >= 2:  # sample every 2 s, not every frame
-            self.memory_at = now
-            try:
-                self.memory = footprint_gb()
-            except RuntimeError as error:  # unguarded generation must not continue: cancel through the error path below
-                self.error = self.error or f"{error}; all PCG generation cancelled, nothing saved"
-            self.peak = max(self.peak, self.memory)
-        if not self.error and self.memory > MEMORY_LIMIT_GB:
-            self.error = (f"Editor memory passed {MEMORY_LIMIT_GB} GB during generation; all PCG generation cancelled,"
-                          " nothing saved. A"
-                          " generator is sampling too many points (see deadwood_rocks.candidate_estimate)")
-        if (self.error or time.monotonic() >= self.deadline) and not self.cancel_sent:
-            # Stop every running generation (Local inputs and Core) instead of leaving it grinding in the background.
-            # PCGComponent::CancelGeneration is not exposed to Python; ForestPCGLibrary wraps the subsystem's
-            # CancelAllGeneration (Forest/Source/Forest/ForestPCGLibrary.cpp).
-            self.cancel_sent = True
-            if not unreal.ForestPCGLibrary.cancel_all_pcg_generation():
-                self.error = (self.error or "Generation timed out") + "; could not cancel: no PCG subsystem"
-        if not self.error and time.monotonic() < self.deadline:
-            try:
-                for component in list(self.ready):
-                    self.ready.discard(component)
-                    self.request(component)
-            except Exception as error:  # noqa: BLE001 -- return a failed deferred result
-                self.error = str(error)
-            if not self.error and (self.pending or self.busy):
-                return
-            if not self.error and self.stages:
-                # Global Core reads Local generated output; forcing only Core can reuse
-                # stale input point arrays even after flushing the execution cache.
-                self.pending = set(self.stages.pop(0))
-                try:
-                    for component in list(self.pending):
-                        self.request(component)
-                except Exception as error:  # noqa: BLE001 -- fail without saving
-                    self.error = str(error)
-                if not self.error:
-                    return
-        self.finishing = True  # saving can pump editor events; never reenter finalization
-        output, ok = io.StringIO(), False
-        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
-            try:
-                for event in self.events:
-                    print(event)
-                if self.error or self.pending or self.busy:
-                    raise RuntimeError(self.error or "Generation timed out; nothing saved; do not rerun while PCG is busy")
-                self.unbind()
-                print(f"Python delegate save gate: {assert_clean(actors())} live component events clean")
-                loaded = actors()
-                report(loaded, self.cores)
-                if self.save:
-                    # Earlier saves serialized null proxy references. Force the unbound Core
-                    # actor package into the dirty-only save set to repair even a clean package.
-                    fresh_sources = roots(loaded) + [(c.get_owner(), c) for c in local_inputs(loaded)]
-                    for actor, _ in fresh_sources:
-                        actor.modify(True)
-                    packages = dirty_allowed(loaded, self.world)
-                    for name, package in sorted(packages.items()):
-                        assert_clean(actors())  # saves can pump events; recheck every live component each time
-                        if not unreal.EditorLoadingAndSavingUtils.save_packages([package], True):
-                            raise RuntimeError(f"Save failed: {name}")
-                        print(f"Saved {name}")
-                    remaining = dirty_allowed(loaded, self.world)
-                    if remaining:
-                        raise RuntimeError(f"Target packages remain dirty: {sorted(remaining)}")
-                    print(f"Saved {len(packages)} allowed dirty packages")
-                print(f"Biome Core regeneration complete in {time.monotonic() - self.begun:.0f} s;"
-                      f" editor peak memory {self.peak:.1f} GB")
-                ok = True
-            except Exception:  # noqa: BLE001 -- deferred command must return every failure to editor-py
-                traceback.print_exc()
-            finally:
-                try:
-                    self.cleanup()
-                except Exception:  # noqa: BLE001 -- still return a failed deferred result
-                    ok = False
-                    traceback.print_exc()
-        # init_unreal.py's queue runner is synchronous; the opt-in editor-py protocol waits
-        # on this result while Slate/PCG keep ticking. No alternative native queue-await API exists.
-        temporary = self.destination + ".tmp"
-        with open(temporary, "w") as stream:
-            json.dump({"ok": ok, "output": output.getvalue()}, stream)
-        os.replace(temporary, self.destination)
+    found = volume_problems(local_inputs(actors()))
+    if found:
+        raise RuntimeError(f"Run biome_volume.py first: {'; '.join(found)}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true")
-    parser.add_argument("--save", action="store_true")
-    args = parser.parse_args()
     world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
     if world.get_path_name() != MAP + ".L_vilm":
         raise RuntimeError("Open L_vilm in the editor (not PIE) before running")
-    if getattr(builtins, ACTIVE, None):
-        raise RuntimeError("A biome regeneration command is already waiting for completion")
     descriptors = unreal.WorldPartitionBlueprintLibrary.get_actor_descs()
     if descriptors is None:
         raise RuntimeError("World Partition descriptors unavailable")
@@ -348,31 +104,8 @@ def main():
     loaded = actors()
     cores = roots(loaded)
     report(loaded, cores)
-    candidates = dirty_allowed(loaded, world)
-    print(f"Allowed dirty packages ({len(candidates)}): {sorted(candidates)}")
     validate(cores)
-    if args.check:
-        print("Preflight OK; counts are loaded instances only; no loads, generation or saves (--save ignored)")
-        return
-    destination = globals().get("EDITOR_PY_DEFERRED_RESULT")
-    if not destination:
-        raise RuntimeError("Use the updated scripts/editor-py deferred runner")
-    # UE 5.8.3 WPBlueprintLibrary.cpp:193–206 retains the native loader adapter;
-    # LoadActors refreshes synchronously. Retain all map inputs and existing cell outputs.
-    remember_packages(world, actor_packages(loaded))
-    unreal.WorldPartitionBlueprintLibrary.load_actors([d.guid for d in descriptors])
-    remember_packages(world, actor_packages(actors()))
-    cores = roots(actors())
-    validate(cores)
-    job = Regeneration(cores, world, destination, args.save, local_inputs(actors()))
-    setattr(builtins, ACTIVE, job)
-    try:
-        job.start()
-    except Exception:
-        job.cleanup()
-        raise
-    print("Regenerating Local inputs, then all Core groups; waiting for native completion delegates")
-    print(MARKER)
+    print("Preflight OK; counts are loaded instances only. Bake: scripts/editor.sh close, then scripts/pcg/bake")
 
 
 if __name__ == "__main__":

@@ -258,7 +258,8 @@ def area_parent(group, region, ranges):
     sampling only it (area_sampling.area_graph)."""
     if region is None:
         return load(area_sampling.TEMPLATE)
-    return area_sampling.area_graph(ROOT + area_sampling.AREA.format(group), region, ranges)
+    return area_sampling.area_graph(ROOT + area_sampling.AREA.format(group), region, ranges,
+                                    ramp=area_sampling.ramp(group))
 
 
 def generator(group, density, slope, priority, doubles=None, bools=None, extent=100, region=None):

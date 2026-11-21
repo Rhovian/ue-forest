@@ -3,7 +3,7 @@
 
     scripts/editor-py scripts/pcg/exact_exclusions.py [--check]
 
-Run after rebuilding groups, before regenerate_biome.py --save. Re-runnable. Check
+Run after rebuilding groups, before the bake (scripts/pcg/bake). Re-runnable. Check
 only reads loaded actors/graphs; build retains WP inputs and saves project graphs.
 """
 
@@ -22,7 +22,9 @@ PLANT_GRAPHS = ("PCG_PlantsAboveShore", "PCG_UnderstoryDamp", "PCG_UnderstoryBan
 
 
 def inputs(actors):
-    return [component for actor in actors for component in actor.get_components_by_class(unreal.PCGComponent)
+    """The original Local components; a partitioned one's per-cell copies live on PCG partition actors (#264)."""
+    return [component for actor in actors if not isinstance(actor, unreal.PCGPartitionActor)
+            for component in actor.get_components_by_class(unreal.PCGComponent)
             if component.get_editor_property("graph_instance").get_const_pcg_graph().get_path_name() == LOCAL]
 
 

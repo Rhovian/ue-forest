@@ -2,14 +2,21 @@
 
 An area generator is a full copy of Biome Core's generator template with the Surface Sampler replaced by the Forest
 Area Sampler (ForestPCGAreaSampler.h), fed by a Create Points node of tile boxes that cover the family's ground. The
-sampler keeps the stock lattice, so every point it emits is one the stock sampler emits, and the family's filter graph
-then keeps exactly the points it kept before.
+sampler keeps the stock lattice, seeds and density rules, while also visiting lattice cells whose jitter can enter
+the requested bounds. The family's filter graph then applies as before.
 
 Converting a family (deadwood_rocks.generator's `region`): build it once without measured ranges (it samples the whole
 island and saves its density ranges under PROBE), regenerate, record(groups) into area_ranges.json, then build again.
 The ranges are kept with the generator settings they were measured with; changing those settings measures again.
 A measuring regenerate costs what the stock one does: with only the Understory group enabled it still reached the 75 GB
 guard (#247), so keep only the generators being measured (their rows in the group's asset list, in memory).
+That route ran the in-editor regenerate; since #264 the Local is partitioned and bakes only with scripts/pcg/bake,
+which reads saved assets, so measuring a new family has no working route yet.
+
+Each area graph ends in a keep filter (ramp(), #264). The level was tuned with biome blending's rounding cull, which
+kept a point with a chance that halved with each halving of its height below ~10 m (2^floor(log2(z / 10 m))), the
+same for every generator: it is what kept the meadows and the low coast open. With blending off, a point at height z
+is kept with chance min(1, z / ramp), each generator's ramp fitted so the island holds the counts it was tuned at.
 """
 
 import json
@@ -38,6 +45,16 @@ WHOLE = [(-1, -1), (-1, 0), (0, -1), (0, 0)]  # with cell=WHOLE_CELL: +-100 km, 
 WHOLE_CELL = 1.0e7
 AREA = "PCG_Forest_{}Area"  # a group's area graph, the parent of its generator instance
 PROBE = "/Game/_AreaProbe"  # measuring graphs save their reduce values here; record() reads, then deletes them
+# {group: {"blended", "unblended", "ramp"}}: generator roots island-wide in the level tuned with biome blending on (its
+# BlendingDensity 0 rounding cull, #264) and generated per cell with blending off (2026-11-18, before any keep filter);
+# ramp (cm) is fitted to the blending-off roots' heights so min(1, z / ramp) keeps the blended count (2026-11-20; refitted
+# 2026-11-21 after the partition seam fix restored the points each seam had lost).
+KEEPS = Path(__file__).with_name("blend_keep.json")
+KEEP_ATTRIBUTE = "BlendKeep"  # per-point draw in [0, ramp), seeded by the point's $Seed: the same in every partition cell
+POSITION_Z = (
+    "(bInclusive=False,bUseConstantThreshold=False,ThresholdAttribute=PCGBegin($Position.Z)PCGEnd,"
+    "bUseSpatialQuery=False,bFilterEachInputWithEachFilterDataRespectively=False)"
+)
 
 
 def _load():
@@ -75,6 +92,13 @@ def record(groups):
     _store(measured)
     unreal.EditorAssetLibrary.delete_directory(PROBE)
     return measured
+
+
+def ramp(group):
+    """The height (cm) below which group's area graph thins its points, keeping min(1, z / ramp); 0, keeping them all,
+    when not measured (a new group is tuned with blending off from the start)."""
+    counts = json.loads(KEEPS.read_text()).get(group) if KEEPS.exists() else None
+    return counts.get("ramp", 0.0) if counts else 0.0
 
 
 def tiles_near(points_cm, reach_cm, cell=TILE):
@@ -124,10 +148,10 @@ def _connect(graph, source, source_pin, target, target_pin):
         raise RuntimeError(f"{graph.get_name()}: PCG connection failed: {source.get_name()}.{source_pin} -> {target.get_name()}.{target_pin}")
 
 
-def area_graph(path, cells, ranges=None, cell=TILE):
+def area_graph(path, cells, ranges=None, cell=TILE, ramp=0.0):
     """A new generator graph at path sampling only `cells` (tiles_near). ranges {remap: (min, max)} fixes the template's
     density rescales ({} for a generator with spatial noise off, which never runs them); None samples the whole
-    island and measures them (measure_ranges)."""
+    island and measures them (measure_ranges). ramp: the height below which it thins its points (ramp())."""
     if ranges is None:
         cells, cell = WHOLE, WHOLE_CELL
     if unreal.EditorAssetLibrary.does_asset_exist(path):
@@ -170,9 +194,52 @@ def area_graph(path, cells, ranges=None, cell=TILE):
             node.get_settings().set_editor_property("range_max", high)
     else:
         _measure(graph, edges)
+    thin(graph, ramp)
     if not unreal.EditorAssetLibrary.save_loaded_asset(graph, False):
         raise RuntimeError(f"Save failed: {path}")
     return graph
+
+
+def thin(graph, ramp):
+    """Keep min(1, z / ramp) of the points reaching graph's output at height z: a seeded draw per point in [0, ramp),
+    kept below the point's height. Replaces an earlier thin; removes it at ramp 0. A draw per point, not a random
+    choice over the set, so a partitioned cell keeps the same points the whole island does."""
+    from trees_above_shore import z_range  # imported here: it pulls in this module's siblings
+
+    output = graph.get_output_node()
+    for node in list(graph.get_editor_property("nodes")):
+        settings = node.get_settings()
+        if isinstance(settings, unreal.PCGAttributeNoiseSettings) and KEEP_ATTRIBUTE in settings.get_editor_property("output_target").export_text():
+            feeds = [(up, up_pin) for up, up_pin, down, _ in _edges(graph) if down == node]
+            kept = [(down, down_pin) for up, _, filt, _ in _edges(graph) if up == node
+                    for f, f_pin, down, down_pin in _edges(graph) if f == filt and f_pin == "InsideFilter"]
+            filters = {filt for up, _, filt, _ in _edges(graph) if up == node}
+            for f in filters:
+                graph.remove_node(f)
+            graph.remove_node(node)
+            for (up, up_pin), (down, down_pin) in zip(feeds, kept, strict=True):
+                _connect(graph, up, up_pin, down, down_pin)
+    if ramp <= 0:
+        return
+    feeds = [(up, up_pin, down_pin) for up, up_pin, down, down_pin in _edges(graph) if down == output]
+    if len(feeds) != 1:
+        raise RuntimeError(f"{graph.get_name()}: {len(feeds)} edges into the output, expected 1 (Biome Core template changed?)")
+    (up, up_pin, out_pin), = feeds
+    graph.remove_edge(up, up_pin, output, out_pin)
+    noise, settings = graph.add_node_of_type(unreal.PCGAttributeNoiseSettings)
+    source, target = unreal.PCGAttributePropertyInputSelector(), unreal.PCGAttributePropertyOutputSelector()
+    source.import_text("PCGBegin($Density)PCGEnd")
+    target.import_text(f"PCGBegin({KEEP_ATTRIBUTE})PCGEnd")
+    for name, value in (("input_source", source), ("output_target", target), ("mode", unreal.PCGAttributeNoiseMode.SET),
+                        ("noise_min", 0.0), ("noise_max", float(ramp))):
+        settings.set_editor_property(name, value)
+    below = z_range(graph, 0.0, 0.0, KEEP_ATTRIBUTE)
+    height = unreal.PCGAttributeFilterThresholdSettings()
+    height.import_text(POSITION_Z)
+    below.get_settings().set_editor_property("max_threshold", height)
+    _connect(graph, up, up_pin, noise, "In")
+    _connect(graph, noise, "Out", below, "In")
+    _connect(graph, below, "InsideFilter", output, out_pin)
 
 
 def _measure(graph, edges):

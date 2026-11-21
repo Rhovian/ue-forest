@@ -1,6 +1,6 @@
 ---
 name: forest-pcg
-description: Lessons for this project's Biome Core PCG placement of everything on the island, forest, meadow and beach (scripts/pcg/*.py, regenerate_biome.py). Read before adding or changing a placement group, a density, a generator, child assets or a filter graph, and when diagnosing a slow or memory-heavy regenerate or plants that float, vanish or clump wrongly. Not for lighting, fog or materials. Append each new failure here when it is understood.
+description: Lessons for this project's Biome Core PCG placement of everything on the island, forest, meadow and beach (scripts/pcg/*.py, scripts/pcg/bake). Read before adding or changing a placement group, a density, a generator, child assets or a filter graph, and when diagnosing a slow or memory-heavy regenerate or plants that float, vanish or clump wrongly. Not for lighting, fog or materials. Append each new failure here when it is understood.
 ---
 
 Each rule below cost real time when it was learned. A new rule says what broke, why, and the check that prevents it.
@@ -25,9 +25,11 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   (`children()` with a disc of points, `ground=True`), as in `meadow.py`. Cost then scales with the anchors.
   The budget covers anchors only: the instance total is accepted anchors x children per patch, so measure it after
   each change (fern drifts: 16 children each, ~194k ferns). `candidate_estimate` uses the capped density.
-- `regenerate_biome.py` prints duration and peak editor memory (physical footprint since #203; earlier lessons quote resident memory). Above `MEMORY_LIMIT_GB` (70 footprint since #247 brought the peak to 60-61 GB; 75 footprint after #203; 70 and 60 RSS before, which older lessons here refer to) it cancels all PCG generation
-  through `unreal.ForestPCGLibrary.cancel_all_pcg_generation()` (C++: `PCGComponent::CancelGeneration` is not exposed
-  to Python) and saves nothing. Pass a density only as `generator()`'s `density`; a `PointsPerSquareMeter` override is
+- The full bake is `scripts/pcg/bake` (since #264; `regenerate_biome.py` is now its preflight, with the editor open).
+  It prints each pass's duration and peak builder footprint and kills a pass above `MEMORY_LIMIT_GB` (70 footprint;
+  75 after #203; 70 and 60 RSS before, which older lessons here refer to). Lessons below that quote an in-editor
+  regenerate's peak predate #264: the editor then generated the unpartitioned Local and Core in one session, and
+  cancelled through `unreal.ForestPCGLibrary.cancel_all_pcg_generation()`. Pass a density only as `generator()`'s `density`; a `PointsPerSquareMeter` override is
   refused because the budget would not see it.
   A full regenerate takes about 1-2 minutes and peaks at 35-45 GB after a fresh editor start. The peak creeps up
   across many regenerates in one session (45 -> 54 GB for the same content): restart the editor (`editor.sh close`,
@@ -157,6 +159,42 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
 - Rerunning `solid_keepout.py` after the documented rebuild removed all 16 meadow logs: it bakes every placed solid's
   footprint, the meadow logs' own included, into the TransformGraph the logs share with the meadow plants, so each log
   is dropped by its own footprint on the next regenerate (seen on main, #247). Diff root counts after it.
+- Biome blending at `BlendingDensity` 0 is a cull, not a no-op (#264): the generator raises each point's distance to
+  the biome's cache box to max(density, 1e-5), and PCGDistance's float rounding makes interior points ~1 (dropped by
+  the noise) or NaN. It thinned low ground unevenly and removed ~5/6 of a partitioned cell's points. One biome has
+  nothing to blend: `biome_volume.py` sets `BlendingRange` 0, which skips blending, and each area graph keeps its
+  blended share with a per-point draw (`area_sampling.keep`, `blend_keep.json`). Seeded by point, so a partitioned
+  and an unpartitioned run keep the same points.
+- The stock grid's ceil(min / spacing) clips lattice origins that can jitter past a partition minimum; the other
+  cell then rejects their centres, leaving a one-sided gap (#264). Pad traversal spans by the full jitter interval,
+  keeping the initialized CellCount/Ratio and global index seeds unchanged. A zero-box Bounding Shape query did not
+  restore the live seam: its volume bounds already test centres. Compare adjoining volume cells with a whole run.
+- Local's output is serialized (`UPCGComponent::GeneratedGraphOutput` is a UPROPERTY): the unpartitioned volume package
+  was 1.17 GB, and a partitioned Local writes each cell's output into its partition actor package.
+- Baking Local cell by cell in one editor session does not stay bounded: footprint rose 8-10 GB per dense cell and
+  was not returned after `cleanup_local`, cache flush and GC (PCG objects were ~14 GB by `obj list -resourcesizesort`;
+  the rest is allocator retention). Bake with UE's `PCGWorldPartitionBuilder` in its own process:
+  `-run=WorldPartitionBuilderCommandlet -Builder=PCGWorldPartitionBuilder -AllowCommandletRendering
+  -GenerateComponentEditingModeNormal -IncludeGraphNames=<graph> -IterativeCellLoading -IterativeCellSize=25600`.
+  It refuses to run without `-AllowCommandletRendering`. It skips every save after any logged error; the template's
+  Density min/max Reduce nodes log one for each generator with no points in a cell (77 of 108 Local cells), so run it
+  with `-IgnoreGenerationErrors` and audit the log's errors by node yourself. Core's per-cell components keep no
+  graph output after the builder: count roots on the Local cells, instances on the Core partition actors.
+- Switching a generated component to partitioned keeps its old unpartitioned output on the original component (the
+  volume package stayed 1.17 GB). The builder reloaded it for every iteration that touched the volume (~19 s,
+  ~1.7 GB each, Core reached 70 GB in 5 cells); `biome_volume.py` clears it with
+  `ForestPCGLibrary.clear_generated_graph_output`. Do not toggle `is_component_partitioned` or call `cleanup_local`
+  from Python to clear it: that wiped 103 of the 108 baked Local cells in memory (#264).
+- The builder (and any master recompile) asserted `ShaderMapId.ContainsShaderType` / `FAnisotropyPS` on the
+  Megascans masters on 5.8.3 and 5.8.4 (also #135); the editor only survived on shader cache hits. With Substrate, a
+  `SubstrateShadingModels` FrontMaterial whose ShadingModel pin is wired reports no shading model, so its Anisotropy
+  input never reaches the predicted shader set, while the compiler finds anisotropy. Masters whose pin held a constant
+  equal to the node's override had the pin cleared (#264); `M_Foliage`, whose shading model is static-switched, had
+  its always-zero Anisotropy input disconnected instead. Check `scripts/review` captures after such an edit.
+- Per-cell time in the editor is mostly the PCG scheduler (~870k tasks a dense cell) yielding to editor frames:
+  `pcg.EditorFrameTime 250` (default 15 ms) cut a dense cell from 54 s to 30 s.
+- To create a partitioned component's local components without generating them all, call `generate_local(True)` and
+  `ForestPCGLibrary.cancel_all_pcg_generation()` immediately after.
 
 ## Counts do not scale smoothly
 
@@ -206,7 +244,7 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   margin; Biome Core selects exclusions by that tag) keeps everything out of the water, and `ForestKeepout_*` (tag
   `Forest_WaterKeepout`, 3 m) keeps every group but the ground plants (`exact_exclusions.PLANT_GRAPHS`) back from it.
   A new ground-plant filter graph must be added to `PLANT_GRAPHS` to reach the banks.
-- After rebuilding any group, run `exact_exclusions.py` before `regenerate_biome.py --save`: child graphs are rebuilt
+- After rebuilding any group, run `exact_exclusions.py` before the bake: child graphs are rebuilt
   without the path, water and shore exclusions, so children can land across a path (#73 review).
 - One child list applies every layout to every anchor. For several patch outlines, give each entry its own list and
   split the variant weight across them (`saplings_understory.py` drifts).
@@ -228,8 +266,7 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
 - Every child layout runs per parent point, and regenerate memory scales with it: a second child (trunk ivy) on a quarter
   of the ~5,700 beech pushed regenerate past the 60 GB guard twice, where the same ivy merged into the trees' existing
   moss shell as an extra section (trunk_ivy.py) peaked at ~56 GB. Add geometry to an existing child's mesh before adding
-  a child to a large group (#121). Landscape Grass held ~11 GB of that: regenerate_biome.py turns it off while it runs
-  (peak ~49 GB, #132).
+  a child to a large group (#121). Landscape Grass held ~11 GB of that in the editor (peak ~49 GB with it off, #132).
 
 ## Verification
 

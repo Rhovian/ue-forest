@@ -11,7 +11,7 @@ baked on as its second section. TUFTS_ONLY hosts (the mossy boulders, the beech 
 SM_<host>_MossShell of tufts alone. deadwood_rocks.py places each shell as a child at its host's exact transform, as do
 veteran_trees.py and flare_moss.py for the trees. A rebuild drops the ivy trunk_ivy.py adds to some shells. Rerun after
 a host or setting changes, then trunk_ivy.py, deadwood_rocks.py,
-veteran_trees.py, flare_moss.py, shore_trees.py, exact_exclusions.py and regenerate_biome.py.
+veteran_trees.py, flare_moss.py, shore_trees.py, exact_exclusions.py and scripts/pcg/bake.
 """
 
 import importlib

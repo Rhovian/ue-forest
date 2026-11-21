@@ -20,7 +20,7 @@ LABEL = "ShoreLog"  # label prefix and outliner folder
 # Each log's footprint, grown by this many cm plus the farthest any solid (log, slab, stump) reaches from its pivot, is
 # a keepout for every group but the ground plants (KEEPOUT_TAG, applied by exact_exclusions.py): Biome Core knew nothing
 # of these hand-placed logs (#160). The exclusion tests a candidate's pivot, not its bounds, so the margin must cover a
-# whole solid whose pivot lies just outside (#173 review). Rerun exact_exclusions.py and regenerate_biome.py afterwards.
+# whole solid whose pivot lies just outside (#173 review). Rerun exact_exclusions.py and scripts/pcg/bake afterwards.
 KEEPOUT_CM = 120.0
 SOLID_SCALE_MAX = 1.2  # deadwood_rocks.generator's ScaleMax
 # Site -> (camera x m, y m, yaw, reach m, side): the lake spline point inside that camera's cone on the near or the far

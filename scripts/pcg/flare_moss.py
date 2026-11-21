@@ -7,7 +7,7 @@ moss_shells.py bakes SM_<tree>_MossShell for each of its FLARE_TREES: tufts only
 the ground. The Trees group's rows (DA_Forest_TreesAssets) are set by hand, not by a builder, so this sets each row's
 ChildAssets to its tree's shell, placed at the tree's own transform like the deadwood's (deadwood_rocks.shell_children).
 A row whose tree has no shell keeps no child. veteran_trees.py attaches the veterans' own; shore_trees.py copies these
-rows, so rerun it afterwards. Then exact_exclusions.py and regenerate_biome.py.
+rows, so rerun it afterwards. Then exact_exclusions.py and scripts/pcg/bake.
 """
 
 import unreal

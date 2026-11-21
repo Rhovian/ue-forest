@@ -45,7 +45,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FForestAreaSamplerIdentityTest, "Forest.PCG.Are
 bool FForestAreaSamplerIdentityTest::RunTest(const FString& Parameters)
 {
 	const FPCGAttributeIdentifier SurfaceKind(TEXT("SurfaceKind"), PCGMetadataDomainID::Data);
-	// No existing project sampler test: UniqueGeneratedLocations covers only output collection.
 	// Each mode needs full and cropped comparisons: cropping changes Ratio only in legacy mode.
 	for (const bool bLegacy : {false, true})
 	{
@@ -53,7 +52,6 @@ bool FForestAreaSamplerIdentityTest::RunTest(const FString& Parameters)
 		Surface->Metadata->CreateAttribute<double>(TEXT("Elevation"), -1, false, false);
 		Surface->Metadata->CreateAttribute<int32>(SurfaceKind, 247, false, false);
 		UForestPCGAreaSamplerTestBounds* Bounds = NewObject<UForestPCGAreaSamplerTestBounds>();
-		Bounds->Initialize(Surface->Bounds);
 		UPCGSurfaceSamplerSettings* StockSettings = NewObject<UPCGSurfaceSamplerSettings>();
 		StockSettings->Seed = 7281;
 		StockSettings->bUseLegacyGridCreationMethod = bLegacy;
@@ -62,6 +60,16 @@ bool FForestAreaSamplerIdentityTest::RunTest(const FString& Parameters)
 		StockSettings->Looseness = 0.81f;
 		StockSettings->PointSteepness = 0.73f;
 		StockSettings->bApplyDensityToPoints = true;
+		PCGSurfaceSampler::FSurfaceSamplerData FixtureGrid;
+		FixtureGrid.Params.bUseLegacyGridCreationMethod = bLegacy;
+		FixtureGrid.Params.PointsPerSquaredMeter = StockSettings->PointsPerSquaredMeter;
+		FixtureGrid.Params.PointExtents = StockSettings->PointExtents;
+		FixtureGrid.Params.Looseness = StockSettings->Looseness;
+		UTEST_TRUE("Fixture grid initializes", FixtureGrid.Initialize(nullptr, Surface->Bounds));
+		// Stock omits jitter-in origins at cropped minima. Align this comparison; exercise that difference below.
+		Surface->Bounds.Min.X = FMath::FloorToDouble(Surface->Bounds.Min.X / FixtureGrid.CellSize.X) * FixtureGrid.CellSize.X;
+		Surface->Bounds.Min.Y = FMath::FloorToDouble(Surface->Bounds.Min.Y / FixtureGrid.CellSize.Y) * FixtureGrid.CellSize.Y;
+		Bounds->Initialize(Surface->Bounds);
 
 		auto Stock = RunSampler(StockSettings, Surface, Bounds, nullptr, nullptr);
 		UTEST_EQUAL("One stock surface output", Stock->OutputData.TaggedData.Num(), 1);
@@ -85,12 +93,6 @@ bool FForestAreaSamplerIdentityTest::RunTest(const FString& Parameters)
 		AreaSettings->Looseness = StockSettings->Looseness;
 		AreaSettings->PointSteepness = StockSettings->PointSteepness;
 		AreaSettings->bApplyDensityToPoints = StockSettings->bApplyDensityToPoints;
-		PCGSurfaceSampler::FSurfaceSamplerData FixtureGrid;
-		FixtureGrid.Params.bUseLegacyGridCreationMethod = bLegacy;
-		FixtureGrid.Params.PointsPerSquaredMeter = StockSettings->PointsPerSquaredMeter;
-		FixtureGrid.Params.PointExtents = StockSettings->PointExtents;
-		FixtureGrid.Params.Looseness = StockSettings->Looseness;
-		UTEST_TRUE("Fixture grid initializes", FixtureGrid.Initialize(nullptr, Surface->Bounds));
 		for (const bool bCrop : {false, true})
 		{
 			// A tight crop around a known stock sample also catches omitting cells whose origins
@@ -180,6 +182,61 @@ bool FForestAreaSamplerIdentityTest::RunTest(const FString& Parameters)
 			TestFalse(TEXT("Prepare bounds cover every attempted query"), Surface->bOutsidePrepared);
 			TestTrue(TEXT("Crop narrows preparation"), !bCrop || Surface->PreparedBounds.GetSize().X * Surface->PreparedBounds.GetSize().Y
 				< Surface->Bounds.GetSize().X * Surface->Bounds.GetSize().Y / 3);
+		}
+	}
+	// Live cell bounds are volumes. Split through a jitter cell, on an emitted centre, on each axis independently.
+	{
+		auto* Surface = NewObject<UForestPCGAreaSamplerTestSurface>();
+		Surface->Bounds = FBox(FVector(-400, -400, -100), FVector(400, 400, 600));
+		auto* Region = NewObject<UPCGVolumeData>();
+		Region->Initialize(Surface->Bounds.ExpandBy(100));
+		auto* Tiles = NewObject<UPCGPointData>();
+		Tiles->GetMutablePoints().Emplace_GetRef().SetLocalBounds(Surface->Bounds);
+		auto* Settings = NewObject<UForestPCGAreaSamplerSettings>();
+		Settings->PointsPerSquaredMeter = 0.25f; // 200 cm lattice with 100 cm of nonzero jitter.
+		Settings->Seed = 7281;
+		Settings->bApplyDensityToPoints = false;
+		auto MakeBounds = [](const FBox& Box)
+		{
+			auto* Data = NewObject<UPCGVolumeData>();
+			Data->Initialize(Box);
+			return Data;
+		};
+		auto Whole = RunSampler(Settings, Surface, MakeBounds(Surface->Bounds), Region, Tiles);
+		const auto* WholePoints = CastChecked<UPCGBasePointData>(Whole->OutputData.TaggedData[0].Data);
+		TMap<FVector, int32> WholeSeeds;
+		FVector Seam = FVector::ZeroVector;
+		for (int32 I = 0; I < WholePoints->GetNumPoints(); ++I)
+		{
+			const FPCGPoint Point = FConstPCGPointValueRanges(WholePoints).GetPoint(I);
+			const FVector P = Point.Transform.GetLocation();
+			WholeSeeds.Add(P, Point.Seed);
+			if (P.X > 0 && P.X < 100 && P.Y > 0 && P.Y < 100)
+			{
+				Seam = P;
+			}
+		}
+		UTEST_TRUE("Fixture has a jittered centre beyond its origin on both axes", Seam.X > 0 && Seam.Y > 0);
+		for (const int32 Axis : {0, 1})
+		{
+			auto RemainingSeeds = WholeSeeds;
+			for (const bool bUpper : {false, true})
+			{
+				FBox Cell = Surface->Bounds;
+				(bUpper ? Cell.Min[Axis] : Cell.Max[Axis]) = Seam[Axis];
+				auto Part = RunSampler(Settings, Surface, MakeBounds(Cell), Region, Tiles);
+				const auto* Points = CastChecked<UPCGBasePointData>(Part->OutputData.TaggedData[0].Data);
+				for (int32 I = 0; I < Points->GetNumPoints(); ++I)
+				{
+					const FPCGPoint Point = FConstPCGPointValueRanges(Points).GetPoint(I);
+					const int32* Seed = RemainingSeeds.Find(Point.Transform.GetLocation());
+					UTEST_NOT_NULL("Each whole-volume centre appears in only one cell", Seed);
+					TestEqual(TEXT("Cell preserves the whole-volume seed"), Point.Seed, *Seed);
+					TestEqual(TEXT("Cell boundaries do not attenuate density"), Point.Density, 1.0f);
+					RemainingSeeds.Remove(Point.Transform.GetLocation());
+				}
+			}
+			TestTrue(TEXT("Cells retain all whole-volume points, including away from the seam"), RemainingSeeds.IsEmpty());
 		}
 	}
 	// Independent no-operation inputs: do not multiply these by all grid/crop cases.
