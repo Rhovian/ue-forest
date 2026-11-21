@@ -165,10 +165,10 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   nothing to blend: `biome_volume.py` sets `BlendingRange` 0, which skips blending, and each area graph keeps its
   blended share with a per-point draw (`area_sampling.keep`, `blend_keep.json`). Seeded by point, so a partitioned
   and an unpartitioned run keep the same points.
-- Extent queries against point-data Bounding Shapes attenuate density where a sample straddles a partition seam
-  (`UPCGBasePointData::ProjectPoint` weights by volume overlap); downstream density filters can then lose a band
-  whose width tracks point extents (#264). Forest Area Sampler tests the projected centre with a zero box instead.
-  Compare two adjoining cell outputs with the whole-volume output, checking density and unique seam ownership.
+- The stock grid's ceil(min / spacing) clips lattice origins that can jitter past a partition minimum; the other
+  cell then rejects their centres, leaving a one-sided gap (#264). Pad traversal spans by the full jitter interval,
+  keeping the initialized CellCount/Ratio and global index seeds unchanged. A zero-box Bounding Shape query did not
+  restore the live seam: its volume bounds already test centres. Compare adjoining volume cells with a whole run.
 - Local's output is serialized (`UPCGComponent::GeneratedGraphOutput` is a UPROPERTY): the unpartitioned volume package
   was 1.17 GB, and a partitioned Local writes each cell's output into its partition actor package.
 - Baking Local cell by cell in one editor session does not stay bounded: footprint rose 8-10 GB per dense cell and

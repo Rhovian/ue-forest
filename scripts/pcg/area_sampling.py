@@ -2,8 +2,8 @@
 
 An area generator is a full copy of Biome Core's generator template with the Surface Sampler replaced by the Forest
 Area Sampler (ForestPCGAreaSampler.h), fed by a Create Points node of tile boxes that cover the family's ground. The
-sampler keeps the stock lattice, so every point it emits is one the stock sampler emits, and the family's filter graph
-then keeps exactly the points it kept before.
+sampler keeps the stock lattice, seeds and density rules, while also visiting lattice cells whose jitter can enter
+the requested bounds. The family's filter graph then applies as before.
 
 Converting a family (deadwood_rocks.generator's `region`): build it once without measured ranges (it samples the whole
 island and saves its density ranges under PROBE), regenerate, record(groups) into area_ranges.json, then build again.

@@ -14,7 +14,7 @@ namespace ForestPCGAreaSampler
  * Their XY footprints must cover every possible pre-projection position accepted by Region.
  * Z is ignored. For landscapes these are ordinary world XY boxes; jitter padding is automatic.
  * Region: spatial predicate at the PROJECTED centre (zero local bounds), density > 0 means inside.
- * Its density/metadata do not modify output. Bounding Shape is sampled at the projected centre; its density is retained.
+ * Its density/metadata do not modify output. Original Bounding Shape retains stock semantics.
  * Never replace the original Bounding Shape with Region: legacy Ratio depends on the original bounds.
  */
 UCLASS(BlueprintType, ClassGroup = (Procedural))
