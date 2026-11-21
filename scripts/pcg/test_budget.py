@@ -145,6 +145,74 @@ class RegionTests(unittest.TestCase):
             self.assertEqual(saplings_understory.damp_cells(), [(0, 0), (2, 0)])
 
 
+class KeepProperties:
+    def get_editor_property(self, name):
+        return getattr(self, name)
+
+    def set_editor_property(self, name, value):
+        setattr(self, name, value)
+
+    def import_text(self, text):
+        self.text = text
+
+    def export_text(self):
+        return self.text
+
+
+class KeepTests(unittest.TestCase):
+    def test_reapplication_replaces_filter_and_identity_restores_original_connection(self):
+        class Noise(KeepProperties):
+            pass
+
+        graph, source, output = MagicMock(), MagicMock(), MagicMock()
+        nodes, original = [source], (source, "Roots", output, "GeneratedPoints")
+        edges = [original]
+        graph.get_output_node.return_value = output
+        graph.get_editor_property.side_effect = lambda name: nodes
+        graph.remove_edge.side_effect = lambda *edge: edges.remove(edge)
+
+        def add_node(cls):
+            settings = cls()
+            node = MagicMock()
+            node.get_settings.return_value = settings
+            nodes.append(node)
+            return node, settings
+
+        def remove_node(node):
+            nodes.remove(node)
+            edges[:] = [e for e in edges if node not in (e[0], e[2])]
+
+        graph.add_node_of_type.side_effect = add_node
+        graph.remove_node.side_effect = remove_node
+        # Adapt only graph storage: thin() and z_range() still perform all graph/settings edits.
+        with patch.multiple(area_sampling.unreal, PCGAttributeNoiseSettings=Noise,
+                            PCGAttributeFilteringRangeSettings=KeepProperties,
+                            PCGAttributePropertyInputSelector=KeepProperties,
+                            PCGAttributePropertyOutputSelector=KeepProperties,
+                            PCGAttributeFilterThresholdSettings=KeepProperties), \
+                patch.object(area_sampling, "_edges", side_effect=lambda graph: iter(edges)), \
+                patch.object(area_sampling, "_connect", side_effect=lambda graph, *edge: edges.append(edge)):
+            for fraction in (1.0, 0.25, 0.25, 0.5, 0.0, 1.0):
+                with self.subTest(fraction=fraction):
+                    area_sampling.thin(graph, fraction)
+                    if fraction == 1.0:
+                        self.assertEqual((nodes, edges), ([source], [original]))
+                        continue
+                    self.assertEqual(len(nodes), 3)  # One draw/filter pair, never stacked or left disconnected.
+                    noise, below = nodes[1:]
+                    self.assertEqual(edges, [(source, "Roots", noise, "In"), (noise, "Out", below, "In"),
+                                             (below, "InsideFilter", output, "GeneratedPoints")])
+                    settings, bounds = noise.get_settings(), below.get_settings()
+                    self.assertEqual((settings.noise_min, settings.noise_max), (0.0, 1.0))
+                    self.assertEqual(settings.input_source.text, "PCGBegin($Density)PCGEnd")
+                    self.assertEqual(settings.output_target.text, "PCGBegin(BlendKeep)PCGEnd")
+                    self.assertEqual(bounds.target_attribute.text, settings.output_target.text)
+                    for threshold, value, inclusive in ((bounds.min_threshold, 0.0, True),
+                                                        (bounds.max_threshold, fraction, False)):
+                        self.assertIn(f"DoubleValue={value})", threshold.text)
+                        self.assertIn(f"bInclusive={inclusive},bUseConstantThreshold=True", threshold.text)
+
+
 class ParentTests(unittest.TestCase):
     """Every generator is copied from the Trees instance, whose own parent is cropped to the Trees' area: generator()
     must give each copy its parent, before any parameter (changing the parent resets them)."""
