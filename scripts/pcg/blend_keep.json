@@ -1,250 +1,312 @@
 {
  "BalsamBankFar": {
   "blended": 162,
+  "ramp": 1337,
   "unblended": 799
  },
  "BalsamBankNear": {
   "blended": 442,
+  "ramp": 1312,
   "unblended": 3505
  },
  "BalsamDamp": {
   "blended": 608,
+  "ramp": 1316,
   "unblended": 1935
  },
  "BalsamGaps": {
   "blended": 2752,
+  "ramp": 1235,
   "unblended": 5325
  },
  "BeechFernsBankFar": {
   "blended": 134,
+  "ramp": 1578,
   "unblended": 626
  },
  "BeechFernsBankNear": {
   "blended": 125,
+  "ramp": 1273,
   "unblended": 904
  },
  "BeechFernsDamp": {
   "blended": 1621,
+  "ramp": 1267,
   "unblended": 5100
  },
  "BeechFernsFoot": {
   "blended": 254,
+  "ramp": 1353,
   "unblended": 2720
  },
  "BeechFernsGaps": {
   "blended": 7545,
+  "ramp": 1303,
   "unblended": 14554
  },
  "BeechFernsSteep": {
   "blended": 1107,
+  "ramp": 1197,
   "unblended": 1682
  },
  "Deadwood": {
   "blended": 208,
+  "ramp": 827,
   "unblended": 330
  },
  "Deadwood_SM_MossyTree_01": {
   "blended": 158,
+  "ramp": 698,
   "unblended": 250
  },
  "Deadwood_wd1mbcvbw_tier_2": {
   "blended": 74,
+  "ramp": 1430,
   "unblended": 88
  },
  "Deadwood_wgrubc1s_tier_2": {
   "blended": 205,
+  "ramp": 1071,
   "unblended": 351
  },
  "DebrisSticks_SM_xlknfje_tier_2": {
   "blended": 202,
+  "ramp": 1553,
   "unblended": 8204
  },
  "DebrisSticks_SM_xlkoaaw_tier_2": {
   "blended": 203,
+  "ramp": 1352,
   "unblended": 7876
  },
  "DebrisSticks_SM_xlkoadp_tier_2": {
   "blended": 187,
+  "ramp": 1517,
   "unblended": 7498
  },
  "DebrisSticks_SM_xlnnden_tier_2": {
   "blended": 199,
+  "ramp": 1166,
   "unblended": 7160
  },
  "DebrisSticks_SM_xlnndfv_tier_2": {
   "blended": 186,
+  "ramp": 1365,
   "unblended": 6845
  },
  "DebrisTrunks": {
   "blended": 171,
+  "ramp": 1977,
   "unblended": 8892
  },
  "DeerFernsBankFar": {
   "blended": 178,
+  "ramp": 1411,
   "unblended": 831
  },
  "DeerFernsBankNear": {
   "blended": 143,
+  "ramp": 1306,
   "unblended": 1193
  },
  "DeerFernsDamp": {
   "blended": 2158,
+  "ramp": 1333,
   "unblended": 6873
  },
  "DeerFernsFoot": {
   "blended": 338,
+  "ramp": 1276,
   "unblended": 3657
  },
  "DeerFernsGaps": {
   "blended": 10019,
+  "ramp": 1271,
   "unblended": 19312
  },
  "DeerFernsSteep": {
   "blended": 1509,
+  "ramp": 1243,
   "unblended": 2262
  },
  "EdgeHeather": {
   "blended": 54,
+  "ramp": 1317,
   "unblended": 440
  },
  "FernsBankFar": {
   "blended": 337,
+  "ramp": 1295,
   "unblended": 1493
  },
  "FernsBankNear": {
   "blended": 256,
+  "ramp": 1742,
   "unblended": 2093
  },
  "FernsDamp": {
   "blended": 3848,
+  "ramp": 1274,
   "unblended": 12154
  },
  "FernsFoot": {
   "blended": 630,
+  "ramp": 1295,
   "unblended": 6313
  },
  "FernsGaps": {
   "blended": 17630,
+  "ramp": 1290,
   "unblended": 34305
  },
  "FernsSteep": {
   "blended": 2658,
+  "ramp": 1253,
   "unblended": 3974
  },
  "FoxgloveBankFar": {
   "blended": 483,
+  "ramp": 1396,
   "unblended": 2294
  },
  "FoxgloveBankNear": {
   "blended": 881,
+  "ramp": 1447,
   "unblended": 6682
  },
  "FoxgloveCanopy": {
   "blended": 148,
+  "ramp": 1558,
   "unblended": 229
  },
  "GapShrubsCanopy": {
   "blended": 46,
+  "ramp": 1160,
   "unblended": 65
  },
  "HerbsBankFar": {
   "blended": 545,
+  "ramp": 1344,
   "unblended": 2656
  },
  "HerbsBankNear": {
   "blended": 1586,
+  "ramp": 1620,
   "unblended": 12048
  },
  "HerbsDamp": {
   "blended": 1029,
+  "ramp": 1302,
   "unblended": 3243
  },
  "HerbsGaps": {
   "blended": 4640,
+  "ramp": 1295,
   "unblended": 9028
  },
  "Hornbeams": {
   "blended": 273,
+  "ramp": 835,
   "unblended": 515
  },
  "IvyDamp": {
   "blended": 2054,
+  "ramp": 1299,
   "unblended": 6565
  },
  "IvyGaps": {
   "blended": 9694,
+  "ramp": 1340,
   "unblended": 19028
  },
  "Meadow": {
   "blended": 501,
+  "ramp": 1337,
   "unblended": 5507
  },
  "MeadowHeather": {
   "blended": 134,
+  "ramp": 1402,
   "unblended": 1637
  },
  "MeadowLogs": {
   "blended": 16,
+  "ramp": 849,
   "unblended": 158
  },
  "Rocks": {
   "blended": 405,
+  "ramp": 1018,
   "unblended": 536
  },
  "SandHeather": {
   "blended": 342,
+  "ramp": 1229,
   "unblended": 5341
  },
  "SaplingsCanopy": {
   "blended": 826,
+  "ramp": 1540,
   "unblended": 1211
  },
  "SaplingsGaps": {
   "blended": 7266,
+  "ramp": 1293,
   "unblended": 14205
  },
  "ShoreTrees": {
   "blended": 4,
+  "ramp": 323,
   "unblended": 69
  },
  "ShrubsDamp": {
   "blended": 113,
+  "ramp": 1504,
   "unblended": 357
  },
  "ShrubsGaps": {
   "blended": 307,
+  "ramp": 1343,
   "unblended": 800
  },
  "SwordFernsBankFar": {
   "blended": 252,
+  "ramp": 1772,
   "unblended": 1269
  },
  "SwordFernsBankNear": {
   "blended": 242,
+  "ramp": 1379,
   "unblended": 1793
  },
  "SwordFernsDamp": {
   "blended": 3296,
+  "ramp": 1290,
   "unblended": 10372
  },
  "SwordFernsFoot": {
   "blended": 545,
+  "ramp": 1269,
   "unblended": 5452
  },
  "SwordFernsGaps": {
   "blended": 14985,
+  "ramp": 1298,
   "unblended": 29203
  },
  "SwordFernsSteep": {
   "blended": 2259,
+  "ramp": 1235,
   "unblended": 3431
  },
  "Trees": {
   "blended": 6835,
+  "ramp": 1280,
   "unblended": 13611
  },
  "Veterans": {
   "blended": 76,
+  "ramp": 601,
   "unblended": 127
  }
 }

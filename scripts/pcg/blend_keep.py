@@ -1,5 +1,5 @@
 # editor-py: fresh-siblings
-"""Apply each group's keep filter (area_sampling.keep, #264) to its existing area graph, without rebuilding the group.
+"""Apply each group's keep filter (area_sampling.ramp, #264) to its existing area graph, without rebuilding the group.
 
     scripts/editor-py scripts/pcg/blend_keep.py
 
@@ -21,11 +21,11 @@ def main():
         graph = unreal.load_asset(path)
         if graph is None:
             raise RuntimeError(f"{group}: no area graph at {path}; build the group first")
-        fraction = area_sampling.keep(group)
-        area_sampling.thin(graph, fraction)
+        ramp = area_sampling.ramp(group)
+        area_sampling.thin(graph, ramp)
         if not unreal.EditorAssetLibrary.save_loaded_asset(graph, False):
             raise RuntimeError(f"Save failed: {path}")
-        print(f"{group}: keeps {fraction:.3f}")
+        print(f"{group}: thins below {ramp:.0f} cm")
 
 
 if __name__ == "__main__":
