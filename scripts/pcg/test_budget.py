@@ -1,6 +1,7 @@
 import sys
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
 
 sys.modules.setdefault("unreal", MagicMock())
@@ -160,6 +161,14 @@ class KeepProperties:
 
 
 class KeepTests(unittest.TestCase):
+    def test_ramp_reads_height_from_json_and_defaults_to_identity(self):
+        with TemporaryDirectory() as directory, patch.object(area_sampling, "KEEPS", Path(directory) / "blend_keep.json"):
+            self.assertEqual(area_sampling.ramp("Trees"), 0.0)  # Missing file.
+            area_sampling.KEEPS.write_text('{"Trees": {"ramp": 1250, "blended": 1, "unblended": 4}, "New": {"blended": 1}}')
+            for group, expected in (("Trees", 1250), ("New", 0.0), ("Unknown", 0.0)):
+                with self.subTest(group=group):
+                    self.assertEqual(area_sampling.ramp(group), expected)
+
     def test_reapplication_replaces_filter_and_identity_restores_original_connection(self):
         class Noise(KeepProperties):
             pass
@@ -192,10 +201,10 @@ class KeepTests(unittest.TestCase):
                             PCGAttributeFilterThresholdSettings=KeepProperties), \
                 patch.object(area_sampling, "_edges", side_effect=lambda graph: iter(edges)), \
                 patch.object(area_sampling, "_connect", side_effect=lambda graph, *edge: edges.append(edge)):
-            for fraction in (1.0, 0.25, 0.25, 0.5, 0.0, 1.0):
-                with self.subTest(fraction=fraction):
-                    area_sampling.thin(graph, fraction)
-                    if fraction == 1.0:
+            for ramp in (0.0, 1250.0, 1250.0, 2500.0, -1.0, 1.0, 0.0):
+                with self.subTest(ramp=ramp):
+                    area_sampling.thin(graph, ramp)
+                    if ramp <= 0:
                         self.assertEqual((nodes, edges), ([source], [original]))
                         continue
                     self.assertEqual(len(nodes), 3)  # One draw/filter pair, never stacked or left disconnected.
@@ -203,14 +212,14 @@ class KeepTests(unittest.TestCase):
                     self.assertEqual(edges, [(source, "Roots", noise, "In"), (noise, "Out", below, "In"),
                                              (below, "InsideFilter", output, "GeneratedPoints")])
                     settings, bounds = noise.get_settings(), below.get_settings()
-                    self.assertEqual((settings.noise_min, settings.noise_max), (0.0, 1.0))
+                    self.assertEqual((settings.noise_min, settings.noise_max), (0.0, ramp))
                     self.assertEqual(settings.input_source.text, "PCGBegin($Density)PCGEnd")
                     self.assertEqual(settings.output_target.text, "PCGBegin(BlendKeep)PCGEnd")
                     self.assertEqual(bounds.target_attribute.text, settings.output_target.text)
-                    for threshold, value, inclusive in ((bounds.min_threshold, 0.0, True),
-                                                        (bounds.max_threshold, fraction, False)):
-                        self.assertIn(f"DoubleValue={value})", threshold.text)
-                        self.assertIn(f"bInclusive={inclusive},bUseConstantThreshold=True", threshold.text)
+                    self.assertIn("DoubleValue=0.0)", bounds.min_threshold.text)
+                    self.assertIn("bInclusive=True,bUseConstantThreshold=True", bounds.min_threshold.text)
+                    self.assertIn("bInclusive=False,bUseConstantThreshold=False", bounds.max_threshold.text)
+                    self.assertIn("ThresholdAttribute=PCGBegin($Position.Z)PCGEnd", bounds.max_threshold.text)
 
 
 class ParentTests(unittest.TestCase):
