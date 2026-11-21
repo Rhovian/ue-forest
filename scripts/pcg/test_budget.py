@@ -213,7 +213,7 @@ class KeepTests(unittest.TestCase):
                                              (below, "InsideFilter", output, "GeneratedPoints")])
                     settings, bounds = noise.get_settings(), below.get_settings()
                     self.assertEqual((settings.noise_min, settings.noise_max), (0.0, ramp))
-                    self.assertEqual(settings.input_source.text, "PCGBegin($Density)PCGEnd")
+                    self.assertEqual(settings.mode, area_sampling.unreal.PCGAttributeNoiseMode.SET)
                     self.assertEqual(settings.output_target.text, "PCGBegin(BlendKeep)PCGEnd")
                     self.assertEqual(bounds.target_attribute.text, settings.output_target.text)
                     self.assertIn("DoubleValue=0.0)", bounds.min_threshold.text)
