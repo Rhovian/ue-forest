@@ -47,7 +47,8 @@ AREA = "PCG_Forest_{}Area"  # a group's area graph, the parent of its generator 
 PROBE = "/Game/_AreaProbe"  # measuring graphs save their reduce values here; record() reads, then deletes them
 # {group: {"blended", "unblended", "ramp"}}: generator roots island-wide in the level tuned with biome blending on (its
 # BlendingDensity 0 rounding cull, #264) and generated per cell with blending off (2026-11-18, before any keep filter);
-# ramp (cm) is fitted to the blending-off roots' heights so min(1, z / ramp) keeps the blended count (2026-11-20).
+# ramp (cm) is fitted to the blending-off roots' heights so min(1, z / ramp) keeps the blended count (2026-11-20; refitted
+# 2026-11-21 after the partition seam fix restored the points each seam had lost).
 KEEPS = Path(__file__).with_name("blend_keep.json")
 KEEP_ATTRIBUTE = "BlendKeep"  # per-point draw in [0, ramp), seeded by the point's $Seed: the same in every partition cell
 POSITION_Z = (
