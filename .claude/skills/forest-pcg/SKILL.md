@@ -157,6 +157,29 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
 - Rerunning `solid_keepout.py` after the documented rebuild removed all 16 meadow logs: it bakes every placed solid's
   footprint, the meadow logs' own included, into the TransformGraph the logs share with the meadow plants, so each log
   is dropped by its own footprint on the next regenerate (seen on main, #247). Diff root counts after it.
+- Biome blending at `BlendingDensity` 0 is a cull, not a no-op (#264): the generator raises each point's distance to
+  the biome's cache box to max(density, 1e-5), and PCGDistance's float rounding makes interior points ~1 (dropped by
+  the noise) or NaN. It thinned low ground unevenly and removed ~5/6 of a partitioned cell's points. One biome has
+  nothing to blend: `biome_volume.py` sets `BlendingRange` 0, which skips blending, and each area graph keeps its
+  blended share with a per-point draw (`area_sampling.keep`, `blend_keep.json`). Seeded by point, so a partitioned
+  and an unpartitioned run keep the same points.
+- Local's output is serialized (`UPCGComponent::GeneratedGraphOutput` is a UPROPERTY): the unpartitioned volume package
+  was 1.17 GB, and a partitioned Local writes each cell's output into its partition actor package.
+- Baking Local cell by cell in one editor session does not stay bounded: footprint rose 8-10 GB per dense cell and
+  was not returned after `cleanup_local`, cache flush and GC (PCG objects were ~14 GB by `obj list -resourcesizesort`;
+  the rest is allocator retention). Bake with UE's `PCGWorldPartitionBuilder` in its own process:
+  `-run=WorldPartitionBuilderCommandlet -Builder=PCGWorldPartitionBuilder -AllowCommandletRendering
+  -GenerateComponentEditingModeNormal -IncludeGraphNames=<graph> -IterativeCellLoading -IterativeCellSize=25600`.
+  It refuses to run without `-AllowCommandletRendering`.
+- The builder (and any master recompile) asserted `ShaderMapId.ContainsShaderType` / `FAnisotropyPS` on the
+  Megascans masters on 5.8.3 and 5.8.4 (also #135); the editor only survived on shader cache hits. With Substrate, a
+  `SubstrateShadingModels` FrontMaterial whose ShadingModel pin is wired reports no shading model, so its Anisotropy
+  input never reaches the predicted shader set, while the compiler finds anisotropy. Masters whose pin held a constant
+  equal to the node's override had the pin cleared (#264); check `scripts/review` captures after such an edit.
+- Per-cell time in the editor is mostly the PCG scheduler (~870k tasks a dense cell) yielding to editor frames:
+  `pcg.EditorFrameTime 250` (default 15 ms) cut a dense cell from 54 s to 30 s.
+- To create a partitioned component's local components without generating them all, call `generate_local(True)` and
+  `ForestPCGLibrary.cancel_all_pcg_generation()` immediately after.
 
 ## Counts do not scale smoothly
 
