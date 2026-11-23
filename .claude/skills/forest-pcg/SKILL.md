@@ -28,6 +28,17 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   with the refresh and outputs zero points. Count in a separate editor-py call.
 - Deleting an asset that is loaded (a probe graph a component used) raises an ObjectTools ensure whose modal dialog
   freezes the editor until `editor.sh kill`; reuse probe assets instead of deleting them.
+- The level loads nothing of the plugin: `area_sampling.detach_plugin` swaps each template copy's ScaleByDensity for
+  /Game/ForestBiome/PCG_ScaleByDensity and removes its (switched-off) landscape weightmap filter with the
+  `WeightmapLayerDataAsset` parameter, whose type is the plugin's data asset class. Python cannot remove a graph user
+  parameter: `unreal.ForestPCGLibrary.remove_graph_user_parameter` does, refreshing the graph's instances. A
+  placement graph built before the removal still holds the parameter in its subgraph nodes: rebuild it. Check with an
+  asset-registry dependency walk, after `scan_files_synchronous(files, True)`: the registry kept the removed
+  references after the save until rescanned.
+- A count that reads the graph output can read the last bake's saved output instead of a fresh generate: a root
+  count's first sample equalled its final total, the same for two different graphs. A fresh in-editor generate
+  starts near zero and climbs; trust only a count that does. Baked and in-editor counts differ (the bake placed
+  +0.6%, +6-10% in the BankNear groups), so compare a bake with a bake.
 
 ## New assets: pass the budget before placing
 

@@ -26,6 +26,13 @@ from pathlib import Path
 import unreal
 
 TEMPLATE = "/PCGBiomeCore/GraphTemplates/TPL_BiomeCore_Generator_Advanced"
+# The template's plugin references, detached from each copy so the level loads nothing of Biome Core (#266): its
+# ScaleByDensity subgraph is swapped for a project copy, and its landscape weightmap filter, off in every group
+# (EnableLandscapeWeightmapLayerFilter), is removed with the parameter typed by the plugin's data asset class.
+PLUGIN_SCALE = "/PCGBiomeCore/GraphTemplates/Graphs/BiomeCore_ScaleByDensity"
+SCALE = "/Game/ForestBiome/PCG_ScaleByDensity"
+WEIGHTMAP = "WeightmapLayerDataAsset"
+WEIGHTMAP_SWITCH = "EnableLandscapeWeightmapLayerFilter"
 SAMPLER = "SurfaceSampler_0"
 # The template rescales density by the sampled set's own min and max (Attribute Reduce into Remap's input range) after
 # the spatial noise, after the Voronoi breakup and after the colony density filter, so a cropped sample would shift
@@ -148,6 +155,34 @@ def _connect(graph, source, source_pin, target, target_pin):
         raise RuntimeError(f"{graph.get_name()}: PCG connection failed: {source.get_name()}.{source_pin} -> {target.get_name()}.{target_pin}")
 
 
+def _labels(pins):
+    return {str(pin.get_editor_property("properties").get_editor_property("label")) for pin in pins}
+
+
+def detach_plugin(graph):
+    """Remove the template copy's plugin references (TEMPLATE's note); re-runnable. Does not save."""
+    if unreal.PCGGraphParametersHelpers.get_bool_parameter(graph, WEIGHTMAP_SWITCH):
+        raise RuntimeError(f"{graph.get_name()}: {WEIGHTMAP_SWITCH} is on; its filter cannot be removed")
+    if not unreal.EditorAssetLibrary.does_asset_exist(SCALE):
+        unreal.EditorAssetLibrary.duplicate_asset(PLUGIN_SCALE, SCALE)
+        unreal.EditorAssetLibrary.save_asset(SCALE, False)
+    scale = unreal.load_asset(SCALE)
+    for node in list(graph.get_editor_property("nodes")):
+        settings = node.get_settings()
+        if isinstance(settings, unreal.PCGSubgraphSettings):
+            inputs = _labels(node.get_editor_property("input_pins"))
+            if WEIGHTMAP in inputs:  # the weightmap filter, reached only through its switch's Output B
+                graph.remove_node(node)
+            elif {"ScaleMin", "ScaleMax"} <= inputs:
+                edges = sorted(map(str, _edges(graph)))
+                settings.set_subgraph(scale)
+                if sorted(map(str, _edges(graph))) != edges:
+                    raise RuntimeError(f"{graph.get_name()}: {node.get_name()} lost edges when its subgraph was swapped")
+        elif isinstance(settings, unreal.PCGUserParameterGetSettings) and WEIGHTMAP in _labels(node.get_editor_property("output_pins")):
+            graph.remove_node(node)
+    unreal.ForestPCGLibrary.remove_graph_user_parameter(graph, WEIGHTMAP)
+
+
 def area_graph(path, cells, ranges=None, cell=TILE, ramp=0.0):
     """A new generator graph at path sampling only `cells` (tiles_near). ranges {remap: (min, max)} fixes the template's
     density rescales ({} for a generator with spatial noise off, which never runs them); None samples the whole
@@ -157,6 +192,7 @@ def area_graph(path, cells, ranges=None, cell=TILE, ramp=0.0):
     if unreal.EditorAssetLibrary.does_asset_exist(path):
         unreal.EditorAssetLibrary.delete_asset(path)
     graph = unreal.EditorAssetLibrary.duplicate_asset(TEMPLATE, path)
+    detach_plugin(graph)
     stock = _node(graph, SAMPLER)
     old = stock.get_settings()
     sampler, settings = graph.add_node_of_type(unreal.ForestPCGAreaSamplerSettings)
