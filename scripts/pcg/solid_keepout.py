@@ -20,7 +20,7 @@ import itertools
 
 import biome_variants
 import unreal
-from deadwood_rocks import edge, get, load_forest_actors, save
+from deadwood_rocks import asset_lists, edge, get, load_forest_actors, save
 from exact_exclusions import connections
 
 TITLE = "SolidFootprints"  # node title of the baked footprints, so a rerun finds and refreshes them
@@ -43,7 +43,7 @@ def kind(data, row):
     return "stems" if mesh and mesh.get_name().startswith(("Tree_", "Shrub_")) else None
 
 
-def targets(actors):
+def targets():
     """{TransformGraph: margin cm} for each graph a tree, sapling or shrub uses, children included (the shrub drifts
     place stems round each anchor): TRUNK_CM where only tree groups use it, PIVOT_CM where ferns and flowers share it
     (they may stand at a rock's foot). The solids' own children are skipped: the nurse-log seedlings stand on them."""
@@ -65,10 +65,8 @@ def targets(actors):
             if child:
                 visit(child, under_solid or bool(mesh and mesh.get_name() in SOLIDS))
 
-    for actor in actors:
-        if actor.get_class().get_name().startswith("BP_PCGBiomeVolume"):
-            for data in actor.get_editor_property("Assets"):
-                visit(data, False)
+    for data in asset_lists():
+        visit(data, False)
     found = {graph: TRUNK_CM if kinds == {"tree"} else PIVOT_CM for graph, kinds in rows.items() if kinds - {None}}
     shared = sorted(graph.get_name() for graph in found if graph in solid_graphs)
     if shared:
@@ -166,7 +164,7 @@ def main():
     actors = (unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()
               if args.check else load_forest_actors())
     points = footprints(actors)
-    for graph, margin in sorted(targets(actors).items(), key=lambda item: item[0].get_name()):
+    for graph, margin in sorted(targets().items(), key=lambda item: item[0].get_name()):
         marks = installed(graph)
         if args.check:
             print(f"{graph.get_name()}: margin {margin:g} cm, " + ("installed" if marks else "not installed"))
@@ -176,7 +174,7 @@ def main():
         save(graph)
         print(f"{graph.get_name()}: {len(points)} footprints, margin {margin:g} cm")
     if not args.check:
-        print("Regenerate Core and save the level")
+        print("Rebuild placement.py and bake")
 
 
 if __name__ == "__main__":

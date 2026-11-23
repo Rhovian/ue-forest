@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-"""Lead only: bake L_vilm's Biome Core with UE's World Partition builder, the Local inputs first, then Core (#264).
+"""Lead only: bake L_vilm's forest placement (placement.py's graph) with UE's World Partition builder (#264, #266).
 
-    scripts/editor-py scripts/pcg/regenerate_biome.py   # preflight, with the editor open
-    scripts/editor.sh close                              # saves; the builder loads the level from disk
+    scripts/editor-py scripts/pcg/preflight.py   # with the editor open
+    scripts/editor.sh close                       # saves; the builder loads the level from disk
     scripts/pcg/bake
 
-Each pass is its own builder process, loading 256 m of cells at a time and saving their partition actors as it goes;
-the editor cannot bake the partitioned Local in one session (its footprint grows 8-10 GB per dense cell). The builder
-skips every save when any error is logged, and the Biome Core template logs one per generator that has no points in
-a cell (its Reduce Density Min/Max), so it runs with -IgnoreGenerationErrors and this script audits the log instead:
-any error but those, a pass past MEMORY_LIMIT_GB, or no saved packages fails the bake. Measured on the 108-cell island
-(2026-11-20): Local ~60 GB, ~23 min; Core ~21 GB, ~8.5 min. Logs go to Forest/Saved/Logs/bake_<pass>.log.
+The builder is its own process, loading 256 m of cells at a time over the PCG builder volume and saving their
+partition actors as it goes. It skips every save when any error is logged, and the generator template logs one per
+generator that has no points in a cell (its Reduce Density Min/Max), so it runs with -IgnoreGenerationErrors and this
+script audits the log instead: any error but those, a footprint past MEMORY_LIMIT_GB, or no saved packages fails the
+bake. Measured on the 108-cell island (2026-11-23): ~134 s, peak ~27 GB. Logs go to Forest/Saved/Logs/bake_<pass>.log.
 """
 
 import os
@@ -25,8 +24,8 @@ REPO = os.path.dirname(os.path.dirname(HERE))
 PROJECT = os.path.join(REPO, "Forest", "Forest.uproject")
 UE_ROOT = os.environ.get("UE_ROOT", "/Users/Shared/Epic Games/UE_5.8")
 EDITOR = os.path.join(UE_ROOT, "Engine/Binaries/Mac/UnrealEditor.app/Contents/MacOS/UnrealEditor")
-PASSES = [("local", "LocalBiomeCore"), ("core", "BiomeCore")]  # Core reads the Local cells' saved output
-CELL = 25600  # cm, the Biome Core partition grid: one cell per iteration
+PASSES = [("placement", "PCG_ForestPlacement")]
+CELL = 25600  # cm, the placement volume's partition grid: one cell per iteration
 # Physical footprint, as `footprint -p` reports it; a full regenerate in the editor was held to 70 GB on this 96 GB
 # machine (#203, operator 2026-11-18).
 MEMORY_LIMIT_GB = 70

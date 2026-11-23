@@ -146,24 +146,15 @@ water and footpath exclusions. These whole-area trial counts are not colony dens
 If frame time exceeds 33.3 ms, rebuild **Understory first** with `understory --density-scale 0.5`
 (or 0.25), then regenerate/save/measure; Saplings and the other groups remain independently tunable.
 
-After terrain changes and each group build, run
-`scripts/editor-py scripts/pcg/regenerate_biome.py --check` for a read-only Core/partition,
-instance-count and dirty-package inventory. Check-mode counts cover loaded instances only;
-on-disk PCG cell descriptors are reported separately. Run without `--check` to retain all
-L_vilm WP inputs/cells, refresh Local biome inputs, then force the partitioned Core; the command waits
-for native completion while the editor keeps ticking, then prints full loaded group counts.
-Add `--save` to save only dirty map, landscape/proxy, water, biome override/Core/volume,
-PCG partition/metadata and `/Game/ForestBiome` packages. Each saved package is named.
-A timeout/cancelled generation fails without saving; check the editor before another run.
-The opt-in deferred runner requires the updated `scripts/editor-py`; existing scripts retain
-their synchronous behavior. PCG engine warnings/errors still require review in the editor log.
+After terrain changes and each group build, rebuild the placement graph
+(`scripts/editor-py scripts/pcg/placement.py`), then run `scripts/editor-py scripts/pcg/preflight.py`
+for a read-only check of the placement volume and its per-group instance counts (loaded instances
+only; on-disk PCG cell descriptors are reported separately). The bake is `scripts/pcg/bake`, with
+the editor closed; it audits the builder log and fails on any unexpected error.
 
 Saplings/Understory check and build commands now load/retain their World Partition prerequisites,
 including the saved footpath, after an editor reopen. Check mode still makes no explicit asset edits;
-loading actors can trigger UE's automatic PCG refresh. The regeneration command waits for an existing
-refresh, flushes PCG's actor-query/execution cache and forces its own regeneration before saving.
-Local inputs are refreshed before Core consumes their generated output. Cache flushing alone does
-not establish exclusion correctness; check the actual corridor after restart and regeneration.
+loading actors can trigger UE's automatic PCG refresh. Check the actual exclusion corridors after a bake.
 
 The save allowlist also includes exactly the fern/ivy main and billboard material instances listed
 in `biome_variants.PLANT_USAGE_MATERIALS`. UE 5.8 automatically adds Nanite usage to all four and

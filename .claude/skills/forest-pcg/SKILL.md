@@ -1,9 +1,33 @@
 ---
 name: forest-pcg
-description: Lessons for this project's Biome Core PCG placement of everything on the island, forest, meadow and beach (scripts/pcg/*.py, scripts/pcg/bake). Read before adding or changing a placement group, a density, a generator, child assets or a filter graph, and when diagnosing a slow or memory-heavy regenerate or plants that float, vanish or clump wrongly. Not for lighting, fog or materials. Append each new failure here when it is understood.
+description: Lessons for this project's PCG placement of everything on the island, forest, meadow and beach (scripts/pcg/*.py, scripts/pcg/bake). Read before adding or changing a placement group, a density, a generator, child assets or a filter graph, and when diagnosing a slow or memory-heavy regenerate or plants that float, vanish or clump wrongly. Not for lighting, fog or materials. Append each new failure here when it is understood.
 ---
 
 Each rule below cost real time when it was learned. A new rule says what broke, why, and the check that prevents it.
+
+## The placement graph replaced Biome Core (#266)
+
+- The level no longer runs Biome Core. The group scripts still write its data assets (DA_Forest_*Generator,
+  DA_Forest_*Assets and their child lists) and generator graphs, so the PCGBiomeCore plugin stays enabled, but
+  `placement.py` reads every DA_Forest_*Assets in /Game/ForestBiome and builds them into one graph of stock nodes,
+  PCG_ForestPlacement, on the PCG volume `ForestPlacement`. Lessons below that name Local, Core or the biome volume
+  describe the old execution; the data rules (generators, entries, children, filters) still hold. After any group
+  script: `placement.py`, `preflight.py`, close the editor, `scripts/pcg/bake`. The volume's extent is the area filled;
+  `placement.py --attach` refits the builder volume to it.
+- Biome Core cost ~11 s a 256 m cell in its generic loops (~900,000 tasks a cell), whatever the content: the island
+  took ~32 min and ~60 GB. The same content as stock nodes takes ~1 s a cell (134 s, ~27 GB).
+- The World Partition builder's 2D iteration covers the editor world bounds (+-4 km here, 1,024 iterations, ~916
+  empty) unless a `PCGBuilderVolume` bounds it; `placement.py` keeps one over the volume.
+- Every node or edge added to a graph recompiles it, and a component using the graph refreshes on each change: detach
+  the graph while building and keep it small (weighted static selectors, each child list built once). Python cannot
+  call `UPCGGraph::RemoveNodes` (its array is by reference), so clearing is one recompile per node.
+- A Difference outputs spatial data, which spawns nothing, unless `mode` is `PCGDifferenceMode.DISCRETE`.
+- Data From Actor on component data needs its component selector set (ByClass SplineComponent here); an empty
+  selector returns nothing.
+- Generate or count only after a build has finished refreshing: a generate queued straight after a build collides
+  with the refresh and outputs zero points. Count in a separate editor-py call.
+- Deleting an asset that is loaded (a probe graph a component used) raises an ObjectTools ensure whose modal dialog
+  freezes the editor until `editor.sh kill`; reuse probe assets instead of deleting them.
 
 ## New assets: pass the budget before placing
 
@@ -25,7 +49,7 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   (`children()` with a disc of points, `ground=True`), as in `meadow.py`. Cost then scales with the anchors.
   The budget covers anchors only: the instance total is accepted anchors x children per patch, so measure it after
   each change (fern drifts: 16 children each, ~194k ferns). `candidate_estimate` uses the capped density.
-- The full bake is `scripts/pcg/bake` (since #264; `regenerate_biome.py` is now its preflight, with the editor open).
+- The full bake is `scripts/pcg/bake` (since #264; `preflight.py` is its preflight, with the editor open).
   It prints each pass's duration and peak builder footprint and kills a pass above `MEMORY_LIMIT_GB` (70 footprint;
   75 after #203; 70 and 60 RSS before, which older lessons here refer to). Lessons below that quote an in-editor
   regenerate's peak predate #264: the editor then generated the unpartitioned Local and Core in one session, and
@@ -290,7 +314,7 @@ Each rule below cost real time when it was learned. A new rule says what broke, 
   and the next save of PCG_PlantsAboveShore after a revert under the open editor crashed it (seek past end of file, #164).
 - Capture with `scripts/review/capture`: a single raw `CaptureViewport` returns the previous view's frame.
 
-- `regenerate_biome.py`'s per-group instance count misattributes components when groups share a mesh; count by mesh,
+- `preflight.py`'s per-group instance count misattributes components when groups share a mesh; count by mesh,
   and to split two groups sharing a mesh, disable one and count again.
 - After an editor restart, World Partition cells are unloaded; `scripts/editor.sh open` loads them. Traces and counts
   on an unloaded level are wrong.
