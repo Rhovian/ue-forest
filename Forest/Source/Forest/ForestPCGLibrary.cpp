@@ -2,6 +2,7 @@
 
 #include "Data/PCGBasePointData.h"
 #include "PCGComponent.h"
+#include "PCGGraph.h"
 #include "Subsystems/PCGSubsystem.h"
 
 bool UForestPCGLibrary::CancelAllPCGGeneration()
@@ -13,6 +14,25 @@ bool UForestPCGLibrary::CancelAllPCGGeneration()
 	}
 	Subsystem->CancelAllGeneration();
 	return true;
+}
+
+bool UForestPCGLibrary::RemoveGraphUserParameter(UPCGGraph* Graph, FName Name)
+{
+#if WITH_EDITOR
+	if (!Graph || !Graph->GetUserParametersStruct()->FindPropertyDescByName(Name))
+	{
+		return false;
+	}
+	Graph->Modify();
+	// UE 5.8 PCGGraph.cpp::UpdateUserParametersStruct notifies child instances after the edit.
+	Graph->UpdateUserParametersStruct([Name](FInstancedPropertyBag& Parameters)
+	{
+		Parameters.RemovePropertyByName(Name);
+	});
+	return true;
+#else
+	return false;
+#endif
 }
 
 void UForestPCGLibrary::ClearGeneratedGraphOutput(UPCGComponent* Component)

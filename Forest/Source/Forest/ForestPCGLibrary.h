@@ -3,6 +3,7 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 
 class UPCGComponent;
+class UPCGGraph;
 #include "ForestPCGLibrary.generated.h"
 
 /** PCG hooks for scripts/pcg that the engine does not expose to Python. */
@@ -13,20 +14,23 @@ class UForestPCGLibrary : public UBlueprintFunctionLibrary
 
 public:
 	/** Cancels every running PCG generation in the current world (UPCGSubsystem::CancelAllGeneration); returns false
-	 *  when there is no PCG subsystem. scripts/pcg/regenerate_biome.py calls it when a regenerate passes its memory
-	 *  limit. */
+	 *  when there is no PCG subsystem. */
 	UFUNCTION(BlueprintCallable, Category = "Forest PCG")
 	static bool CancelAllPCGGeneration();
 
 	/** Clears only this component's live graph output; preserves managed resources and per-cell components; null is a no-op.
-	 *  scripts/pcg/biome_volume.py calls it in Normal mode before saving. Marks the package dirty without regenerating. */
+	 *  Marks the package dirty without regenerating. */
 	UFUNCTION(BlueprintCallable, Category = "Forest PCG")
 	static void ClearGeneratedGraphOutput(UPCGComponent* Component);
 
-	/** Unique world locations (exact XYZ, first-seen order) across Biome Core outputs tagged Root and Tag.
-	 *  Each group's GeneratedPoints has "GEN:<group>", e.g. "GEN:Trees"; Child outputs share that tag but are excluded,
+	/** Unique world locations (exact XYZ, first-seen order) across PCG_ForestPlacement outputs tagged Root and Tag.
+	 *  scripts/pcg/placement.py tags each group's root points Root and "GEN:<group>", e.g. "GEN:Trees"; children are excluded,
 	 *  including children at offset positions. Python cannot read GPU-only skinned instances;
 	 *  scripts/pcg/canopy_gaps.py uses these root locations as trunks. */
 	UFUNCTION(BlueprintCallable, Category = "Forest PCG")
 	static TArray<FVector> GetGeneratedPointLocations(const UPCGComponent* Component, const FString& Tag);
+
+	/** Removes a graph user parameter and refreshes its instances in the editor; false for null, absent, or non-editor calls. */
+	UFUNCTION(BlueprintCallable, Category = "Forest PCG")
+	static bool RemoveGraphUserParameter(UPCGGraph* Graph, FName Name);
 };
