@@ -63,7 +63,7 @@ def rows_of(asset_list):
             "weight": get(row, "Weight"), "generator": get(row, "Generator"), "transform": get(row, "TransformGraph"),
             "mesh": get(row, "Mesh") or get(row, "SkeletalMesh"), "children": get(row, "ChildAssets"),
             "upward": get(options, "OrientUpward"), "material": get(mesh_options, "Material"),
-            "collision": get(mesh_options, "AllowCollision"),
+            "collision": get(mesh_options, "AllowCollision"), "extents": get(options, "ExtentsMultiplier"),
         })
     return rows
 
@@ -169,21 +169,26 @@ class Builder:
             descriptor.set_editor_property("static_mesh", row["mesh"])
             if row["material"]:
                 descriptor.set_editor_property("override_materials", [row["material"]])
-            if not collision:
-                body = descriptor.get_editor_property("body_instance")
-                body.set_editor_property("collision_profile_name", "NoCollision")
-                descriptor.set_editor_property("body_instance", body)
+            # The descriptor starts at NoCollision; Core's spawning loop (BiomeCore_SpawningLoop) gives an AllowCollision
+            # row the mesh's own collision (bUseDefaultCollision).
+            descriptor.set_editor_property("use_default_collision", bool(collision))
             entry.set_editor_property("descriptor", descriptor)
             entry.set_editor_property("weight", max(1, round(row["weight"] * WEIGHT_SCALE)))  # an int32 here
             entries.append(entry)
         spawner.get_settings().get_editor_property("mesh_selector_parameters").set_editor_property("mesh_entries", entries)
         return self.join(spawner, sources)
 
-    def skinned_spawner(self, sources, rows, seed):
+    def skinned_spawner(self, sources, rows, collision, seed):
         """A Skinned Mesh Spawner, which selects only by attribute: the points split among rows by weight first."""
         spawner = self.node(unreal.PCGSkinnedMeshSpawnerSettings, apply_mesh_bounds_to_points=True)
-        spawner.get_settings().get_editor_property("mesh_selector_parameters").set_editor_property(
-            "mesh_attribute", self.select("Mesh"))
+        selector = spawner.get_settings().get_editor_property("mesh_selector_parameters")
+        selector.set_editor_property("mesh_attribute", self.select("Mesh"))
+        if collision:  # its descriptor has no default-collision switch: Core's loop sets BlockAll
+            descriptor = selector.get_editor_property("template_descriptor")
+            body = descriptor.get_editor_property("body_instance")
+            body.set_editor_property("collision_profile_name", "BlockAll")
+            descriptor.set_editor_property("body_instance", body)
+            selector.set_editor_property("template_descriptor", descriptor)
         merged = self.join(self.node(unreal.PCGMergeSettings), sources) if len(sources) > 1 else None
         source, pin = (merged, "Out") if merged else sources[0]
         for (node, part), row in zip(self.split(source, pin, [r["weight"] for r in rows], seed), rows, strict=True):
@@ -204,9 +209,20 @@ class Builder:
         spawners = []
         for (skinned, mine), part in zip(kinds, parts, strict=True):
             mine_sources = [part] if part else sources
-            spawners.append(self.skinned_spawner(mine_sources, mine, seed) if skinned
+            spawners.append(self.skinned_spawner(mine_sources, mine, collision, seed) if skinned
                             else self.static_spawner(mine_sources, mine, collision))
         return spawners
+
+    def footprint(self, spawner, extents):
+        """A spawner's points as the priority difference sees them: a static mesh's bounds times the row's
+        ExtentsMultiplier (the Veterans prune the Trees around their crowns, veteran_trees.py); a skinned mesh's
+        centre, since Core found no mesh bounds on the skinned trees."""
+        if isinstance(spawner.get_settings(), unreal.PCGSkinnedMeshSpawnerSettings):
+            return self.node(unreal.PCGBoundsModifierSettings, spawner, mode=unreal.PCGBoundsModifierMode.SET,
+                             bounds_min=unreal.Vector(-1, -1, -1), bounds_max=unreal.Vector(1, 1, 1)), "Out"
+        scale = unreal.Vector(*extents)
+        return self.node(unreal.PCGBoundsModifierSettings, spawner, mode=unreal.PCGBoundsModifierMode.SCALE,
+                         bounds_min=scale, bounds_max=scale), "Out"
 
     def tap(self, sources, name):
         """The group's root points on the graph output, tagged as Biome Core tagged them (Root, GEN:<group>), for the
@@ -215,12 +231,13 @@ class Builder:
         edge(self.graph, tag, "Out", self.graph.get_output_node(), "Out")
 
     def generator(self, generator, bounds, ranked):
-        """Place one generator's root points; returns them as [(node, pin)]. Child lists are queued for children()."""
+        """Place one generator's root points; returns their footprints for the priority difference as [(node, pin)]
+        (footprint()). Child lists are queued for children()."""
         # Core's root filters keep FilterOptions' ranges, all at their defaults here; the one that culls is
         # BiomeFilter_WaterDistance_Level, which keeps only points above its graph's WaterLevel parameter (-100 cm).
         # The Local's exclusion (copied from LocalBiomeCore, copy_exclusions) at the generator's own point extents;
-        # then the bounds shrink to ~1 cm: Core's priority difference tests root centres (it found no mesh bounds on
-        # the skinned trees). The spawners give each point its mesh's bounds.
+        # then the bounds shrink to ~1 cm: Core's priority difference tests each candidate's centre against the
+        # footprints ranked before it. The spawners give each point its mesh's bounds.
         kept = self.node(unreal.PCGDifferenceSettings, self.subgraph(generator["graph"], bounds), "Out", "Source",
                          density_function=unreal.PCGDifferenceDensityFunction.BINARY,
                          mode=unreal.PCGDifferenceMode.DISCRETE)  # points out, not a lazy spatial difference
@@ -245,21 +262,22 @@ class Builder:
             points, pin = diff, "Out"
         groups = collections.defaultdict(list)
         for row in generator["rows"]:
-            groups[(row["transform"], row["children"], row["upward"] >= 0.5, row["collision"])].append(row)
+            extents = tuple(getattr(row["extents"], axis) for axis in "xyz")
+            groups[(row["transform"], row["children"], row["upward"] >= 0.5, row["collision"], extents)].append(row)
         seed = sum(map(ord, generator["name"]))
         weights = [sum(r["weight"] for r in rows) for rows in groups.values()]
-        roots = []
+        roots, footprints = [], []
         parts = self.split(points, pin, weights, seed)
-        for ((transform, children, upward, collision), rows), (node, pin) in zip(groups.items(), parts, strict=True):
+        for ((transform, children, upward, collision, extents), rows), (node, pin) in zip(groups.items(), parts, strict=True):
             node, pin = self.upward(node, pin, 1.0 if upward else 0.0)
             if transform:
                 node, pin = self.subgraph(transform, node, pin), "Out"
-            self.spawn([(node, pin)], rows, collision, seed + 1)
+            footprints += [self.footprint(spawner, extents) for spawner in self.spawn([(node, pin)], rows, collision, seed + 1)]
             roots.append((node, pin))
             if children:
                 self.parents[children].append((node, pin))
         self.tap(roots, generator["name"])
-        return roots
+        return footprints
 
     def children(self):
         """Each queued child list once, on the points of every group naming it: each of its layout graphs, with a
@@ -299,11 +317,10 @@ class Builder:
         self.exclusions = self.copy_exclusions()
         ranked = []
         for generator in generators:
-            # Core's priority difference subtracts the root points of the generators ranked before, tested at their
-            # centres (generator()).
-            roots = self.generator(generator, bounds, ranked)
+            # Core's priority difference subtracts the footprints of the generators ranked before (generator()).
+            footprints = self.generator(generator, bounds, ranked)
             if not generator["overlap"]:
-                ranked += roots
+                ranked += footprints
         self.children()
 
 
