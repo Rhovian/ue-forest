@@ -44,6 +44,13 @@ def load_forest_actors():
     return unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()
 
 
+def asset_lists():
+    """Every group's asset list (DA_Forest_*Assets in ROOT), the lists placement.py builds the forest from (#266)."""
+    registry = unreal.AssetRegistryHelpers.get_asset_registry()
+    return [unreal.load_asset(str(found.package_name)) for found in registry.get_assets_by_path(ROOT.rstrip("/"), recursive=False)
+            if re.fullmatch(r"DA_Forest_\w+Assets", str(found.asset_name))]
+
+
 def field(struct, name):
     # UE 5.8 user-defined struct fields have GUID suffixes; Python exposes no field iterator.
     # PyWrapperStruct.cpp: ExportToText delegates to UScriptStruct::ExportText; use that
@@ -421,10 +428,6 @@ def main():
     load(ROOT + "PCG_Forest_TreesGenerator")
     actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()
     # Find biome membership by its reusable assets, never by a map/actor label or position.
-    biomes = [actor for actor in actors if actor.get_class().get_name().startswith("BP_PCGBiomeVolume")
-              and trees in actor.get_editor_property("Assets")]
-    if not biomes:
-        raise RuntimeError("Load the forest biome volume (all WP cells) before running; no tree assets actor found")
     for water in actors:
         if isinstance(water, (unreal.WaterBodyLake, unreal.WaterBodyRiver)) and not any(
             actor.get_actor_label() == "ForestExclusion_" + water.get_actor_label()
@@ -434,7 +437,7 @@ def main():
     for name in ("Mesh", "SkeletalMesh", "Generator", "TransformGraph", "ChildAssets", "MeshOptions"):
         field(template, name)
     if args.check:
-        print(f"Deadwood/Rocks preflight OK: {sum(map(len, palettes))} variants, {len(biomes)} forest biome volume(s); no changes")
+        print(f"Deadwood/Rocks preflight OK: {sum(map(len, palettes))} variants, no changes")
         return
     subsystem = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
     for mesh, _ in logs + stumps + slabs:
@@ -519,10 +522,8 @@ def main():
         buried = filter_graph("PCG_Rock_" + mesh.get_name(), sink=[share * height for share in ROCK_SINK])
         rock_entries.append(entry(template, mesh, rocks, buried, weight,
                                   children("DA_RockChildren_" + mesh.get_name(), template, layouts)))
-    groups = [asset_list("DA_Forest_DeadwoodAssets", entries), asset_list("DA_Forest_RocksAssets", rock_entries)]
-    for actor in biomes:
-        assets = list(actor.get_editor_property("Assets"))
-        actor.set_editor_property("Assets", assets + [group for group in groups if group not in assets])
+    asset_list("DA_Forest_DeadwoodAssets", entries)
+    asset_list("DA_Forest_RocksAssets", rock_entries)
     print(f"Deadwood/Rocks built: {LOGS_PER_HA} logs + {STUMPS_PER_HA} stumps/ha, 30 slabs/ha candidates; {len(logs)} log variants")
     print("Collision: Log/Stump/Slab simple BlockAll; stock materials; assets saved")
     print("Ground groups: priority difference bypassed (canopy bounds); terrain/water filters retained")

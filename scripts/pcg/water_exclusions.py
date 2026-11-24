@@ -7,7 +7,7 @@ Replaces every ForestExclusion_* and ForestKeepout_* actor with splines built fr
 bodies: each lake's shoreline pushed out by a margin, and a corridor along each river, its half width plus the
 margin on each side. ForestExclusion_* (tag PCG_BiomeExclusion, the narrow margin) keeps everything out of the
 water; ground plants grow up to it, so banks are green to the water (stream_bank_01, #71 item 5).
-ForestKeepout_* (tag KEEPOUT_TAG, the wider keepout) is ignored by Biome Core; exact_exclusions.py applies it to
+ForestKeepout_* (tag KEEPOUT_TAG, the wider keepout) is ignored by placement.py's exclusion; exact_exclusions.py applies it to
 every group but ground plants, so trees, logs and rocks keep their distance. The ocean is handled by the shore-height
 filter.
 Saves nothing; save the level afterwards.
@@ -19,7 +19,9 @@ import math
 
 import unreal
 
-EXCLUSION = "/PCGBiomeCore/Blueprints/BP_PCGBiomeExclusionSpline"
+# A copy of Biome Core's exclusion spline Blueprint (an actor with a spline component tagged BiomeExclusion), so the
+# level loads nothing of the plugin (#266); placement.py's exclusion reads the tag, as LocalBiomeCore's did.
+EXCLUSION = "/Game/ForestPlacement/BP_ForestExclusionSpline"
 
 
 
@@ -85,7 +87,7 @@ def place(label, outline, z, tag=None):
         spline.set_spline_point_type(i, unreal.SplinePointType.LINEAR, False)
     spline.set_closed_loop(True)
     spline.update_spline()
-    if tag:  # Biome Core selects exclusions by the PCG_BiomeExclusion tag: swap it so only exact_exclusions applies this
+    if tag:  # placement.py selects exclusions by the PCG_BiomeExclusion tag: swap it so only exact_exclusions applies this
         actor.tags = [tag]
     print(f"{label}: {len(outline)} points")
     return actor

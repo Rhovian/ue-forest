@@ -95,10 +95,7 @@ def main():
     logs = [(load(variants.asset_path(path)), weight) for path, weight in variants.LOG_VARIANTS if not path.startswith("/Game/")]
     trees = load(ROOT + "DA_Forest_TreesAssets")
     template = trees.get_editor_property("BiomeAssets")[0]
-    biomes = [a for a in load_forest_actors() if a.get_class().get_name().startswith("BP_PCGBiomeVolume")
-              and trees in a.get_editor_property("Assets")]
-    if not biomes:
-        raise RuntimeError("Load the forest biome volume (all WP cells) before running")
+    load_forest_actors()  # every input loaded before any PCG query
     sticks = [(load(variants.VENDOR + path), weight) for path, weight in variants.DRIFTWOOD_VARIANTS]
     if len(sticks) != len(PILES):
         raise RuntimeError(f"PILES needs one row per DRIFTWOOD_VARIANTS entry: {len(PILES)} for {len(sticks)}")
@@ -135,11 +132,7 @@ def main():
         put(options, Material=materials[mesh.get_name()])
         put(value, MeshOptions=options)
         entries.append(value)
-    assets = asset_list("DA_Forest_DebrisAssets", entries)
-    for actor in biomes:
-        current = list(actor.get_editor_property("Assets"))
-        if assets not in current:
-            actor.set_editor_property("Assets", current + [assets])
+    asset_list("DA_Forest_DebrisAssets", entries)
     print(f"Debris: {len(sticks)} driftwood pieces, piles of 1 + {[pile[0] for pile in PILES]} at {PILES_PER_HA}/ha each, {len(logs)} bleached trunks at"
           f" {TRUNKS_PER_HA}/ha within {TRUNK_REACH / 100:.0f} m of the forest foot, piles within {WRACK_REACH / 100:.0f} m")
 

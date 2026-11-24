@@ -40,10 +40,7 @@ def main():
     meshes = [(load(path), weight) for path, weight in variants]
     trees = load(ROOT + "DA_Forest_TreesAssets")
     template = trees.get_editor_property("BiomeAssets")[0]
-    biomes = [a for a in load_forest_actors() if a.get_class().get_name().startswith("BP_PCGBiomeVolume")
-              and trees in a.get_editor_property("Assets")]
-    if not biomes:
-        raise RuntimeError("Load the forest biome volume (all WP cells) before running")
+    load_forest_actors()  # every input loaded before any PCG query
     filter_graph = load(ROOT + "PCG_TreesAboveShore")
     group = generator("Hornbeams", PER_HA, 15, PRIORITY, {"SpatialDensityLow": 1.0}, {"EnableSpatialNoise": False},
                       region=forest_floor_cells())  # the forest-floor filter keeps nothing lower (#247)
@@ -62,11 +59,7 @@ def main():
                       shell_children(template, mesh))  # trunk ivy on the IVY_TREES variants (#121)
         put(value, AssetType="Hornbeam_" + mesh.get_name())
         entries.append(value)
-    assets = asset_list("DA_Forest_HornbeamAssets", entries)
-    for actor in biomes:
-        current = list(actor.get_editor_property("Assets"))
-        if assets not in current:
-            actor.set_editor_property("Assets", current + [assets])
+    asset_list("DA_Forest_HornbeamAssets", entries)
     print(f"Hornbeams: {PER_HA} candidates/ha, {len(entries)} variants, scale {SCALE}, priority {PRIORITY}, overlap")
 
 

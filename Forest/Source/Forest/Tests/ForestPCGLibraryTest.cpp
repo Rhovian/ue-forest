@@ -4,6 +4,7 @@
 #include "Data/PCGPointArrayData.h"
 #include "Misc/AutomationTest.h"
 #include "PCGComponent.h"
+#include "PCGGraph.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FForestGeneratedLocationsTest, "Forest.PCG.UniqueGeneratedLocations",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -69,4 +70,37 @@ bool FForestClearGeneratedGraphOutputTest::RunTest(const FString& Parameters)
 	OtherOutput.ClearUsage(EPCGDataUsage::ComponentOutputData);
 	return true;
 }
+
+#if WITH_EDITOR
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FForestRemoveGraphUserParameterTest, "Forest.PCG.RemoveGraphUserParameter",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FForestRemoveGraphUserParameterTest::RunTest(const FString& Parameters)
+{
+	UPCGGraph* Graph = NewObject<UPCGGraph>();
+	const FName Removed = TEXT("WeightmapLayerDataAsset"), Kept = TEXT("Density");
+	TestEqual(TEXT("Add two parameters"), Graph->AddUserParameters({
+		FPropertyBagPropertyDesc(Removed, EPropertyBagPropertyType::Object, UObject::StaticClass()),
+		FPropertyBagPropertyDesc(Kept, EPropertyBagPropertyType::Float)}), EPropertyBagAlterationResult::Success);
+	UPCGGraphInstance* Instance = NewObject<UPCGGraphInstance>();
+	Instance->SetGraph(Graph);
+	TestNotNull(TEXT("Instance initially has removed parameter"),
+		Instance->GetUserParametersStruct()->FindPropertyDescByName(Removed));
+	const auto* OriginalStruct = Graph->GetUserParametersStruct()->GetPropertyBagStruct();
+	TestFalse(TEXT("Null graph"), UForestPCGLibrary::RemoveGraphUserParameter(nullptr, Removed));
+	TestFalse(TEXT("Absent parameter"), UForestPCGLibrary::RemoveGraphUserParameter(Graph, TEXT("missing")));
+	TestTrue(TEXT("Absent parameter leaves schema unchanged"),
+		Graph->GetUserParametersStruct()->GetPropertyBagStruct() == OriginalStruct);
+	TestTrue(TEXT("Remove existing parameter"), UForestPCGLibrary::RemoveGraphUserParameter(Graph, Removed));
+	const UPCGGraphInterface* Graphs[] = {Graph, Instance};
+	for (const UPCGGraphInterface* GraphInterface : Graphs)
+	{
+		const FInstancedPropertyBag* Bag = GraphInterface->GetUserParametersStruct();
+		TestEqual(TEXT("Only one parameter remains on graph and instance"), Bag->GetNumPropertiesInBag(), 1);
+		TestNull(TEXT("Removed parameter is gone on graph and instance"), Bag->FindPropertyDescByName(Removed));
+		TestNotNull(TEXT("Other parameter remains on graph and instance"), Bag->FindPropertyDescByName(Kept));
+	}
+	return true;
+}
+#endif // WITH_EDITOR
 #endif

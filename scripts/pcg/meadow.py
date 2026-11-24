@@ -121,10 +121,7 @@ def main():
     grass = [(load(path), weight) for path, weight in variants.GRASS_VARIANTS]
     trees = load(ROOT + "DA_Forest_TreesAssets")
     template = trees.get_editor_property("BiomeAssets")[0]
-    biomes = [a for a in load_forest_actors() if a.get_class().get_name().startswith("BP_PCGBiomeVolume")
-              and trees in a.get_editor_property("Assets")]
-    if not biomes:
-        raise RuntimeError("Load the forest biome volume (all WP cells) before running")
+    load_forest_actors()  # every input loaded before any PCG query
     graph = meadow_graph()
     # Priority 60 so trees win Core's priority difference; overlap allowed so grass also grows around them.
     # Spatial noise off: a meadow is grass throughout (the noise thinned it to sparse tufts).
@@ -180,11 +177,7 @@ def main():
             value = entry(template, mesh, group, transform, weight, children=drift, collision=False)
             put(value, AssetType=kind + mesh.get_name())
             entries.append(value)
-    assets = asset_list("DA_Forest_MeadowAssets", entries)
-    for actor in biomes:
-        current = list(actor.get_editor_property("Assets"))
-        if assets not in current:
-            actor.set_editor_property("Assets", current + [assets])
+    asset_list("DA_Forest_MeadowAssets", entries)
     print(f"Meadow: {len(grass)} grass variants, anchors at {ANCHORS_PER_HA}/ha x {PATCH} clumps, {len(heather)} heather"
           f" variants in drifts at {HEATHER_PER_HA}/ha (meadow), {EDGE_HEATHER_PER_HA}/ha (coast) and"
           f" {SAND_HEATHER_PER_HA}/ha (sand edge), logs at {LOGS_PER_HA}/ha on"

@@ -348,10 +348,8 @@ def main():
     for mesh in meshes.values():
         entry(template, mesh, None, None, collision=False)
     actors = deadwood_rocks.load_forest_actors()
-    biomes = [a for a in actors if a.get_class().get_name().startswith("BP_PCGBiomeVolume")
-              and trees in a.get_editor_property("Assets")]
-    if not biomes or not any(a.get_actor_label() == LABEL and a.actor_has_tag("PCG_BiomeExclusion") for a in actors):
-        raise RuntimeError("Build shore_path.py first; loaded forest biome or footpath exclusion missing")
+    if not any(a.get_actor_label() == LABEL and a.actor_has_tag("PCG_BiomeExclusion") for a in actors):
+        raise RuntimeError("Build shore_path.py first; footpath exclusion missing")
     for water in [a for a in actors if isinstance(a, (unreal.WaterBodyLake, unreal.WaterBodyRiver))]:
         if not any(a.get_actor_label() == "ForestExclusion_" + water.get_actor_label()
                    and a.actor_has_tag("PCG_BiomeExclusion") for a in actors):
@@ -434,11 +432,7 @@ def main():
                 put(options, OrientUpward=1.0)
                 put(value, AssetOptions=options)
                 entries.append(value)
-    group = asset_list("DA_Forest_" + args.group.title() + "Assets", entries)
-    for actor in biomes:
-        assets = list(actor.get_editor_property("Assets"))
-        if group not in assets:
-            actor.set_editor_property("Assets", assets + [group])
+    asset_list("DA_Forest_" + args.group.title() + "Assets", entries)
     print(f"{args.group} built: {[(k, d * args.density_scale) for k, _, d in kinds]} candidates/ha; nonblocking")
     print("Understory grows in colonies, under trees too; Damp adds low (<12 m), flat (<25 deg) or near-water density")
     print("Regenerate ALL Core groups, inspect path/contact/wind, save level, then measure; thin Understory first")

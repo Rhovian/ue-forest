@@ -51,10 +51,7 @@ def main():
     missing = [path for path, _ in variants if path not in stock]
     if missing or any(weight <= 0 for _, weight in variants):
         raise RuntimeError(f"Shore tree variants must be Trees group meshes with positive weights: {missing}")
-    biomes = [a for a in load_forest_actors() if a.get_class().get_name().startswith("BP_PCGBiomeVolume")
-              and trees in a.get_editor_property("Assets")]
-    if not biomes:
-        raise RuntimeError("Load the forest biome volume (all WP cells) before running")
+    load_forest_actors()  # every input loaded before any PCG query
     graph = copy_asset(ROOT + "PCG_TreesAboveShore", "PCG_ShoreTreesOnSand")
     inp, out = graph.get_input_node(), graph.get_output_node()
     for node in list(graph.get_editor_property("nodes")):
@@ -96,11 +93,7 @@ def main():
         # A distinct AssetType: entries sharing one with the Trees group drew from the forest's points (trees halved).
         put(value, AssetType="Shore_" + path.rsplit("/", 1)[1], Generator=group, TransformGraph=graph, Weight=weight)
         entries.append(value)
-    assets = asset_list("DA_Forest_ShoreTreesAssets", entries)
-    for actor in biomes:
-        current = list(actor.get_editor_property("Assets"))
-        if assets not in current:
-            actor.set_editor_property("Assets", current + [assets])
+    asset_list("DA_Forest_ShoreTreesAssets", entries)
     print(f"Shore trees: {PER_HA} candidates/ha, sand {SAND_FROM}..{shore_height():.0f} cm within {NEAR / 100:.0f} m of"
           f" {len(HEADLANDS)} headlands, {len(entries)} variants")
 

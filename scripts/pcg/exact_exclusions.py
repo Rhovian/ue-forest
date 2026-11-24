@@ -10,10 +10,9 @@ only reads loaded actors/graphs; build retains WP inputs and saves project graph
 import argparse
 
 import unreal
-from deadwood_rocks import ROOT, edge, get, load_forest_actors, save
+from deadwood_rocks import ROOT, asset_lists, edge, get, load_forest_actors, save
 from water_exclusions import KEEPOUT_TAG
 
-LOCAL = "/PCGBiomeCore/LocalBiomeCore.LocalBiomeCore"
 # Ground-plant filters (saplings_understory.py, its drifts): these reach the bank (#71 item 5); every other
 # TransformGraph also excludes water_exclusions.py's wider keepout. The fern drifts' children keep out of it too, so
 # the water's front 3 m holds the low flowers and leaves and the fern runs stand behind them (#105).
@@ -21,14 +20,7 @@ PLANT_GRAPHS = ("PCG_PlantsAboveShore", "PCG_UnderstoryDamp", "PCG_UnderstoryBan
                 "PCG_BalsamDrift", "PCG_FoxgloveDrift")
 
 
-def inputs(actors):
-    """The original Local components; a partitioned one's per-cell copies live on PCG partition actors (#264)."""
-    return [component for actor in actors if not isinstance(actor, unreal.PCGPartitionActor)
-            for component in actor.get_components_by_class(unreal.PCGComponent)
-            if component.get_editor_property("graph_instance").get_const_pcg_graph().get_path_name() == LOCAL]
-
-
-def graphs(actors):
+def graphs():
     found, seen = set(), set()
     def visit(data):
         if data in seen:
@@ -43,10 +35,8 @@ def graphs(actors):
             child = get(row, "ChildAssets")
             if child:
                 visit(child)
-    for actor in actors:
-        if actor.get_class().get_name().startswith("BP_PCGBiomeVolume"):
-            for data in actor.get_editor_property("Assets"):
-                visit(data)
+    for data in asset_lists():
+        visit(data)
     if not found:
         raise RuntimeError("No loaded forest asset TransformGraphs")
     return sorted(found, key=lambda graph: graph.get_path_name())
@@ -132,7 +122,7 @@ def main():
     args = parser.parse_args()
     actors = (unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()
               if args.check else load_forest_actors())
-    targets = graphs(actors)
+    targets = graphs()
     if not any(a.get_actor_label() == "ForestFootpath_ShoreLake" for a in actors):
         raise RuntimeError("Load/build the footpath before installing exact exclusions")
     for graph in targets:
@@ -147,7 +137,7 @@ def main():
             changed = bool(todo)
             save(graph)
             print("Exact exclusions", "installed:" if changed else "retained:", graph.get_path_name())
-    print(f"{len(targets)} project TransformGraphs; " + ("no edits, loads or saves" if args.check else "regenerate Local inputs/Core and save"))
+    print(f"{len(targets)} project TransformGraphs; " + ("no edits, loads or saves" if args.check else "rebuild placement.py and bake"))
 
 
 if __name__ == "__main__":
