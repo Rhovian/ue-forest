@@ -57,16 +57,22 @@ MEL = unreal.MaterialEditingLibrary
 
 
 def save(asset):
-    if not unreal.EditorAssetLibrary.save_loaded_asset(asset, False):
+    """Save if dirty: a rerun after a failed save still writes what an earlier run changed only in memory."""
+    if not unreal.EditorAssetLibrary.save_loaded_asset(asset, True):
         raise SystemExit(f"could not save {asset.get_path_name()}")
 
 
 def override(mi, values):
+    # Setting or updating unchanged values still dirties the asset, and a rerun would re-save it for nothing.
+    changed = False
     for name, value in values.items():
         if name not in [str(n) for n in MEL.get_scalar_parameter_names(mi)]:
             raise SystemExit(f"{mi.get_path_name()} has no scalar parameter {name!r}")
-        MEL.set_material_instance_scalar_parameter_value(mi, name, value)
-    MEL.update_material_instance(mi)
+        if abs(MEL.get_material_instance_scalar_parameter_value(mi, name) - value) > 1e-6:
+            MEL.set_material_instance_scalar_parameter_value(mi, name, value)
+            changed = True
+    if changed:
+        MEL.update_material_instance(mi)
 
 
 for path, values in WIND.items():
@@ -93,14 +99,10 @@ for shared_path, name, values, meshes in SMALL:
         mesh = unreal.load_asset(mesh_path)
         if mesh is None:
             raise SystemExit(f"missing {mesh_path}")
-        slots = list(mesh.static_materials)
-        changed = False
-        for i, slot in enumerate(slots):
+        for i, slot in enumerate(mesh.static_materials):
             if slot.material_interface == shared:
                 mesh.set_material(i, small)
-                changed = True
-        if changed:
-            save(mesh)
-        elif not any(slot.material_interface == small for slot in slots):
+        if not any(slot.material_interface == small for slot in mesh.static_materials):
             raise SystemExit(f"{mesh_path} uses neither {shared_path} nor its small copy")
+        save(mesh)  # also when an earlier run's change is still only in memory (#278 review)
     print(f"{folder}/{name} ({values}) on {len(meshes)} meshes")
