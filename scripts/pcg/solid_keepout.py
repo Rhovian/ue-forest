@@ -38,7 +38,10 @@ SOLIDS = {biome_variants.asset_path(path).rsplit("/", 1)[1] for path, _ in
 # sand (operator, 2026-11-26; #273). The forest's own logs keep SOLIDS' woody-only rule.
 DEBRIS_TITLE = "DebrisFootprints"
 DRIFTWOOD = {biome_variants.asset_path(path).rsplit("/", 1)[1] for path, _ in biome_variants.DRIFTWOOD_VARIANTS}
-BLEACHED = "_Driftwood"  # suffix of the bleached log materials debris_band.py makes
+BLEACHED = "_Driftwood"
+# How far a plant's pivot stays off a piece: drift children carry bounds scaled to 5% (children()), so the plant's own
+# bounds cannot be tested; 50 cm keeps a fern's fronds (up to ~65 cm out) mostly clear of the wood (#281 review).
+DEBRIS_CM = 50.0  # suffix of the bleached log materials debris_band.py makes
 # Rows that are not plants (stones, litter, ground scans, fungi, deadwood): they may lie under a piece.
 NOT_PLANTS = SOLIDS | DRIFTWOOD | {biome_variants.asset_path(path).rsplit("/", 1)[1] for path, _ in
                                    biome_variants.SHORE_LOG_VARIANTS + biome_variants.FUNGI_VARIANTS
@@ -74,11 +77,11 @@ def walk():
             graph = get(row, "TransformGraph")
             mesh = get(row, "SkeletalMesh") or get(row, "Mesh")
             if graph:
+                meshes.setdefault(graph, set()).add(mesh.get_name() if mesh else None)
                 if under_solid:
                     solid_graphs.add(graph)
                 else:
                     rows.setdefault(graph, set()).add(kind(data, row))
-                    meshes.setdefault(graph, set()).add(mesh.get_name() if mesh else None)
             child = get(row, "ChildAssets")
             if child:
                 visit(child, under_solid or bool(mesh and mesh.get_name() in SOLIDS))
@@ -103,9 +106,10 @@ def targets():
 
 
 def debris_targets():
-    """Every TransformGraph that places a plant, outside the solids' own children (the nurse-log seedlings)."""
-    _, meshes, solid_graphs = walk()
-    found = {graph for graph, names in meshes.items() if names - NOT_PLANTS - {None} and graph not in solid_graphs}
+    """Every TransformGraph that places a plant, the solids' own children included: the plants round a forest rock or
+    log are not the beach pieces' children, and nothing is placed on a beach piece on purpose (#281 review)."""
+    _, meshes, _ = walk()
+    found = {graph for graph, names in meshes.items() if names - NOT_PLANTS - {None}}
     if not found:
         raise RuntimeError("No plant TransformGraphs loaded")
     return found
@@ -179,6 +183,7 @@ def patch(graph, margin, title=TITLE):
     chain(graph, restore)
     difference = node(graph, unreal.PCGDifferenceSettings, density_function=unreal.PCGDifferenceDensityFunction.BINARY,
                       mode=unreal.PCGDifferenceMode.DISCRETE, diff_metadata=False)
+    keep[-1].set_editor_property("node_title", f"{title}Margin")  # found again by set_margin on a rerun
     marks = node(graph, unreal.PCGCreatePointsSettings, title, coordinate_space=unreal.PCGCoordinateSpace.WORLD,
                  cull_points_outside_volume=False)
     edge(graph, keep[-1], "Out", difference, "Source")
@@ -194,6 +199,15 @@ def patch(graph, margin, title=TITLE):
         if not any(e.get_input_node() == restore[-1] for e in connections(graph)):
             edge(graph, restore[-1], "Out", graph.get_output_node(), target_pin)
     return marks
+
+
+def set_margin(graph, title, margin):
+    """Refresh the margin of an installed chain: a rerun with a new margin must not leave the old one in place."""
+    found = installed(graph, f"{title}Margin")
+    if found is None:
+        raise RuntimeError(f"{graph.get_name()}: {title} installed without its margin node; revert the graph and rerun")
+    found.get_settings().set_editor_property("bounds_min", unreal.Vector(-margin, -margin, -10))
+    found.get_settings().set_editor_property("bounds_max", unreal.Vector(margin, margin, 10))
 
 
 def installed(graph, title=TITLE):
@@ -222,11 +236,13 @@ def main():
         if args.check:
             print(f"{graph.get_name()}: debris " + ("installed" if marks else "not installed"))
             continue
-        marks = marks or patch(graph, PIVOT_CM, DEBRIS_TITLE)
+        if marks:
+            set_margin(graph, DEBRIS_TITLE, DEBRIS_CM)
+        marks = marks or patch(graph, DEBRIS_CM, DEBRIS_TITLE)
         marks.get_settings().set_editor_property("points_to_create", debris)
         save(graph)
     if not args.check:
-        print(f"{len(debris)} debris-band footprints in {len(debris_targets())} plant TransformGraphs")
+        print(f"{len(debris)} debris-band footprints in {len(debris_targets())} plant TransformGraphs, margin {DEBRIS_CM:g} cm")
         print("Rebuild placement.py and bake")
 
 
