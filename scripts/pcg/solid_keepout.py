@@ -11,6 +11,8 @@ plants standing in one, so they give way and the rocks keep their count. Graphs 
 TRUNK_CM off; graphs shared with ferns and flowers test the pivot only. The solids' own children are left alone: the
 seedlings on the nurse logs stand on them by design. Re-runnable: a rerun replaces the baked footprints.
 
+It also bakes the beach debris band's pieces (driftwood and the bleached logs) into every plant's TransformGraph,
+ferns and flowers included, which keep their pivot out of them (#273).
 Footprints come from the placed level, so run it after a regenerate, then regenerate again: after exact_exclusions.py,
 and again whenever the solid groups change (deadwood_rocks.py, shore_logs.py, biome_variants' solid palettes).
 """
@@ -31,6 +33,26 @@ SOLIDS = {biome_variants.asset_path(path).rsplit("/", 1)[1] for path, _ in
           + biome_variants.SLAB_VARIANTS + biome_variants.WATERLINE_BOULDER_VARIANTS}
 
 
+# The beach debris band's pieces (debris_band.py): the driftwood and the bleached logs (log meshes with a _Driftwood
+# material). Every plant keeps its pivot out of them, ferns and flowers included: plants grew out of the deadwood on the
+# sand (operator, 2026-11-26; #273). The forest's own logs keep SOLIDS' woody-only rule.
+DEBRIS_TITLE = "DebrisFootprints"
+DRIFTWOOD = {biome_variants.asset_path(path).rsplit("/", 1)[1] for path, _ in biome_variants.DRIFTWOOD_VARIANTS}
+BLEACHED = "_Driftwood"
+# How far a plant's pivot stays off a piece: drift children carry bounds scaled to 5% (children()), so the plant's own
+# bounds cannot be tested; 50 cm keeps a fern's fronds (up to ~65 cm out) mostly clear of the wood (#281 review).
+DEBRIS_CM = 50.0  # suffix of the bleached log materials debris_band.py makes
+# Rows that are not plants (stones, litter, ground scans, fungi, deadwood): they may lie under a piece.
+NOT_PLANTS = SOLIDS | DRIFTWOOD | {biome_variants.asset_path(path).rsplit("/", 1)[1] for path, _ in
+                                   biome_variants.SHORE_LOG_VARIANTS + biome_variants.FUNGI_VARIANTS
+                                   + biome_variants.DEBRIS_VARIANTS + biome_variants.LEAF_LITTER_VARIANTS
+                                   + biome_variants.SAND_LITTER_VARIANTS + biome_variants.CONTACT_LITTER_VARIANTS
+                                   + biome_variants.WATERLINE_STONE_VARIANTS + biome_variants.LAKE_STONE_VARIANTS
+                                   + biome_variants.STREAM_STONE_VARIANTS + biome_variants.STREAM_DEBRIS_VARIANTS
+                                   + biome_variants.LAKE_LEAF_VARIANTS + biome_variants.DRY_SAND_STONE_VARIANTS
+                                   + biome_variants.SCAN_VARIANTS}
+
+
 TREE_GROUPS = ("DA_Forest_TreesAssets", "DA_Forest_VeteranAssets", "DA_Forest_HornbeamAssets", "DA_Forest_ShoreTreesAssets")
 PIVOT_CM = 1.0  # a shared plant graph tests the pivot alone (a zero box overlaps nothing)
 
@@ -43,11 +65,9 @@ def kind(data, row):
     return "stems" if mesh and mesh.get_name().startswith(("Tree_", "Shrub_")) else None
 
 
-def targets():
-    """{TransformGraph: margin cm} for each graph a tree, sapling or shrub uses, children included (the shrub drifts
-    place stems round each anchor): TRUNK_CM where only tree groups use it, PIVOT_CM where ferns and flowers share it
-    (they may stand at a rock's foot). The solids' own children are skipped: the nurse-log seedlings stand on them."""
-    rows, seen, solid_graphs = {}, set(), set()
+def walk():
+    """Each TransformGraph with its rows' kinds and meshes, and the graphs used under a solid (its own children)."""
+    rows, meshes, seen, solid_graphs = {}, {}, set(), set()
 
     def visit(data, under_solid):
         if (data, under_solid) in seen:  # a list under both a solid and a plant is visited in each context
@@ -57,6 +77,7 @@ def targets():
             graph = get(row, "TransformGraph")
             mesh = get(row, "SkeletalMesh") or get(row, "Mesh")
             if graph:
+                meshes.setdefault(graph, set()).add(mesh.get_name() if mesh else None)
                 if under_solid:
                     solid_graphs.add(graph)
                 else:
@@ -67,6 +88,14 @@ def targets():
 
     for data in asset_lists():
         visit(data, False)
+    return rows, meshes, solid_graphs
+
+
+def targets():
+    """{TransformGraph: margin cm} for each graph a tree, sapling or shrub uses, children included (the shrub drifts
+    place stems round each anchor): TRUNK_CM where only tree groups use it, PIVOT_CM where ferns and flowers share it
+    (they may stand at a rock's foot). The solids' own children are skipped: the nurse-log seedlings stand on them."""
+    rows, _, solid_graphs = walk()
     found = {graph: TRUNK_CM if kinds == {"tree"} else PIVOT_CM for graph, kinds in rows.items() if kinds - {None}}
     shared = sorted(graph.get_name() for graph in found if graph in solid_graphs)
     if shared:
@@ -76,13 +105,31 @@ def targets():
     return found
 
 
-def footprints(actors):
-    """A PCG point per placed solid: its world transform, bounds its mesh's xy box and FOOTPRINT_Z high."""
+def debris_targets():
+    """Every TransformGraph that places a plant, the solids' own children included: the plants round a forest rock or
+    log are not the beach pieces' children, and nothing is placed on a beach piece on purpose (#281 review)."""
+    _, meshes, _ = walk()
+    found = {graph for graph, names in meshes.items() if names - NOT_PLANTS - {None}}
+    if not found:
+        raise RuntimeError("No plant TransformGraphs loaded")
+    return found
+
+
+def is_debris(component, mesh_name):
+    if mesh_name in DRIFTWOOD:
+        return True
+    material = component.get_material(0) if mesh_name in SOLIDS else None
+    return bool(material and material.get_name().endswith(BLEACHED))
+
+
+def footprints(actors, debris=False):
+    """A PCG point per placed solid (or debris-band piece): its world transform, bounds its mesh's xy box and
+    FOOTPRINT_Z high."""
     points = []
     for actor in actors:
         for component in actor.get_components_by_class(unreal.InstancedStaticMeshComponent):
             mesh = component.static_mesh
-            if not mesh or mesh.get_name() not in SOLIDS:
+            if not mesh or not (is_debris(component, mesh.get_name()) if debris else mesh.get_name() in SOLIDS):
                 continue
             box = mesh.get_bounding_box()
             for i in range(component.get_instance_count()):
@@ -93,7 +140,7 @@ def footprints(actors):
                 point.set_editor_property("steepness", 1.0)
                 points.append(point)
     if not points:
-        raise RuntimeError("No placed solids found: regenerate the biome first")
+        raise RuntimeError(f"No placed {'debris' if debris else 'solids'} found: regenerate the biome first")
     return points
 
 
@@ -121,7 +168,7 @@ def chain(graph, nodes):
             edge(graph, a, "Out", b, pin)
 
 
-def patch(graph, margin):
+def patch(graph, margin, title=TITLE):
     """Splice footprint pruning in front of the output: plant bounds shrink to the margin round the pivot for the test
     (the difference keeps survivors' bounds as tested), then get their own back, which Core prunes canopies with."""
     previous = connections(graph)
@@ -136,7 +183,8 @@ def patch(graph, margin):
     chain(graph, restore)
     difference = node(graph, unreal.PCGDifferenceSettings, density_function=unreal.PCGDifferenceDensityFunction.BINARY,
                       mode=unreal.PCGDifferenceMode.DISCRETE, diff_metadata=False)
-    marks = node(graph, unreal.PCGCreatePointsSettings, TITLE, coordinate_space=unreal.PCGCoordinateSpace.WORLD,
+    keep[-1].set_editor_property("node_title", f"{title}Margin")  # found again by set_margin on a rerun
+    marks = node(graph, unreal.PCGCreatePointsSettings, title, coordinate_space=unreal.PCGCoordinateSpace.WORLD,
                  cull_points_outside_volume=False)
     edge(graph, keep[-1], "Out", difference, "Source")
     edge(graph, marks, "Out", difference, "Differences")
@@ -153,8 +201,17 @@ def patch(graph, margin):
     return marks
 
 
-def installed(graph):
-    return next((n for n in graph.get_editor_property("nodes") if str(n.get_editor_property("node_title")) == TITLE), None)
+def set_margin(graph, title, margin):
+    """Refresh the margin of an installed chain: a rerun with a new margin must not leave the old one in place."""
+    found = installed(graph, f"{title}Margin")
+    if found is None:
+        raise RuntimeError(f"{graph.get_name()}: {title} installed without its margin node; revert the graph and rerun")
+    found.get_settings().set_editor_property("bounds_min", unreal.Vector(-margin, -margin, -10))
+    found.get_settings().set_editor_property("bounds_max", unreal.Vector(margin, margin, 10))
+
+
+def installed(graph, title=TITLE):
+    return next((n for n in graph.get_editor_property("nodes") if str(n.get_editor_property("node_title")) == title), None)
 
 
 def main():
@@ -173,7 +230,19 @@ def main():
         marks.get_settings().set_editor_property("points_to_create", points)
         save(graph)
         print(f"{graph.get_name()}: {len(points)} footprints, margin {margin:g} cm")
+    debris = footprints(actors, debris=True)
+    for graph in sorted(debris_targets(), key=lambda g: g.get_name()):
+        marks = installed(graph, DEBRIS_TITLE)
+        if args.check:
+            print(f"{graph.get_name()}: debris " + ("installed" if marks else "not installed"))
+            continue
+        if marks:
+            set_margin(graph, DEBRIS_TITLE, DEBRIS_CM)
+        marks = marks or patch(graph, DEBRIS_CM, DEBRIS_TITLE)
+        marks.get_settings().set_editor_property("points_to_create", debris)
+        save(graph)
     if not args.check:
+        print(f"{len(debris)} debris-band footprints in {len(debris_targets())} plant TransformGraphs, margin {DEBRIS_CM:g} cm")
         print("Rebuild placement.py and bake")
 
 
