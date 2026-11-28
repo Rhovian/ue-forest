@@ -279,7 +279,7 @@ Picked by the operator, 2026-11-06. Style reference for every shot after the fir
 ### transition_ground_01.png — Midjourney, prompt `transition_ground` (soft blend), image 3 of 4
 - Take: **the soft ground transition**: no step; sand and forest floor interleave over a few metres: tongues and islands of moss out on the sand, patches of brown beech litter mixed into the sand, mossy roots snaking across the sand from the edge trees, blown leaves and twigs on bare sand; hummocky moss, ferns, anemone and bluebells taking over under the trees; a mossy low rock at the sand edge; mist toward the sea.
 - Ignore: nothing major.
-- Targets: ~~sand → forest floor over ~2–4 m of noisy interleaving (moss islands on sand, sand pockets in moss)~~ superseded (operator, 2026-11-26): a clear, ragged line between sand and forest floor, never a straight one; scattered leaves and twigs on the sand for several metres out.
+- Targets: ~~sand → forest floor over ~2–4 m of noisy interleaving (moss islands on sand, sand pockets in moss)~~ superseded (operator, 2026-11-26): a clear, ragged line between sand and forest floor, never a straight one; litter mixes with sand rather than sitting as its own band; scattered leaves and twigs on the sand for several metres out.
 
 ### transition_ground_02.png — Midjourney, prompt `transition_ground` (soft blend), image 2 of 4
 - Take: moss-covered surface roots running from the trunks out across litter and onto sand; moss hummocks with height at the tree bases; bluebells and anemone in clumps at the edge of the moss.
