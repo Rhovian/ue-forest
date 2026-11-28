@@ -1,6 +1,7 @@
 """Build the Forest Biome's procedural landscape material.
 
     scripts/editor-py scripts/materials/forest_floor.py [--assign]
+    scripts/editor-py scripts/materials/forest_floor.py --instance   # only MI_ForestFloor's INSTANCE overrides
 
 Rebuilds /Game/ForestBiome/M_ForestFloor from scratch (no painted layers) and keeps MI_ForestFloor as its
 tuning instance: sand below the shore height, darker and glossier at the waterline; mossy floor on low,
@@ -93,6 +94,16 @@ SCALARS = {  # world units are cm; sea level is Z 0
 MOSS_TINT = matgraph.FLOOR_MOSS_TINT
 MOSS_VARIANT = matgraph.FLOOR_VARIANT
 MOSS_VARIANT_NOISE_CM = matgraph.FLOOR_VARIANT_NOISE_CM
+# MI_ForestFloor's overrides of SCALARS that a script owns; `--instance` writes only these, without a rebuild. The
+# instance's other overrides (ShoreHeight 75, ...) were set by hand and are kept. Appendable.
+INSTANCE = {
+    # A clear line between sand and forest floor rather than the soft interleave (operator, 2026-11-26; #272): no sand
+    # tongues inland, a 40 cm ragged edge where the 2.5 m one was, and a sharp change across it.
+    "TongueWidth": 0.0,
+    "ShoreWidth": 40.0,
+    "ShoreBlend": 10.0,
+    "ShorePatchShare": 0.3,
+}
 MOSS_NOISE_CM = 2000.0  # feature size of the noise that places moss
 MACRO_NOISE_CM = matgraph.FLOOR_MACRO_NOISE_CM
 SHORE_NOISE_CM = 350.0  # feature size of the shore line's tongues and islands
@@ -679,12 +690,30 @@ def build():
     unreal.EditorAssetLibrary.save_loaded_asset(material, False)
 
     instance = matgraph.instance_of(f"{FOLDER}/MI_ForestFloor", material)
-    unreal.EditorAssetLibrary.save_loaded_asset(instance, False)
+    apply_instance(instance)
     print(f"{path}: {mel.get_num_material_expressions(material)} expressions; MI_ForestFloor ready")
     return instance
 
 
-instance = build()
+def apply_instance(instance):
+    """Write INSTANCE into MI_ForestFloor and save it."""
+    for name, value in INSTANCE.items():
+        if name not in SCALARS:
+            raise SystemExit(f"INSTANCE sets {name!r}, which is not a material parameter (SCALARS)")
+        mel.set_material_instance_scalar_parameter_value(instance, name, value)
+    mel.update_material_instance(instance)
+    if not unreal.EditorAssetLibrary.save_loaded_asset(instance, False):
+        raise SystemExit(f"could not save {instance.get_path_name()}")
+    print(f"MI_ForestFloor: {INSTANCE}")
+
+
+if "--instance" in sys.argv[1:]:
+    instance = unreal.load_asset(f"{FOLDER}/MI_ForestFloor")
+    if instance is None:
+        raise SystemExit("no MI_ForestFloor yet: run without --instance to build it")
+    apply_instance(instance)
+else:
+    instance = build()
 if "--assign" in sys.argv[1:]:
     actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()
     landscapes = [a for a in actors if type(a) is unreal.Landscape]
