@@ -79,8 +79,8 @@ SWORD_FERN_VARIANTS = [
     *[(f"/Game/Megascans/3D_Plants/Fern/SM_Fern_0{i}", 1) for i in range(1, 7)],
 ]
 # Deer-fern stand-in: Silver Lady Fern, lower narrow-frond rosettes.
-DEER_FERN_VARIANTS = [
-    *[(f"/Game/Megascans/3D_Plants/SilverLadyFern/SM_SilverLadyFern_0{i}", 1) for i in range(1, 8)],
+DEER_FERN_VARIANTS = [  # _04-_07 are flat single-frond cards, not plants (#271)
+    *[(f"/Game/Megascans/3D_Plants/SilverLadyFern/SM_SilverLadyFern_0{i}", 1) for i in range(1, 4)],
 ]
 # Beech fern: low triangular fronds, an oak-fern stand-in.
 BEECH_FERN_VARIANTS = [
@@ -212,11 +212,12 @@ GROUNDCOVER_VARIANTS = [
     ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_04_02", 1),
     ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_04_03", 1),
     ("/Game/PN_FoliageCollection/Meshes/groundPlantMesh/ground_04_04", 1),
-    *[(f"{ED}GroundCover/SM_GroundCover_0{i}", 1.5) for i in range(1, 9)],
+    # GroundCover _02-_04 and JungleGinger _03, _04 are loose leaves lying flat, not plants (#271).
+    *[(f"{ED}GroundCover/SM_GroundCover_0{i}", 1.5) for i in (1, 5, 6, 7, 8)],
     *[(f"{ED}MoneyPlant/SM_MoneyPlant_0{i}", 1) for i in range(1, 7)],
     *[(f"{ED}PurpleShamrock/SM_PurpleShamrock_0{i}", 1) for i in range(1, 4)],
     *[(f"{ED}CommonPurslane/SM_CommonPurslane_0{i}", 0.7) for i in range(1, 6)],
-    *[(f"{ED}JungleGinger/SM_JungleGinger_0{i}", 1) for i in (2, 3, 4, 5)],
+    *[(f"{ED}JungleGinger/SM_JungleGinger_0{i}", 1) for i in (2, 5)],
     *[(f"{ED}RedLachenalia/SM_RedLachenalia_{i:02}", 0.15) for i in (1, 2, 3, 4, 6, 12, 13, 14)],
     *[(f"{ED}CanePalm/SM_CanePalm_0{i}", 0.5) for i in range(1, 5)],
     # #121: the sample's Nanite beech fern (the leafy variants; 01-03, 06-08 are single fronds) and woodland flowers.
@@ -285,7 +286,8 @@ WATERLINE_BOULDER_VARIANTS = [
 # was abrupt). Purslane mats for creeping beach plants, grass tufts for dune grass, a little beech fern spilling out.
 # The heather (Megaplant, skinned) cannot be Landscape Grass.
 SAND_EDGE_VARIANTS = [
-    *[(f"{ED}CommonPurslane/SM_CommonPurslane_0{i}", 1) for i in range(1, 8)],
+    # _06 and _07 are loose fragments lying flat, not plants (#271).
+    *[(f"{ED}CommonPurslane/SM_CommonPurslane_0{i}", 1) for i in range(1, 6)],
     # The meadow's reeds rather than grass blades, which read as stickers on the sand (#165, operator 2026-11-09).
     *[(f"{FAB_PLANTS}Rough_Meadow_Grass_skFjJ/Medium/skFjJ_tier_2/StaticMeshes/SM_skFjJ_Var{v}", 1) for v in "ABCDE"],
     (f"{FAB_PLANTS}Beech_Fern_vmkpdbeia/Medium/vmkpdbeia_tier_2/StaticMeshes/SM_vmkpdbeia_VarA", 0.6),

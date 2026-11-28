@@ -2,6 +2,7 @@
 
     scripts/editor-py scripts/materials/forest_floor.py [--assign]
     scripts/editor-py scripts/materials/forest_floor.py --instance   # only MI_ForestFloor's INSTANCE overrides
+    scripts/editor-py scripts/materials/forest_floor.py --grass      # only the Landscape Grass types
 
 Rebuilds /Game/ForestBiome/M_ForestFloor from scratch (no painted layers) and keeps MI_ForestFloor as its
 tuning instance: sand below the shore height, darker and glossier at the waterline; mossy floor on low,
@@ -707,6 +708,12 @@ def apply_instance(instance):
     print(f"MI_ForestFloor: {INSTANCE}")
 
 
+if "--grass" in sys.argv[1:]:  # only the Landscape Grass types, after a variant-list change; the material is untouched
+    grass_type()
+    for asset, variants, density, cull, scale, _ in GRASS_LAYERS.values():
+        grass_type(asset, variants, density, cull, scale)
+    print(f"rebuilt {1 + len(GRASS_LAYERS)} grass types")
+    raise SystemExit(0)
 if "--instance" in sys.argv[1:]:
     instance = unreal.load_asset(f"{FOLDER}/MI_ForestFloor")
     if instance is None:
