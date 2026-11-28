@@ -31,7 +31,7 @@ Decided (operator, 2026-11-06): magic level **2, Enchanted**; the sand biome is 
 
 Decided (operator, 2026-11-06), forest edge: **an abrupt living edge with a debris band on the sand.** Closed beech forest within ~5–10 m of the sand, on a low eroded bank with root flares, ferns and moss (`edge_in_01`); the transition is carried by deadwood on the sand: driftwood, fallen branches and a few bleached trunks, densest at the forest foot and thinning toward the water (`edge_in_03`). Along the coast the edge varies (operator likes `edge_in_04` and `edge_in_05`): the abrupt edge with debris band is the default; some stretches open into a grassy meadow fringe with scattered big beech before the closed forest (`edge_in_04`); and a few lone, large beech stand out on the beach itself, roots on the sand, some at the waterline (`edge_in_05`).
 
-Ground transition (operator, 2026-11-06): a hard material change at a vertical bank face was tried and rejected; the ground should blend from sand into forest floor softly.
+Ground transition (operator, 2026-11-26, replacing the 2026-11-06 soft-blend ruling): the soft sand / forest-floor interleave did not work; the sand meets the forest floor along a clear, ragged line, not a straight one (#272). The 2026-11-06 rejection was of a hard change at a vertical bank face.
 
 Not yet tuned (operator, 2026-11-06): the enchanted look is not consistent across the references (the shore shots lost it). Treat the colour and enchantment in the references as provisional; tune it later with lighting, grade and particles (#35 and the wisp system).
 
@@ -279,7 +279,7 @@ Picked by the operator, 2026-11-06. Style reference for every shot after the fir
 ### transition_ground_01.png — Midjourney, prompt `transition_ground` (soft blend), image 3 of 4
 - Take: **the soft ground transition**: no step; sand and forest floor interleave over a few metres: tongues and islands of moss out on the sand, patches of brown beech litter mixed into the sand, mossy roots snaking across the sand from the edge trees, blown leaves and twigs on bare sand; hummocky moss, ferns, anemone and bluebells taking over under the trees; a mossy low rock at the sand edge; mist toward the sea.
 - Ignore: nothing major.
-- Targets: sand → forest floor over ~2–4 m of noisy interleaving (moss islands on sand, sand pockets in moss), never a straight line; litter mixes with sand rather than sitting as its own band; scattered leaves and twigs on the sand for several metres out.
+- Targets: ~~sand → forest floor over ~2–4 m of noisy interleaving (moss islands on sand, sand pockets in moss)~~ superseded (operator, 2026-11-26): a clear, ragged line between sand and forest floor, never a straight one; scattered leaves and twigs on the sand for several metres out.
 
 ### transition_ground_02.png — Midjourney, prompt `transition_ground` (soft blend), image 2 of 4
 - Take: moss-covered surface roots running from the trunks out across litter and onto sand; moss hummocks with height at the tree bases; bluebells and anemone in clumps at the edge of the moss.
